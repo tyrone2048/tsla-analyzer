@@ -6,71 +6,143 @@
 <title>$10 → $10,000 Challenge</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#060a0f;--card:#111d2e;--border:#1e3448;--accent:#00e5ff;--green:#00ff88;--red:#ff3b5c;--yellow:#ffd600;--orange:#ff8c00;--text:#c8dff0;--muted:#4a6b85;}
+:root{--bg:#060a0f;--card:#111d2e;--border:#1e3448;--accent:#00e5ff;--green:#00ff88;--red:#ff3b5c;--yellow:#ffd600;--orange:#ff8c00;--purple:#b44fff;--text:#c8dff0;--muted:#4a6b85;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;min-height:100vh;overflow-x:hidden;}
 body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
 .wrapper{position:relative;z-index:1;max-width:980px;margin:0 auto;padding:20px 16px 80px;}
 
 /* HEADER */
-.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
-.logo-title{font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--accent);letter-spacing:3px;line-height:1;}
-.logo-sub{font-size:10px;color:var(--muted);letter-spacing:2px;margin-top:2px;}
+.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;}
+.logo-title{font-family:'Bebas Neue',sans-serif;font-size:30px;color:var(--accent);letter-spacing:3px;line-height:1;}
+.logo-sub{font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-top:2px;}
 .live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;display:inline-block;margin-right:5px;animation:pulse 1.5s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 .badge{padding:5px 10px;font-size:10px;letter-spacing:1.5px;border:1px solid;}
 .badge.green{color:var(--green);border-color:rgba(0,255,136,0.4);background:rgba(0,255,136,0.06);}
 .badge.accent{color:var(--accent);border-color:rgba(0,229,255,0.4);background:rgba(0,229,255,0.06);}
+.badge.purple{color:var(--purple);border-color:rgba(180,79,255,0.4);background:rgba(180,79,255,0.06);}
 
-/* CHALLENGE PROGRESS */
-.challenge-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:16px;}
-.challenge-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
-.balance-display{text-align:center;}
+/* NAV TABS */
+.nav-tabs{display:flex;gap:4px;margin-bottom:16px;overflow-x:auto;padding-bottom:2px;}
+.nav-tab{padding:8px 16px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;transition:all 0.2s;}
+.nav-tab.active{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,0.06);}
+.nav-tab:hover{border-color:var(--accent);color:var(--accent);}
+.page{display:none;}
+.page.active{display:block;}
+
+/* CHALLENGE BOX */
+.challenge-box{background:var(--card);border:1px solid var(--border);padding:18px;margin-bottom:14px;}
+.balance-val{font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--green);letter-spacing:2px;line-height:1;}
 .balance-label{font-size:9px;color:var(--muted);letter-spacing:2px;}
-.balance-val{font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--green);letter-spacing:2px;line-height:1;}
-.balance-sub{font-size:10px;color:var(--muted);margin-top:2px;}
-.goal-display{text-align:center;}
-.goal-val{font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--muted);letter-spacing:2px;}
-.stats-mini{display:flex;gap:20px;flex-wrap:wrap;}
-.stat-mini{text-align:center;}
-.stat-mini-val{font-size:18px;font-weight:600;color:var(--text);}
+.stats-mini{display:flex;gap:14px;flex-wrap:wrap;}
+.stat-mini-val{font-size:16px;font-weight:600;}
 .stat-mini-lbl{font-size:9px;color:var(--muted);letter-spacing:1px;}
-
-/* Progress bar */
-.progress-wrap{margin-bottom:12px;}
-.progress-label-row{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:1px;}
-.progress-track{width:100%;height:18px;background:rgba(30,52,72,0.6);border:1px solid var(--border);position:relative;overflow:visible;}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--accent));transition:width 1s ease;position:relative;}
-.progress-pct{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:600;color:var(--bg);white-space:nowrap;}
-.milestones-track{position:relative;height:16px;margin-top:4px;}
+.progress-track{width:100%;height:14px;background:rgba(30,52,72,0.6);border:1px solid var(--border);position:relative;overflow:hidden;margin-bottom:6px;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--accent));transition:width 1s ease;}
+.progress-pct{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:9px;font-weight:600;color:var(--bg);}
+.milestones-track{position:relative;height:16px;margin-bottom:10px;}
 .milestone-marker{position:absolute;transform:translateX(-50%);text-align:center;}
-.milestone-dot{width:8px;height:8px;border-radius:50%;border:1px solid;margin:0 auto 2px;}
+.milestone-dot{width:7px;height:7px;border-radius:50%;border:1px solid;margin:0 auto 2px;}
 .milestone-dot.hit{background:var(--green);border-color:var(--green);}
 .milestone-dot.upcoming{background:transparent;border-color:var(--muted);}
-.milestone-lbl{font-size:8px;color:var(--muted);white-space:nowrap;}
-
-/* Update balance */
-.update-balance-row{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;}
-.update-balance-row input{background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;outline:none;flex:1;min-width:120px;}
-.update-balance-row input:focus{border-color:var(--accent);}
+.update-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.update-row input{background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;outline:none;flex:1;min-width:120px;}
+.update-row input:focus{border-color:var(--accent);}
 .small-btn{padding:7px 14px;background:transparent;border:1px solid;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;transition:all 0.2s;}
 .small-btn.accent{color:var(--accent);border-color:var(--accent);}
 .small-btn.accent:hover{background:rgba(0,229,255,0.08);}
 .small-btn.green{color:var(--green);border-color:var(--green);}
 .small-btn.green:hover{background:rgba(0,255,136,0.08);}
 
+/* MARKET DASH */
+.market-dash{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px;}
+@media(max-width:700px){.market-dash{grid-template-columns:1fr 1fr;}}
+.mkt-card{background:var(--card);border:1px solid var(--border);padding:11px 13px;}
+.mkt-label{font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:5px;}
+.mkt-val{font-size:17px;font-weight:600;line-height:1;}
+.mkt-sub{font-size:9px;color:var(--muted);margin-top:2px;}
+
+/* STRATEGY BOX */
+.strategy-box{background:var(--card);border:1px solid var(--purple);padding:18px;margin-bottom:12px;}
+.strategy-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;}
+.strategy-name{font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--purple);letter-spacing:2px;}
+.strategy-badge{padding:4px 10px;font-size:10px;letter-spacing:1px;border:1px solid var(--purple);color:var(--purple);background:rgba(180,79,255,0.06);}
+.strategy-desc{font-size:11px;color:var(--text);line-height:1.8;margin-bottom:10px;}
+.strategy-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:11px;}
+.strategy-row:last-child{border-bottom:none;}
+.strategy-row-label{color:var(--muted);}
+.strategy-row-val{color:var(--text);font-weight:600;}
+.adapt-alert{background:rgba(255,214,0,0.06);border:1px solid rgba(255,214,0,0.3);padding:12px;margin-top:10px;font-size:11px;color:var(--yellow);line-height:1.7;}
+
+/* EDUCATION BOX */
+.edu-lesson{background:rgba(180,79,255,0.05);border:1px solid rgba(180,79,255,0.3);padding:18px;margin-bottom:12px;}
+.edu-lesson-topic{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--purple);letter-spacing:2px;margin-bottom:4px;}
+.edu-lesson-level{font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;}
+.edu-lesson-text{font-size:12px;color:var(--text);line-height:1.9;margin-bottom:10px;}
+.edu-lesson-why{font-size:11px;color:var(--muted);padding:10px;background:rgba(0,0,0,0.2);border-left:2px solid var(--purple);line-height:1.7;}
+.edu-lesson-action{font-size:11px;color:var(--yellow);padding:10px;margin-top:8px;background:rgba(255,214,0,0.04);border-left:2px solid var(--yellow);line-height:1.7;}
+
+/* PERFORMANCE COACH */
+.coach-box{background:var(--card);border:1px solid var(--border);padding:18px;margin-bottom:12px;}
+.coach-summary{font-size:12px;color:var(--text);margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);line-height:1.7;}
+.insight-card{padding:12px 14px;margin-bottom:8px;border-left:3px solid;font-size:11px;line-height:1.8;}
+.insight-card.positive{border-color:var(--green);background:rgba(0,255,136,0.04);}
+.insight-card.negative{border-color:var(--red);background:rgba(255,59,92,0.04);}
+.insight-title{font-weight:600;margin-bottom:4px;}
+.insight-card.positive .insight-title{color:var(--green);}
+.insight-card.negative .insight-title{color:var(--red);}
+
+/* PATTERN MATCH */
+.pattern-box{background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.2);padding:14px;margin-bottom:12px;font-size:11px;}
+.pattern-title{font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:6px;}
+
+/* PAPER TRADING */
+.paper-box{background:rgba(255,214,0,0.04);border:1px solid rgba(255,214,0,0.2);padding:18px;margin-bottom:12px;}
+.paper-balance{font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--yellow);letter-spacing:2px;}
+.paper-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+@media(max-width:600px){.paper-form{grid-template-columns:1fr;}}
+.paper-field{display:flex;flex-direction:column;gap:5px;}
+.paper-field label{font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;}
+.paper-field input,.paper-field select{background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 10px;outline:none;width:100%;}
+.paper-field input:focus,.paper-field select:focus{border-color:var(--yellow);}
+.paper-field select option{background:#111d2e;}
+.paper-field.full{grid-column:1/-1;}
+.paper-btn{grid-column:1/-1;padding:11px;background:transparent;border:1px solid var(--yellow);color:var(--yellow);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;}
+.paper-btn:hover{background:rgba(255,214,0,0.08);}
+.paper-status{grid-column:1/-1;font-size:11px;padding:10px;margin-top:4px;display:none;line-height:1.6;}
+.paper-status.success{display:block;color:var(--yellow);background:rgba(255,214,0,0.06);border:1px solid rgba(255,214,0,0.2);}
+.paper-status.error{display:block;color:var(--red);background:rgba(255,59,92,0.06);border:1px solid rgba(255,59,92,0.2);}
+.paper-trade-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;font-size:11px;}
+.paper-trade-item:last-child{border-bottom:none;}
+.close-paper-btn{padding:5px 12px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;letter-spacing:1px;}
+
+/* STRATEGY PANEL */
+.strategies-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;}
+@media(max-width:600px){.strategies-grid{grid-template-columns:1fr;}}
+.strategy-card{background:var(--card);border:1px solid var(--border);padding:14px;}
+.strategy-card.active{border-color:var(--purple);}
+.strategy-card.locked{opacity:0.4;}
+.strat-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.strat-badge{display:inline-block;padding:2px 7px;font-size:9px;border:1px solid;margin-bottom:6px;}
+.strat-desc{font-size:10px;color:var(--muted);line-height:1.5;margin-bottom:8px;}
+.strat-stats{display:flex;gap:12px;font-size:10px;}
+.strat-stat{text-align:center;}
+.strat-stat-val{font-weight:600;color:var(--text);}
+.strat-stat-lbl{color:var(--muted);}
+
 /* ANALYZE BUTTON */
-.analyze-btn{width:100%;padding:18px;background:transparent;border:1px solid var(--accent);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;letter-spacing:4px;text-transform:uppercase;cursor:pointer;position:relative;overflow:hidden;transition:all 0.3s;margin-bottom:20px;}
+.analyze-btn{width:100%;padding:16px;background:transparent;border:1px solid var(--accent);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:3px;text-transform:uppercase;cursor:pointer;position:relative;overflow:hidden;transition:all 0.3s;margin-bottom:16px;}
 .analyze-btn::before{content:'';position:absolute;inset:0;background:var(--accent);transform:translateX(-100%);transition:transform 0.3s;z-index:-1;}
 .analyze-btn:hover::before{transform:translateX(0);}
 .analyze-btn:hover{color:var(--bg);}
 .analyze-btn:disabled{opacity:0.4;cursor:not-allowed;color:var(--accent)!important;}
 .analyze-btn:disabled::before{transform:translateX(-100%)!important;}
 
-/* Loading */
+/* LOADING */
 .loading{display:none;padding:40px;text-align:center;}
 .loading.show{display:block;}
-.loading-steps{list-style:none;text-align:left;max-width:360px;margin:0 auto 20px;}
+.loading-steps{list-style:none;text-align:left;max-width:400px;margin:0 auto 20px;}
 .loading-steps li{font-size:11px;color:var(--muted);letter-spacing:1px;padding:4px 0;}
 .loading-steps li.active{color:var(--accent);}
 .loading-steps li.done{color:var(--green);}
@@ -81,1000 +153,965 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .loading-bar-fill{height:100%;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scan 1.2s linear infinite;width:40%;}
 @keyframes scan{from{transform:translateX(-100%)}to{transform:translateX(350%)}}
 
-/* Results */
 .results{display:none;}
 .results.show{display:block;animation:fadeIn 0.5s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 
-/* Milestone popup */
-.milestone-popup{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1000;background:var(--card);border:2px solid var(--green);padding:32px 40px;text-align:center;animation:popIn 0.4s ease;}
-.milestone-popup.show{display:block;}
-@keyframes popIn{from{opacity:0;transform:translate(-50%,-50%) scale(0.8)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
-.milestone-popup-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999;}
-.milestone-popup-overlay.show{display:block;}
-.milestone-emoji{font-size:48px;margin-bottom:12px;}
-.milestone-title{font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--green);letter-spacing:3px;}
-.milestone-sub{font-size:13px;color:var(--text);margin:8px 0 16px;}
-.milestone-close{padding:8px 20px;background:transparent;border:1px solid var(--green);color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;letter-spacing:1px;}
-
-/* Section headers */
-.section-header{display:flex;align-items:center;justify-content:space-between;margin:16px 0 10px;}
+/* SECTION */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;}
 .section-title{font-size:10px;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;}
 .learn-pill{font-size:10px;color:var(--accent);border:1px solid rgba(0,229,255,0.3);padding:3px 10px;cursor:pointer;background:transparent;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;}
-.learn-pill:hover{background:rgba(0,229,255,0.08);}
-
-/* Edu box */
 .edu-box{background:rgba(0,229,255,0.04);border-left:3px solid var(--accent);padding:14px 16px;margin-bottom:12px;font-size:11px;color:var(--text);line-height:1.95;display:none;}
 .edu-box.open{display:block;}
 .edu-box strong{color:var(--accent);}
 
-/* Stock picker */
-.stock-picker{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
-.chosen-stock{display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
-.chosen-ticker{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--accent);letter-spacing:4px;line-height:1;}
-.chosen-reason{font-size:11px;color:var(--text);line-height:1.8;flex:1;min-width:200px;}
-.rankings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-@media(max-width:600px){.rankings-grid{grid-template-columns:1fr 1fr;}}
-.rank-card{background:rgba(0,0,0,0.2);border:1px solid var(--border);padding:10px 12px;}
-.rank-symbol{font-size:14px;font-weight:600;color:var(--text);}
-.rank-score{font-size:20px;font-weight:600;font-family:'Bebas Neue',sans-serif;}
-.rank-reason{font-size:9px;color:var(--muted);margin-top:3px;line-height:1.4;}
+/* TRADE TABS */
+.trade-tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.trade-tab{padding:8px 14px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;transition:all 0.2s;}
+.trade-tab.active{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,0.06);}
+.trade-panel{display:none;}
+.trade-panel.active{display:block;}
 
-/* Position sizing */
-.position-box{background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.2);padding:20px;margin-bottom:12px;}
-.position-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);}
-.position-amount{text-align:center;}
-.position-amount-label{font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px;}
-.position-amount-val{font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--accent);letter-spacing:2px;line-height:1;}
-.position-amount-pct{font-size:11px;color:var(--muted);margin-top:2px;}
-.position-details{flex:1;min-width:200px;font-size:11px;line-height:1.9;}
-.position-details strong{color:var(--accent);}
-.challenge-context{font-size:11px;color:var(--yellow);background:rgba(255,214,0,0.05);border-left:2px solid var(--yellow);padding:10px 12px;line-height:1.7;}
-
-/* Signal */
-.signal-banner{padding:22px 24px;margin-bottom:12px;border-left:4px solid;background:var(--card);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+/* SIGNAL */
+.signal-banner{padding:18px 20px;margin-bottom:10px;border-left:4px solid;background:var(--card);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
 .signal-banner.buy{border-color:var(--green);}
 .signal-banner.sell{border-color:var(--red);}
 .signal-banner.hold{border-color:var(--yellow);}
-.signal-label{font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:4px;}
+.signal-label{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:4px;}
 .signal-banner.buy .signal-label{color:var(--green);}
 .signal-banner.sell .signal-label{color:var(--red);}
 .signal-banner.hold .signal-label{color:var(--yellow);}
-.signal-conf{font-size:12px;color:var(--muted);letter-spacing:1px;}
-.signal-conf span{color:var(--text);font-weight:600;}
 
-/* Grids & cards */
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
-.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;}
-.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;}
+/* GRIDS */
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px;}
 @media(max-width:700px){.grid-4{grid-template-columns:1fr 1fr;}.grid-3{grid-template-columns:1fr 1fr;}.grid-2{grid-template-columns:1fr;}}
-.card{background:var(--card);border:1px solid var(--border);padding:14px 16px;}
-.card-label{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:7px;}
-.card-value{font-size:20px;font-weight:600;color:var(--text);line-height:1;}
+.card{background:var(--card);border:1px solid var(--border);padding:12px 14px;}
+.card-label{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+.card-value{font-size:18px;font-weight:600;color:var(--text);line-height:1;}
 .card-value.green{color:var(--green);}.card-value.red{color:var(--red);}.card-value.accent{color:var(--accent);}.card-value.yellow{color:var(--yellow);}
-.card-sub{font-size:10px;color:var(--muted);margin-top:4px;}
+.card-sub{font-size:9px;color:var(--muted);margin-top:3px;}
 
-/* Exit strategy */
-.exit-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
-.exit-timer-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);}
-.exit-timer{font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--yellow);letter-spacing:3px;line-height:1;}
-.exit-deadline{font-size:11px;color:var(--muted);margin-top:4px;}
-.exit-tips{flex:1;min-width:200px;font-size:11px;color:var(--muted);line-height:1.8;}
-.exit-tips strong{color:var(--yellow);}
-.sell-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+/* SENTIMENT */
+.sentiment-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+.sentiment-card{background:var(--card);border:1px solid var(--border);padding:12px;text-align:center;}
+.sentiment-icon{font-size:18px;margin-bottom:3px;}
+.sentiment-label{font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;}
+.sentiment-val{font-size:12px;font-weight:600;}
+
+/* EXIT STRATEGY */
+.exit-box{background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:10px;}
+.exit-timer{font-family:'Bebas Neue',sans-serif;font-size:30px;color:var(--yellow);letter-spacing:3px;}
+.sell-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
 @media(max-width:600px){.sell-signals-grid{grid-template-columns:1fr;}}
-.sell-signal-card{background:rgba(255,59,92,0.05);border:1px solid rgba(255,59,92,0.2);padding:10px 12px;font-size:11px;color:var(--text);line-height:1.6;}
+.sell-signal-card{background:rgba(255,59,92,0.05);border:1px solid rgba(255,59,92,0.2);padding:9px 11px;font-size:11px;color:var(--text);line-height:1.5;}
 .sell-signal-card::before{content:'🔴 ';}
-.donot-card{background:rgba(255,140,0,0.05);border:1px solid rgba(255,140,0,0.2);padding:10px 12px;font-size:11px;color:var(--text);line-height:1.6;margin-bottom:8px;}
+.donot-card{background:rgba(255,140,0,0.05);border:1px solid rgba(255,140,0,0.2);padding:9px 11px;font-size:11px;color:var(--text);line-height:1.5;margin-bottom:6px;}
 .donot-card::before{content:'⚠️ ';}
 
-/* Probability */
-.prob-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
-.prob-main{display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:14px;}
-.prob-circle{width:110px;height:110px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid var(--border);flex-shrink:0;transition:all 0.5s;}
-.prob-circle-pct{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;line-height:1;}
-.prob-circle-lbl{font-size:9px;color:var(--muted);letter-spacing:1px;}
-.prob-factors{flex:1;min-width:200px;}
-.prob-factor-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);}
+/* PROB */
+.prob-box{background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:10px;}
+.prob-main{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:12px;}
+.prob-circle{width:90px;height:90px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid var(--border);flex-shrink:0;transition:all 0.5s;}
+.prob-circle-pct{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;line-height:1;}
+.prob-circle-lbl{font-size:8px;color:var(--muted);letter-spacing:1px;}
+.prob-factors{flex:1;min-width:160px;}
+.prob-factor-row{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);}
 .prob-factor-row:last-child{border-bottom:none;}
 .prob-factor-info{flex:1;}
 .prob-factor-label{font-size:10px;color:var(--muted);}
-.prob-factor-note{font-size:9px;color:var(--muted);opacity:0.7;}
-.prob-bar-wrap{width:80px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
-.prob-bar{height:100%;border-radius:2px;transition:width 0.8s ease 0.2s;}
-.prob-factor-val{font-size:11px;font-weight:600;width:28px;text-align:right;}
-.prob-verdict{font-size:12px;line-height:1.85;color:var(--text);border-top:1px solid var(--border);padding-top:12px;}
+.prob-factor-note{font-size:8px;color:var(--muted);opacity:0.7;}
+.prob-bar-wrap{width:60px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+.prob-bar{height:100%;border-radius:2px;transition:width 0.8s ease;}
+.prob-factor-val{font-size:10px;font-weight:600;width:24px;text-align:right;}
+.prob-verdict{font-size:11px;line-height:1.8;color:var(--text);border-top:1px solid var(--border);padding-top:10px;}
 .prob-verdict strong{color:var(--accent);}
 
-/* Scenarios */
-.scenario-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;overflow-x:auto;}
-.scenario-table{width:100%;border-collapse:collapse;min-width:380px;}
-.scenario-table th{font-size:9px;color:var(--muted);letter-spacing:2px;padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);}
-.scenario-table td{font-size:12px;padding:9px 8px;border-bottom:1px solid rgba(30,52,72,0.5);}
+/* SCENARIOS */
+.scenario-box{background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:10px;overflow-x:auto;}
+.scenario-table{width:100%;border-collapse:collapse;min-width:340px;}
+.scenario-table th{font-size:9px;color:var(--muted);letter-spacing:2px;padding:5px 7px;text-align:left;border-bottom:1px solid var(--border);}
+.scenario-table td{font-size:11px;padding:8px 7px;border-bottom:1px solid rgba(30,52,72,0.5);}
 .scenario-table tr:last-child td{border-bottom:none;}
-.sc-badge{display:inline-block;padding:2px 8px;font-size:10px;letter-spacing:1px;border:1px solid;}
+.sc-badge{display:inline-block;padding:2px 7px;font-size:9px;letter-spacing:1px;border:1px solid;}
 .sc-bull{color:var(--green);border-color:rgba(0,255,136,0.4);background:rgba(0,255,136,0.08);}
 .sc-base{color:var(--accent);border-color:rgba(0,229,255,0.4);background:rgba(0,229,255,0.08);}
 .sc-bear{color:var(--orange);border-color:rgba(255,140,0,0.4);background:rgba(255,140,0,0.08);}
 .sc-worst{color:var(--red);border-color:rgba(255,59,92,0.4);background:rgba(255,59,92,0.08);}
 
-/* Trade levels */
-.trade-section{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
-.trade-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);gap:8px;}
+/* TRADE LEVELS */
+.trade-section{background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:10px;}
+.trade-row{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border);gap:8px;}
 .trade-row:last-child{border-bottom:none;}
 .trade-row-label{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
-.trade-row-note{font-size:10px;color:var(--muted);margin-top:3px;}
-.trade-row-val{font-size:17px;font-weight:600;white-space:nowrap;}
+.trade-row-note{font-size:9px;color:var(--muted);margin-top:2px;}
+.trade-row-val{font-size:15px;font-weight:600;white-space:nowrap;}
 .trade-row-val.entry{color:var(--accent);}.trade-row-val.stop{color:var(--red);}.trade-row-val.target{color:var(--green);}.trade-row-val.rr{color:var(--yellow);}
-.atr-note{font-size:10px;color:var(--muted);margin-top:8px;padding:10px;background:rgba(255,214,0,0.04);border-left:2px solid rgba(255,214,0,0.3);line-height:1.6;}
+.atr-note{font-size:10px;color:var(--muted);margin-top:6px;padding:9px;background:rgba(255,214,0,0.04);border-left:2px solid rgba(255,214,0,0.3);line-height:1.6;}
 
-/* Budget */
-.budget-box{background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.2);padding:20px;margin-bottom:12px;}
-.budget-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(0,255,136,0.08);}
+/* BUDGET */
+.budget-box{background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.2);padding:16px;margin-bottom:10px;}
+.budget-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,255,136,0.08);}
 .budget-row:last-child{border-bottom:none;}
 .budget-row-label{font-size:10px;color:var(--muted);letter-spacing:1px;}
-.budget-row-val{font-size:14px;font-weight:600;color:var(--green);}
-.budget-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.8;border-top:1px solid rgba(0,255,136,0.1);padding-top:12px;}
+.budget-row-val{font-size:13px;font-weight:600;color:var(--green);}
+.budget-note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.8;border-top:1px solid rgba(0,255,136,0.1);padding-top:10px;}
 
-/* Indicators */
-.indicators-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
+/* INDICATORS */
+.indicators-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
 @media(max-width:700px){.indicators-grid{grid-template-columns:repeat(2,1fr);}}
-.indicator-card{background:var(--card);border:1px solid var(--border);padding:12px 14px;}
-.indicator-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
-.indicator-name{font-size:10px;color:var(--muted);letter-spacing:1px;}
-.indicator-signal{font-size:9px;letter-spacing:1px;font-weight:600;}
-.indicator-value{font-size:13px;font-weight:600;margin-bottom:3px;}
-.indicator-meaning{font-size:9px;color:var(--muted);line-height:1.5;}
+.indicator-card{background:var(--card);border:1px solid var(--border);padding:10px 12px;}
+.indicator-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;}
+.indicator-name{font-size:9px;color:var(--muted);letter-spacing:1px;}
+.indicator-signal{font-size:8px;letter-spacing:1px;font-weight:600;}
+.indicator-value{font-size:12px;font-weight:600;margin-bottom:2px;}
+.indicator-meaning{font-size:9px;color:var(--muted);line-height:1.4;}
 
 /* SR */
-.sr-card{background:var(--card);border:1px solid var(--border);padding:16px;}
-.sr-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);}
+.sr-card{background:var(--card);border:1px solid var(--border);padding:13px;}
+.sr-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);}
 .sr-row:last-child{border-bottom:none;}
 
-/* Monitor */
-.monitor-box{background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.2);padding:20px;margin-bottom:12px;}
-.monitor-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+/* MONITOR */
+.monitor-box{background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.2);padding:16px;margin-bottom:10px;}
+.monitor-form{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 @media(max-width:600px){.monitor-form{grid-template-columns:1fr;}}
-.monitor-field{display:flex;flex-direction:column;gap:5px;}
+.monitor-field{display:flex;flex-direction:column;gap:4px;}
 .monitor-field label{font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;}
-.monitor-field input{background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 10px;outline:none;width:100%;}
+.monitor-field input{background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 9px;outline:none;width:100%;}
 .monitor-field input:focus{border-color:var(--accent);}
 .monitor-field.full{grid-column:1/-1;}
-.monitor-btn{grid-column:1/-1;padding:12px;background:transparent;border:1px solid var(--green);color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;margin-top:4px;}
+.monitor-btn{grid-column:1/-1;padding:10px;background:transparent;border:1px solid var(--green);color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;}
 .monitor-btn:hover{background:rgba(0,255,136,0.08);}
 .monitor-btn:disabled{opacity:0.4;cursor:not-allowed;}
-.monitor-status{grid-column:1/-1;font-size:11px;padding:10px;margin-top:4px;display:none;line-height:1.6;white-space:pre-wrap;}
+.monitor-status{grid-column:1/-1;font-size:11px;padding:9px;margin-top:4px;display:none;line-height:1.6;white-space:pre-wrap;}
 .monitor-status.success{display:block;color:var(--green);background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.2);}
 .monitor-status.error{display:block;color:var(--red);background:rgba(255,59,92,0.06);border:1px solid rgba(255,59,92,0.2);}
-.stop-monitor-btn{display:none;grid-column:1/-1;padding:10px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;margin-top:4px;}
+.stop-monitor-btn{display:none;grid-column:1/-1;padding:9px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;}
 .stop-monitor-btn.show{display:block;}
 
-/* Log trade */
-.log-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
-.log-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+/* LOG */
+.log-box{background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:10px;}
+.log-form{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 @media(max-width:600px){.log-form{grid-template-columns:1fr;}}
-.log-field{display:flex;flex-direction:column;gap:5px;}
+.log-field{display:flex;flex-direction:column;gap:4px;}
 .log-field label{font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;}
-.log-field input,.log-field select,.log-field textarea{background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 10px;outline:none;width:100%;}
-.log-field input:focus,.log-field select:focus,.log-field textarea:focus{border-color:var(--accent);}
-.log-field select option{background:#111d2e;}
+.log-field input,.log-field select{background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 9px;outline:none;width:100%;}
 .log-field.full{grid-column:1/-1;}
-.log-btn{grid-column:1/-1;padding:12px;background:transparent;border:1px solid var(--accent);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;margin-top:4px;}
+.log-field select option{background:#111d2e;}
+.log-btn{grid-column:1/-1;padding:10px;background:transparent;border:1px solid var(--accent);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;}
 .log-btn:hover{background:rgba(0,229,255,0.08);}
-.log-status{grid-column:1/-1;font-size:11px;padding:10px;margin-top:4px;display:none;line-height:1.6;}
+.log-status{grid-column:1/-1;font-size:11px;padding:9px;margin-top:4px;display:none;line-height:1.6;}
 .log-status.success{display:block;color:var(--green);background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.2);}
 .log-status.error{display:block;color:var(--red);background:rgba(255,59,92,0.06);border:1px solid rgba(255,59,92,0.2);}
 
-/* Trade history */
-.history-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
-.trade-history-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;}
-.trade-history-item:last-child{border-bottom:none;}
-.trade-hist-left{display:flex;align-items:center;gap:10px;}
-.trade-hist-symbol{font-size:14px;font-weight:600;color:var(--text);}
-.trade-hist-type{font-size:10px;padding:2px 6px;border:1px solid;}
-.trade-hist-date{font-size:9px;color:var(--muted);}
-.trade-hist-pnl{font-size:15px;font-weight:600;}
-.trade-hist-pnl.win{color:var(--green);}
-.trade-hist-pnl.loss{color:var(--red);}
-.trade-hist-bal{font-size:10px;color:var(--muted);}
+/* HISTORY */
+.history-box{background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:10px;}
+.trade-hist-item{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;}
+.trade-hist-item:last-child{border-bottom:none;}
 .no-trades{font-size:12px;color:var(--muted);text-align:center;padding:20px;line-height:1.8;}
 
-/* Analysis boxes */
-.analysis-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
-.analysis-text{font-size:12px;line-height:1.95;color:var(--text);white-space:pre-wrap;}
-.rh-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
-.rh-title{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+/* RANKINGS */
+.rankings-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;}
+@media(max-width:600px){.rankings-grid{grid-template-columns:1fr 1fr;}}
+.rank-card{background:rgba(0,0,0,0.2);border:1px solid var(--border);padding:10px 11px;}
 
-.error-box{display:none;padding:16px;background:rgba(255,59,92,0.08);border:1px solid var(--red);color:var(--red);font-size:12px;margin-bottom:20px;line-height:1.6;}
+.analysis-box{background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:10px;}
+.analysis-text{font-size:11px;line-height:1.95;color:var(--text);white-space:pre-wrap;}
+.rh-box{background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:10px;}
+.rh-title{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;}
+
+.position-box{background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.2);padding:16px;margin-bottom:10px;}
+.challenge-context{font-size:11px;color:var(--yellow);background:rgba(255,214,0,0.05);border-left:2px solid var(--yellow);padding:9px 11px;line-height:1.7;margin-top:8px;}
+
+.error-box{display:none;padding:14px;background:rgba(255,59,92,0.08);border:1px solid var(--red);color:var(--red);font-size:12px;margin-bottom:16px;line-height:1.6;}
 .error-box.show{display:block;}
-.disclaimer{margin-top:24px;padding:14px;border:1px solid var(--border);font-size:10px;color:var(--muted);line-height:1.7;}
+.disclaimer{margin-top:20px;padding:12px;border:1px solid var(--border);font-size:10px;color:var(--muted);line-height:1.7;}
 .disclaimer strong{color:var(--red);}
+
+/* Milestone */
+.milestone-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:999;}
+.milestone-overlay.show{display:block;}
+.milestone-popup{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1000;background:var(--card);border:2px solid var(--green);padding:28px 36px;text-align:center;}
+.milestone-popup.show{display:block;animation:popIn 0.4s ease;}
+@keyframes popIn{from{opacity:0;transform:translate(-50%,-50%) scale(0.8)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.milestone-close{margin-top:14px;padding:7px 18px;background:transparent;border:1px solid var(--green);color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;letter-spacing:1px;}
 </style>
 </head>
 <body>
 <div class="wrapper">
-
-  <!-- Header -->
   <div class="header">
     <div>
       <div class="logo-title">$10 → $10,000 CHALLENGE</div>
-      <div class="logo-sub">AI OPTIONS TRADING · DAY TRADING MODE · REAL-TIME DATA</div>
+      <div class="logo-sub">AI · ADAPTIVE · NEWS · SENTIMENT · PAPER TRADING · EDUCATION</div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
       <div class="badge accent"><span class="live-dot"></span>LIVE</div>
       <div class="badge green" id="livePriceBadge">LOADING...</div>
+      <div class="badge purple" id="edLevelBadge">LVL 1</div>
     </div>
   </div>
 
-  <!-- Challenge Progress -->
+  <!-- Nav Tabs -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('page-trade')">📊 TRADE</button>
+    <button class="nav-tab" onclick="showPage('page-coach')">🧠 COACH</button>
+    <button class="nav-tab" onclick="showPage('page-strategy')">🎯 STRATEGY</button>
+    <button class="nav-tab" onclick="showPage('page-paper')">📝 PAPER TRADE</button>
+    <button class="nav-tab" onclick="showPage('page-journal')">📒 JOURNAL</button>
+  </div>
+
+  <!-- Challenge Progress (shown on all pages) -->
   <div class="challenge-box">
-    <div class="challenge-top">
-      <div class="balance-display">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+      <div>
         <div class="balance-label">CURRENT BALANCE</div>
         <div class="balance-val" id="balanceDisplay">$10.00</div>
-        <div class="balance-sub">Started at $10.00</div>
       </div>
-      <div class="stats-mini" id="statsMini">
+      <div class="stats-mini">
         <div class="stat-mini"><div class="stat-mini-val" id="statTrades">0</div><div class="stat-mini-lbl">TRADES</div></div>
         <div class="stat-mini"><div class="stat-mini-val" id="statWins" style="color:var(--green)">0</div><div class="stat-mini-lbl">WINS</div></div>
         <div class="stat-mini"><div class="stat-mini-val" id="statLosses" style="color:var(--red)">0</div><div class="stat-mini-lbl">LOSSES</div></div>
         <div class="stat-mini"><div class="stat-mini-val" id="statWinRate">0%</div><div class="stat-mini-lbl">WIN RATE</div></div>
-        <div class="stat-mini"><div class="stat-mini-val" id="statPnl">$0</div><div class="stat-mini-lbl">TOTAL P&L</div></div>
+        <div class="stat-mini"><div class="stat-mini-val" id="statPnl">$0</div><div class="stat-mini-lbl">P&L</div></div>
       </div>
-      <div class="goal-display">
-        <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">GOAL</div>
-        <div class="goal-val">$10,000</div>
+      <div style="text-align:right">
+        <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:3px">GOAL</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--muted);letter-spacing:2px">$10,000</div>
       </div>
     </div>
-
-    <div class="progress-wrap">
-      <div class="progress-label-row">
-        <span>$10</span>
-        <span id="progressPctLabel">0% complete</span>
-        <span>$10,000</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="progressFill" style="width:0%">
-          <span class="progress-pct" id="progressPctInner">0%</span>
-        </div>
-      </div>
-      <div class="milestones-track" id="milestonesTrack"></div>
-    </div>
-
-    <div class="update-balance-row">
-      <span style="font-size:10px;color:var(--muted);letter-spacing:1px;">UPDATE BALANCE:</span>
-      <input type="number" id="newBalanceInput" placeholder="Enter current Robinhood balance" step="0.01" min="0">
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-bottom:4px;letter-spacing:1px;"><span>$10</span><span id="progressPctLabel">0% complete</span><span>$10,000</span></div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0.1%"><span class="progress-pct" id="progressPctInner">0%</span></div></div>
+    <div class="milestones-track" id="milestonesTrack"></div>
+    <div class="update-row">
+      <span style="font-size:10px;color:var(--muted);letter-spacing:1px;white-space:nowrap">UPDATE BALANCE:</span>
+      <input type="number" id="newBalanceInput" placeholder="Enter your Robinhood balance" step="0.01" min="0">
       <button class="small-btn accent" onclick="updateBalance()">UPDATE</button>
     </div>
   </div>
 
-  <!-- Analyze Button -->
-  <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">▶ FIND BEST TRADE &amp; ANALYZE</button>
-  <div class="error-box" id="errorBox"></div>
+  <!-- ═══════════════════════════════════════════ PAGE: TRADE ═══ -->
+  <div class="page active" id="page-trade">
+    <!-- Market Dashboard -->
+    <div class="market-dash" id="marketDash">
+      <div class="mkt-card"><div class="mkt-label">SPY</div><div class="mkt-val" id="mktSpy">—</div><div class="mkt-sub">S&P 500</div></div>
+      <div class="mkt-card"><div class="mkt-label">QQQ</div><div class="mkt-val" id="mktQqq">—</div><div class="mkt-sub">Nasdaq</div></div>
+      <div class="mkt-card"><div class="mkt-label">FEAR/GREED</div><div class="mkt-val" id="mktFG">—</div><div class="mkt-sub" id="mktFGSub">—</div></div>
+      <div class="mkt-card"><div class="mkt-label">MARKET</div><div class="mkt-val" id="mktTrend" style="font-size:12px">—</div><div class="mkt-sub" id="mktDirection">—</div></div>
+      <div class="mkt-card"><div class="mkt-label">TRENDING</div><div class="mkt-sub" id="mktTrending" style="font-size:10px;color:var(--text);line-height:1.6">—</div></div>
+    </div>
 
-  <div class="loading" id="loading">
-    <ul class="loading-steps">
-      <li id="step1">Scanning 6 stocks for best opportunity</li>
-      <li id="step2">Fetching live prices & options data</li>
-      <li id="step3">Calculating 12 indicators per stock</li>
-      <li id="step4">Running AI comparison analysis</li>
-      <li id="step5">Picking best trade for your balance</li>
-      <li id="step6">Building exit strategy & position size</li>
-    </ul>
-    <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+    <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">▶ FIND BEST TRADE — ALL SOURCES</button>
+    <div class="error-box" id="errorBox"></div>
+
+    <div class="loading" id="loading">
+      <ul class="loading-steps">
+        <li id="step1">Fetching live prices for 8+ stocks</li>
+        <li id="step2">Reading news & sentiment</li>
+        <li id="step3">Checking unusual options (big money)</li>
+        <li id="step4">Fear & Greed + Trending tickers</li>
+        <li id="step5">Matching patterns from trade history</li>
+        <li id="step6">Selecting best strategy for today</li>
+        <li id="step7">Building adaptive trade plan</li>
+      </ul>
+      <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+    </div>
+
+    <div class="results" id="results">
+
+      <!-- Active Strategy Banner -->
+      <div class="section-header"><div class="section-title">🎯 TODAY'S ACTIVE STRATEGY</div></div>
+      <div class="strategy-box" id="strategyBanner"></div>
+
+      <!-- Education Lesson -->
+      <div class="section-header"><div class="section-title">📚 TODAY'S LESSON</div></div>
+      <div class="edu-lesson" id="eduLesson"></div>
+
+      <!-- Pattern Match -->
+      <div class="pattern-box" id="patternMatch"></div>
+
+      <!-- Position Sizing -->
+      <div class="section-header"><div class="section-title">💰 POSITION SIZING</div></div>
+      <div class="position-box" id="positionBox"></div>
+
+      <!-- Trade Tabs -->
+      <div class="section-header"><div class="section-title" id="tradeTabsTitle">TODAY'S RECOMMENDATIONS</div></div>
+      <div class="trade-tabs" id="tradeTabs"></div>
+      <div id="tradePanels"></div>
+
+      <!-- Rankings -->
+      <div class="section-header"><div class="section-title">ALL STOCKS RANKED</div></div>
+      <div class="rankings-grid" id="rankingsGrid"></div>
+
+      <!-- Log Trade -->
+      <div class="section-header"><div class="section-title">📒 LOG THIS TRADE</div></div>
+      <div class="log-box">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.7">After closing a trade on Robinhood, log it here. Your strategy memory updates automatically.</div>
+        <div class="log-form">
+          <div class="log-field"><label>Symbol</label><input type="text" id="logSymbol" placeholder="e.g. RIOT"></div>
+          <div class="log-field"><label>Option Type</label><select id="logOptionType"><option value="CALL">CALL</option><option value="PUT">PUT</option></select></div>
+          <div class="log-field"><label>Amount Risked ($)</label><input type="number" id="logAmount" step="0.01" placeholder="e.g. 9.00"></div>
+          <div class="log-field"><label>Amount Received Back ($)</label><input type="number" id="logExitValue" step="0.01" placeholder="e.g. 18.00 or 0"></div>
+          <div class="log-field"><label>Result</label><select id="logResult"><option value="win">WIN</option><option value="loss">LOSS</option></select></div>
+          <div class="log-field"><label>Strategy Used</label><select id="logStrategy"><option value="MOMENTUM_SCALP">Momentum Scalp</option><option value="BREAKOUT">Breakout</option><option value="OVERSOLD_BOUNCE">Oversold Bounce</option><option value="TREND_FOLLOWING">Trend Following</option><option value="GAP_FILL">Gap Fill</option><option value="EARNINGS_PLAY">Earnings Play</option></select></div>
+          <div class="log-field full"><label>Notes — What did you learn?</label><input type="text" id="logNotes" placeholder="e.g. Should have exited earlier when RSI crossed 70"></div>
+          <button class="log-btn" onclick="logTrade()">💾 LOG TRADE & UPDATE EVERYTHING</button>
+          <div class="log-status" id="logStatus"></div>
+        </div>
+      </div>
+
+      <div class="disclaimer"><strong>⚠ DISCLAIMER:</strong> Educational purposes only. NOT financial advice. Options trading involves substantial risk. The $10→$10,000 goal is aspirational. Most traders lose money. Always consult a licensed financial advisor.</div>
+    </div>
   </div>
 
-  <!-- Results -->
-  <div class="results" id="results">
-
-    <!-- Stock Picker -->
-    <div class="section-header">
-      <div class="section-title">🤖 AI STOCK PICK OF THE DAY</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-picker')">EXPLAIN THIS</button>
-    </div>
-    <div class="stock-picker">
-      <div class="chosen-stock">
-        <div>
-          <div class="chosen-ticker" id="chosenTicker">—</div>
-          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:2px" id="chosenPrice">—</div>
-        </div>
-        <div class="chosen-reason" id="chosenReason"></div>
-      </div>
-      <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;">ALL STOCKS RANKED TODAY:</div>
-      <div class="rankings-grid" id="rankingsGrid"></div>
-    </div>
-    <div class="edu-box" id="edu-picker">
-      <strong>How the AI picks the best stock</strong> — Every day the AI scans multiple high-volatility stocks (TSLA, NVDA, AAPL, AMD, META, AMZN) and scores each one based on all 12 technical indicators. The stock with the most indicators aligned in the same direction wins. This is called "confluence" — when multiple signals agree, the probability of a profitable trade goes up.<br><br>
-      <strong>Score (0-100)</strong> — The higher the score, the more indicators are agreeing on a strong setup for that stock today. A score above 65 is considered a good opportunity. Below 40 means most indicators are mixed or unclear.<br><br>
-      <strong>Why this matters for your challenge</strong> — Rather than only trading TSLA every day, the AI picks the stock with the best setup. This gives you better opportunities and teaches you to read different stocks over time.
+  <!-- ═══════════════════════════════════════════ PAGE: COACH ═══ -->
+  <div class="page" id="page-coach">
+    <div class="section-header"><div class="section-title">🧠 PERSONAL PERFORMANCE COACH</div></div>
+    <div class="coach-box" id="coachBox">
+      <div style="font-size:12px;color:var(--muted);text-align:center;padding:20px;line-height:1.8">Complete at least 3 trades to unlock your personal performance analysis.<br>Every trade you log teaches the AI more about your patterns.</div>
     </div>
 
-    <!-- Position Sizing -->
-    <div class="section-header">
-      <div class="section-title">💰 HOW MUCH TO RISK FROM YOUR BALANCE</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-position')">EXPLAIN THIS</button>
-    </div>
-    <div class="position-box">
-      <div class="position-top">
-        <div class="position-amount">
-          <div class="position-amount-label">RISK THIS AMOUNT</div>
-          <div class="position-amount-val" id="positionAmount">$—</div>
-          <div class="position-amount-pct" id="positionPct">— of your balance</div>
-        </div>
-        <div class="position-details" id="positionDetails"></div>
-      </div>
-      <div class="challenge-context" id="challengeContext"></div>
-    </div>
-    <div class="edu-box" id="edu-position">
-      <strong>Position sizing</strong> — This is one of the most important skills in trading. It means deciding how much of your account to risk on any single trade. The AI recommends a percentage based on how confident it is in the signal.<br><br>
-      <strong>HIGH confidence</strong> → Risk up to 10% of balance. When many indicators agree strongly, you can put a bit more in.<br><br>
-      <strong>MEDIUM confidence</strong> → Risk 3–5%. Decent setup but not everything is lined up perfectly.<br><br>
-      <strong>LOW confidence</strong> → Risk only 2%. The indicators are mixed. This is a risky trade — minimal exposure only.<br><br>
-      <strong>Why not risk it all?</strong> — Even high-confidence trades fail. If you risk 100% and lose, you're done. By keeping each trade small, you can survive losing streaks and still reach the goal. Professionals call this "capital preservation."<br><br>
-      <strong>The math of the challenge</strong> — To go from $10 to $10,000 you need to 1000x your money. That sounds impossible but with consistent 20–30% wins per trade and compounding, it becomes achievable over time with discipline.
-    </div>
-
-    <!-- Signal Banner -->
-    <div class="signal-banner" id="signalBanner">
-      <div>
-        <div class="signal-label" id="signalLabel">—</div>
-        <div class="signal-conf">CONFIDENCE: <span id="signalConfidence">—</span></div>
-        <div style="font-size:10px;color:var(--muted);margin-top:4px" id="consensusRow"></div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:10px;color:var(--muted);letter-spacing:2px">LIVE PRICE</div>
-        <div style="font-size:32px;font-weight:600;color:var(--text)" id="currentPrice">—</div>
-        <div style="font-size:12px;margin-top:2px" id="priceChangeDisplay">—</div>
-      </div>
-    </div>
-    <div class="section-header">
-      <div class="section-title">WHY THIS SIGNAL?</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-signal')">SHOW / HIDE</button>
-    </div>
-    <div class="edu-box open" id="edu-signal"></div>
-
-    <!-- Price Stats -->
-    <div class="section-header">
-      <div class="section-title">LIVE PRICE OVERVIEW</div>
-    </div>
-    <div class="grid-4" id="priceStats"></div>
-
-    <!-- Exit Strategy -->
-    <div class="section-header">
-      <div class="section-title">⏱ EXIT STRATEGY — WHEN TO SELL</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-exit')">EXPLAIN THIS</button>
-    </div>
-    <div class="exit-box">
-      <div class="exit-timer-row">
-        <div>
-          <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:6px;">HOLD FOR</div>
-          <div class="exit-timer" id="holdTime">—</div>
-          <div class="exit-deadline" id="latestExit">—</div>
-        </div>
-        <div class="exit-tips" id="dayTradingTips"></div>
-      </div>
-      <div style="font-size:10px;color:var(--red);letter-spacing:1.5px;margin-bottom:10px;">🔴 SELL IMMEDIATELY IF ANY OF THESE HAPPEN:</div>
-      <div class="sell-signals-grid" id="sellSignals"></div>
-      <div style="font-size:10px;color:var(--orange);letter-spacing:1.5px;margin:10px 0 8px;">⚠️ RULES — DO NOT BREAK:</div>
-      <div id="doNotHold"></div>
-    </div>
-    <div class="edu-box" id="edu-exit">
-      <strong>Why exits matter more than entries</strong> — Most beginners focus on WHEN to get in. But the difference between profitable traders and losing ones is knowing WHEN TO GET OUT. Hold too long = watch profits disappear. Exit too early = miss gains. The AI gives you specific conditions so you don't have to guess.<br><br>
-      <strong>Same-day trading rule</strong> — For day trades, always exit before 3:45 PM ET. Options lose value fast near close and near expiration. Don't let a winning trade turn into a loser because you held too long.<br><br>
-      <strong>The 50% rule</strong> — If your option doubles in value (up 100%), consider selling half and letting the rest run. This locks in profit while keeping upside open.
-    </div>
-
-    <!-- Budget Plan -->
-    <div class="section-header">
-      <div class="section-title">TRADE PLAN</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-budget')">EXPLAIN THIS</button>
-    </div>
-    <div class="budget-box">
-      <div id="budgetRows"></div>
-      <div class="budget-note" id="budgetNote"></div>
-    </div>
-    <div class="edu-box" id="edu-budget">
-      <strong>CALL</strong> — Betting the stock goes UP. Profit if it rises above strike before expiration.<br><br>
-      <strong>PUT</strong> — Betting the stock goes DOWN. Profit if it falls below strike before expiration.<br><br>
-      <strong>Strike Price</strong> — The price the stock needs to reach for your option to be profitable at expiration.<br><br>
-      <strong>Expiration</strong> — The deadline. For day trades: today or tomorrow (0DTE/1DTE). Cheap but fast-moving.
-    </div>
-
-    <!-- Trade Levels -->
-    <div class="section-header">
-      <div class="section-title">TRADE LEVELS</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-levels')">EXPLAIN THIS</button>
-    </div>
-    <div class="trade-section">
-      <div class="trade-row"><div><div class="trade-row-label">ENTRY POINT</div><div class="trade-row-note" id="entryNote"></div></div><div class="trade-row-val entry" id="entryPrice">—</div></div>
-      <div class="trade-row"><div><div class="trade-row-label">STOP LOSS</div><div class="trade-row-note" id="stopNote"></div></div><div class="trade-row-val stop" id="stopPrice">—</div></div>
-      <div class="trade-row"><div><div class="trade-row-label">PROFIT TARGET</div><div class="trade-row-note" id="targetNote"></div></div><div class="trade-row-val target" id="targetPrice">—</div></div>
-      <div class="trade-row"><div><div class="trade-row-label">RISK / REWARD</div></div><div class="trade-row-val rr" id="riskReward">—</div></div>
-      <div class="atr-note" id="atrNote"></div>
-    </div>
-    <div class="edu-box" id="edu-levels">
-      <strong>Entry</strong> — Best price to open. Use a limit order on Robinhood.<br>
-      <strong>Stop Loss</strong> — Set this immediately after buying. It auto-exits if the trade goes wrong.<br>
-      <strong>Profit Target</strong> — When hit, sell. Don't wait for more.<br>
-      <strong>Risk/Reward</strong> — Aim for at least 1:2 (potential gain is 2x potential loss).
-    </div>
-
-    <!-- Probability -->
-    <div class="section-header">
-      <div class="section-title">PROBABILITY OF PROFIT</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-prob')">EXPLAIN THIS</button>
-    </div>
-    <div class="prob-box">
-      <div class="prob-main">
-        <div>
-          <div class="prob-circle" id="probCircle"><div class="prob-circle-pct" id="probPct">—</div><div class="prob-circle-lbl">CHANCE</div></div>
-          <div style="font-size:10px;color:var(--muted);text-align:center;letter-spacing:1px;margin-top:4px">OF PROFIT</div>
-        </div>
-        <div class="prob-factors" id="probFactors"></div>
-      </div>
-      <div class="prob-verdict" id="probVerdict"></div>
-    </div>
-    <div class="edu-box" id="edu-prob">
-      <strong>Probability of Profit</strong> — Estimated chance this trade makes money. Not a guarantee.<br><br>
-      <strong>Why it's often 30–50%</strong> — Cheap day-trade options have lower win rates but bigger payouts. A 35% win rate with 1:3 risk/reward is profitable. Discipline matters more than win rate.<br><br>
-      <strong>Honest truth</strong> — ~75–80% of options expire worthless. Stop losses and small position sizes are what protect you.
-    </div>
-
-    <!-- Scenarios -->
-    <div class="section-header">
-      <div class="section-title">OUTCOME SCENARIOS</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-scenario')">EXPLAIN THIS</button>
-    </div>
-    <div class="scenario-box">
-      <table class="scenario-table">
-        <thead><tr><th>SCENARIO</th><th>PROBABILITY</th><th>STOCK TARGET</th><th>YOUR RESULT</th></tr></thead>
-        <tbody id="scenarioRows"></tbody>
-      </table>
-    </div>
-    <div class="edu-box" id="edu-scenario">
-      <strong>Bull Case</strong> — Strong move your way. Big win.<br>
-      <strong>Base Case</strong> — Modest move. Small profit or break even.<br>
-      <strong>Bear Case</strong> — Wrong direction. Option loses value.<br>
-      <strong>Worst Case</strong> — Option expires worthless. You lose the amount risked.
-    </div>
-
-    <!-- Indicators -->
-    <div class="section-header">
-      <div class="section-title">12 LIVE TECHNICAL INDICATORS</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-indicators')">EXPLAIN ALL</button>
-    </div>
-    <div class="indicators-grid" id="indicatorsGrid"></div>
-    <div class="edu-box" id="edu-indicators">
-      <strong>RSI</strong> — Above 70 overbought, below 30 oversold.<br>
-      <strong>MACD</strong> — Bullish cross = buy signal, bearish = sell.<br>
-      <strong>EMA 20/50/200</strong> — Price above all three = strong uptrend.<br>
-      <strong>Stochastic & Williams %R</strong> — Fast momentum. Great for day trade timing.<br>
-      <strong>OBV</strong> — Volume confirming the price move.<br>
-      <strong>ATR</strong> — Daily range. Helps set stops & targets.<br>
-      <strong>Implied Volatility</strong> — Expected move. High IV = expensive but bigger swings.
-    </div>
-
-    <!-- SR -->
-    <div class="section-header">
-      <div class="section-title">SUPPORT &amp; RESISTANCE</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-sr')">EXPLAIN THIS</button>
-    </div>
-    <div class="grid-2" id="srGrid"></div>
-    <div class="edu-box" id="edu-sr">
-      <strong>Support (Floors)</strong> — Price bounces here. Enter near support. Stop below it.<br>
-      <strong>Resistance (Ceilings)</strong> — Price stalls here. Set your profit target near resistance.<br>
-      <strong>Breakouts</strong> — Strong move above resistance with volume = very bullish signal.
-    </div>
-
-    <!-- AI Analysis -->
-    <div class="section-header"><div class="section-title">AI ANALYSIS SUMMARY</div></div>
-    <div class="analysis-box"><div class="analysis-text" id="analysisText"></div></div>
-
-    <!-- Robinhood Steps -->
-    <div class="rh-box">
-      <div class="rh-title">📱 HOW TO PLACE THIS TRADE ON ROBINHOOD RIGHT NOW</div>
-      <div class="analysis-text" id="robinhoodSteps"></div>
-    </div>
-
-    <!-- Alert Setup -->
-    <div class="section-header">
-      <div class="section-title">🔔 SET SELL ALERTS</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-monitor')">EXPLAIN THIS</button>
-    </div>
-    <div class="monitor-box">
-      <div style="font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:14px;">GET EMAILED WHEN TO SELL</div>
-      <div class="monitor-form">
-        <div class="monitor-field full"><label>Your Email</label><input type="email" id="alertEmail" placeholder="yourname@gmail.com"></div>
-        <div class="monitor-field"><label>Entry Price</label><input type="number" id="monitorEntry" step="0.01"></div>
-        <div class="monitor-field"><label>Stop Loss</label><input type="number" id="monitorStop" step="0.01"></div>
-        <div class="monitor-field"><label>Profit Target</label><input type="number" id="monitorTarget" step="0.01"></div>
-        <div class="monitor-field"><label>Option Type</label><input type="text" id="monitorOptionType" readonly></div>
-        <button class="monitor-btn" id="monitorBtn" onclick="startMonitor()">🔔 START MONITORING</button>
-        <button class="stop-monitor-btn" id="stopMonitorBtn" onclick="stopMonitor()">⛔ STOP MONITORING</button>
-        <div class="monitor-status" id="monitorStatus"></div>
-      </div>
-    </div>
-    <div class="edu-box" id="edu-monitor">
-      <strong>How it works</strong> — Enter your email and trade levels. The server checks the stock price every 3 minutes. When your stop loss or target is hit, you get an email instantly telling you to open Robinhood and sell.<br><br>
-      <strong>Browser notifications</strong> — Allow notifications when prompted for pop-ups even when the tab is in the background.
-    </div>
-
-    <!-- Log a Trade -->
-    <div class="section-header">
-      <div class="section-title">📒 LOG YOUR TRADE RESULT</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-log')">EXPLAIN THIS</button>
-    </div>
-    <div class="log-box">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.7;">After you close a trade on Robinhood, log it here to update your balance and track your progress toward $10,000.</div>
-      <div class="log-form">
-        <div class="log-field"><label>Symbol</label><input type="text" id="logSymbol" placeholder="e.g. TSLA"></div>
-        <div class="log-field"><label>Option Type</label><select id="logOptionType"><option value="CALL">CALL</option><option value="PUT">PUT</option></select></div>
-        <div class="log-field"><label>Amount Risked ($)</label><input type="number" id="logAmount" step="0.01" placeholder="e.g. 1.00"></div>
-        <div class="log-field"><label>Amount Received Back ($)</label><input type="number" id="logExitValue" step="0.01" placeholder="e.g. 2.40 (or 0 if lost)"></div>
-        <div class="log-field"><label>Result</label><select id="logResult"><option value="win">WIN — Made money</option><option value="loss">LOSS — Lost money</option></select></div>
-        <div class="log-field"><label>Notes (optional)</label><input type="text" id="logNotes" placeholder="What did you learn?"></div>
-        <button class="log-btn" onclick="logTrade()">💾 LOG TRADE &amp; UPDATE BALANCE</button>
-        <div class="log-status" id="logStatus"></div>
-      </div>
-    </div>
-    <div class="edu-box" id="edu-log">
-      <strong>Why log every trade?</strong> — Successful traders keep journals. Logging every trade lets you see patterns — what's working, what isn't, and how your decision-making improves over time. It also permanently saves your progress toward $10,000 so it's never lost.<br><br>
-      <strong>Amount Risked</strong> — How much you put into the option (e.g. $1.00).<br>
-      <strong>Amount Received Back</strong> — How much you got when you sold (e.g. $2.40 for a win, $0 if expired worthless).<br>
-      The difference is your profit or loss and it automatically updates your balance.
-    </div>
-
-    <!-- Trade History -->
     <div class="section-header"><div class="section-title">📊 TRADE HISTORY</div></div>
     <div class="history-box" id="tradeHistory">
-      <div class="no-trades">No trades logged yet.<br>Place your first trade and log it above to start tracking your journey!</div>
-    </div>
-
-    <div class="disclaimer">
-      <strong>⚠ DISCLAIMER:</strong> Educational purposes only. NOT financial advice. Options trading involves substantial risk of loss. Day trading options (0DTE/1DTE) is especially high risk. The $10→$10,000 goal is aspirational and not guaranteed. Most traders lose money. Always consult a licensed financial advisor before trading.
+      <div class="no-trades">No trades logged yet. Place your first trade and log it!</div>
     </div>
   </div>
+
+  <!-- ═══════════════════════════════════════════ PAGE: STRATEGY ═══ -->
+  <div class="page" id="page-strategy">
+    <div class="section-header"><div class="section-title">🎯 AVAILABLE STRATEGIES</div></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.8">As you trade more and your balance grows, new strategies unlock. The AI automatically selects the best one for today's conditions based on your personal performance history.</div>
+    <div class="strategies-grid" id="strategiesGrid">
+      <div style="font-size:12px;color:var(--muted);text-align:center;padding:20px">Run an analysis to see strategy performance data.</div>
+    </div>
+
+    <div class="section-header"><div class="section-title">📈 STRATEGY PERFORMANCE</div></div>
+    <div class="history-box" id="strategyPerformance">
+      <div class="no-trades">Log trades to see which strategies work best for you.</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ PAGE: PAPER ═══ -->
+  <div class="page" id="page-paper">
+    <div class="section-header"><div class="section-title">📝 PAPER TRADING — PRACTICE WITHOUT REAL MONEY</div></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.8">Paper trading lets you practice options trades with fake money. Use this to test strategies and learn how options move without risking your real $10. You start with $1,000 virtual dollars.</div>
+
+    <div class="paper-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div>
+          <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">PAPER BALANCE</div>
+          <div class="paper-balance" id="paperBalance">$1,000.00</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="small-btn accent" onclick="loadPaperStatus()">REFRESH</button>
+          <button class="small-btn" style="color:var(--red);border-color:var(--red)" onclick="resetPaper()">RESET</button>
+        </div>
+      </div>
+
+      <div style="font-size:10px;color:var(--yellow);letter-spacing:2px;margin-bottom:10px">OPEN A PAPER TRADE:</div>
+      <div class="paper-form">
+        <div class="paper-field"><label>Symbol</label><input type="text" id="paperSymbol" placeholder="e.g. RIOT"></div>
+        <div class="paper-field"><label>Option Type</label><select id="paperOptionType"><option value="CALL">CALL</option><option value="PUT">PUT</option></select></div>
+        <div class="paper-field"><label>Strike Price</label><input type="number" id="paperStrike" step="0.5" placeholder="e.g. 14.50"></div>
+        <div class="paper-field"><label>Premium (per share)</label><input type="number" id="paperPremium" step="0.01" placeholder="e.g. 0.09"></div>
+        <div class="paper-field"><label>Contracts</label><input type="number" id="paperContracts" value="1" min="1" max="10"></div>
+        <div class="paper-field"><label>Notes</label><input type="text" id="paperNotes" placeholder="Why are you taking this trade?"></div>
+        <button class="paper-btn" onclick="openPaperTrade()">📝 OPEN PAPER TRADE</button>
+        <div class="paper-status" id="paperStatus"></div>
+      </div>
+    </div>
+
+    <div class="section-header"><div class="section-title">OPEN PAPER POSITIONS</div></div>
+    <div class="history-box" id="paperPositions">
+      <div class="no-trades">No open paper positions. Open a trade above to practice!</div>
+    </div>
+
+    <div class="section-header"><div class="section-title">PAPER TRADE HISTORY</div></div>
+    <div class="history-box" id="paperHistory">
+      <div class="no-trades">No paper trade history yet.</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ PAGE: JOURNAL ═══ -->
+  <div class="page" id="page-journal">
+    <div class="section-header"><div class="section-title">📒 FULL TRADE JOURNAL</div></div>
+    <div class="history-box" id="fullTradeHistory">
+      <div class="no-trades">No trades logged yet.</div>
+    </div>
+  </div>
+
 </div>
 
-<!-- Milestone Popup -->
-<div class="milestone-popup-overlay" id="milestoneOverlay" onclick="closeMilestone()"></div>
+<!-- Milestone -->
+<div class="milestone-overlay" id="milestoneOverlay" onclick="closeMilestone()"></div>
 <div class="milestone-popup" id="milestonePopup">
-  <div class="milestone-emoji" id="milestoneEmoji">🏆</div>
-  <div class="milestone-title" id="milestoneTitle">MILESTONE HIT!</div>
-  <div class="milestone-sub" id="milestoneSub">You reached a new level on your journey!</div>
+  <div style="font-size:44px;margin-bottom:10px" id="milestoneEmoji">🏆</div>
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--green);letter-spacing:3px" id="milestoneTitle">MILESTONE!</div>
+  <div style="font-size:12px;color:var(--text);margin:8px 0 14px" id="milestoneSub"></div>
   <button class="milestone-close" onclick="closeMilestone()">KEEP GOING →</button>
 </div>
 
 <script>
-// ─── State ────────────────────────────────────────────────────────────────────
-let currentMonitorId = null;
-let currentSignal = "BUY";
-let currentSymbol = "TSLA";
-let currentOptionType = "CALL";
-let livePriceInterval = null;
+const MILESTONES=[25,50,100,250,500,1000,2500,5000,10000];
+const MILESTONE_EMOJIS={25:"🌱",50:"💵",100:"💯",250:"🚀",500:"⭐",1000:"🔥",2500:"💎",5000:"👑",10000:"🏆"};
+let currentMonitors={};
+let currentSymbol="SOUN";
+let currentSignal="BUY";
+let currentStrategy="MOMENTUM_SCALP";
+let livePriceInterval=null;
+let availableStrategies=[];
 
-const MILESTONES = [25,50,100,250,500,1000,2500,5000,10000];
-const MILESTONE_EMOJIS = {25:"🌱",50:"💵",100:"💯",250:"🚀",500:"⭐",1000:"🔥",2500:"💎",5000:"👑",10000:"🏆"};
-const GOAL = 10000;
-const START = 10;
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
-window.onload = () => {
+window.onload=()=>{
   loadChallengeData();
-  requestNotificationPermission();
-  updateLivePrice();
-  livePriceInterval = setInterval(updateLivePrice, 30000);
+  loadPerformanceCoach();
+  loadPaperStatus();
+  loadStrategyPage();
+  if("Notification"in window&&Notification.permission==="default")Notification.requestPermission();
+  livePriceInterval=setInterval(updateLivePrice,30000);
 };
 
-function requestNotificationPermission() {
-  if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+function showPage(id){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".nav-tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  event.target.classList.add("active");
+  if(id==="page-coach")loadPerformanceCoach();
+  if(id==="page-paper")loadPaperStatus();
+  if(id==="page-strategy")loadStrategyPage();
+  if(id==="page-journal")loadFullJournal();
 }
 
-function sendBrowserNotification(title, body) {
-  if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body });
+function toggleEdu(id){document.getElementById(id)?.classList.toggle("open");}
+function getProbColor(pct){return pct>=55?"var(--green)":pct>=40?"var(--yellow)":pct>=25?"var(--orange)":"var(--red)";}
+
+async function updateLivePrice(){
+  try{const r=await fetch("/api/price/"+currentSymbol);const d=await r.json();if(d.success)document.getElementById("livePriceBadge").textContent=currentSymbol+": $"+d.price.toFixed(2);}catch(e){}
 }
 
-function toggleEdu(id) { document.getElementById(id).classList.toggle("open"); }
-
-// ─── Load challenge data ──────────────────────────────────────────────────────
-async function loadChallengeData() {
-  try {
-    const res = await fetch("/api/challenge");
-    const data = await res.json();
-    if (data.success) renderChallenge(data.data);
-  } catch(e) { console.error("Load challenge:", e); }
+async function loadChallengeData(){
+  try{const r=await fetch("/api/challenge");const d=await r.json();if(d.success)renderChallenge(d.data);}catch(e){}
 }
 
-function renderChallenge(data) {
-  const balance = data.balance || 10;
-  const trades = data.trades || [];
-  const milestones = data.milestones || [];
-
-  document.getElementById("balanceDisplay").textContent = "$" + balance.toFixed(2);
-  document.getElementById("newBalanceInput").placeholder = `Current: $${balance.toFixed(2)}`;
-
-  // Stats
-  const wins = trades.filter(t => t.result === "win").length;
-  const losses = trades.filter(t => t.result === "loss").length;
-  const totalPnl = trades.reduce((s, t) => s + (t.pnl || 0), 0);
-  document.getElementById("statTrades").textContent = trades.length;
-  document.getElementById("statWins").textContent = wins;
-  document.getElementById("statLosses").textContent = losses;
-  document.getElementById("statWinRate").textContent = trades.length > 0 ? Math.round(wins/trades.length*100) + "%" : "0%";
-  document.getElementById("statPnl").textContent = (totalPnl >= 0 ? "+" : "") + "$" + totalPnl.toFixed(2);
-  document.getElementById("statPnl").style.color = totalPnl >= 0 ? "var(--green)" : "var(--red)";
-
-  // Progress bar
-  const pct = Math.min(100, ((balance - START) / (GOAL - START)) * 100);
-  const pctDisplay = pct < 0.1 ? "<0.1" : pct.toFixed(1);
-  document.getElementById("progressFill").style.width = Math.max(pct, 0.2) + "%";
-  document.getElementById("progressPctLabel").textContent = pctDisplay + "% complete";
-  document.getElementById("progressPctInner").textContent = pctDisplay + "%";
-
-  // Milestones
-  const track = document.getElementById("milestonesTrack");
-  track.innerHTML = "";
-  MILESTONES.forEach(m => {
-    const pctPos = ((m - START) / (GOAL - START)) * 100;
-    const hit = milestones.includes(m) || balance >= m;
-    const marker = document.createElement("div");
-    marker.className = "milestone-marker";
-    marker.style.left = pctPos + "%";
-    marker.innerHTML = `<div class="milestone-dot ${hit ? "hit" : "upcoming"}"></div><div class="milestone-lbl" style="color:${hit ? "var(--green)" : "var(--muted)"}">$${m >= 1000 ? (m/1000)+"K" : m}</div>`;
-    track.appendChild(marker);
+function renderChallenge(data){
+  const bal=data.balance||10;
+  const trades=data.trades||[];
+  const milestones=data.milestones||[];
+  document.getElementById("balanceDisplay").textContent="$"+bal.toFixed(2);
+  const wins=trades.filter(t=>t.result==="win").length;
+  const losses=trades.filter(t=>t.result==="loss").length;
+  const pnl=trades.reduce((s,t)=>s+(t.pnl||0),0);
+  document.getElementById("statTrades").textContent=trades.length;
+  document.getElementById("statWins").textContent=wins;
+  document.getElementById("statLosses").textContent=losses;
+  document.getElementById("statWinRate").textContent=trades.length>0?Math.round(wins/trades.length*100)+"%":"0%";
+  document.getElementById("statPnl").textContent=(pnl>=0?"+":"")+"$"+pnl.toFixed(2);
+  document.getElementById("statPnl").style.color=pnl>=0?"var(--green)":"var(--red)";
+  const pct=Math.min(100,Math.max(0.1,((bal-10)/(10000-10))*100));
+  document.getElementById("progressFill").style.width=pct+"%";
+  document.getElementById("progressPctLabel").textContent=pct.toFixed(2)+"% complete";
+  document.getElementById("progressPctInner").textContent=pct.toFixed(1)+"%";
+  const track=document.getElementById("milestonesTrack");track.innerHTML="";
+  MILESTONES.forEach(m=>{
+    const pp=((m-10)/(10000-10))*100;const hit=milestones.includes(m)||bal>=m;
+    const el=document.createElement("div");el.className="milestone-marker";el.style.left=pp+"%";
+    el.innerHTML=`<div class="milestone-dot ${hit?"hit":"upcoming"}"></div><div style="font-size:8px;color:${hit?"var(--green)":"var(--muted)"}">${m>=1000?(m/1000)+"K":m}</div>`;
+    track.appendChild(el);
   });
-
-  // Trade history
-  renderTradeHistory(trades.slice(0, 15));
+  renderTradeHistory(trades.slice(0,10),"tradeHistory");
 }
 
-function renderTradeHistory(trades) {
-  const box = document.getElementById("tradeHistory");
-  if (!trades || trades.length === 0) {
-    box.innerHTML = `<div class="no-trades">No trades logged yet.<br>Place your first trade and log it above to start tracking your journey!</div>`;
-    return;
-  }
-  box.innerHTML = trades.map(t => {
-    const win = t.result === "win";
-    const date = new Date(t.date).toLocaleDateString();
-    return `<div class="trade-history-item">
-      <div class="trade-hist-left">
-        <div class="trade-hist-symbol">${t.symbol}</div>
-        <div class="trade-hist-type" style="color:${t.optionType==="CALL"?"var(--green)":"var(--red)"};border-color:${t.optionType==="CALL"?"rgba(0,255,136,0.4)":"rgba(255,59,92,0.4)"}">${t.optionType}</div>
-        <div class="trade-hist-date">${date}</div>
-        ${t.milestone ? `<div style="font-size:10px;color:var(--yellow)">🏆 $${t.milestone} MILESTONE!</div>` : ""}
+function renderTradeHistory(trades,containerId){
+  const box=document.getElementById(containerId);
+  if(!box)return;
+  if(!trades||trades.length===0){box.innerHTML='<div class="no-trades">No trades yet.</div>';return;}
+  box.innerHTML=trades.map(t=>{
+    const win=t.result==="win";
+    return`<div class="trade-hist-item">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="font-size:13px;font-weight:600">${t.symbol}</div>
+        <div style="font-size:9px;padding:2px 6px;border:1px solid;color:${t.optionType==="CALL"?"var(--green)":"var(--red)"};border-color:${t.optionType==="CALL"?"rgba(0,255,136,0.4)":"rgba(255,59,92,0.4)"}">${t.optionType}</div>
+        <div style="font-size:9px;color:var(--purple)">${t.strategy||"—"}</div>
+        <div style="font-size:9px;color:var(--muted)">${new Date(t.date).toLocaleDateString()}</div>
+        ${t.milestone?`<div style="font-size:9px;color:var(--yellow)">🏆 $${t.milestone}!</div>`:""}
       </div>
       <div style="text-align:right">
-        <div class="trade-hist-pnl ${win?"win":"loss"}">${win?"+":""} $${Math.abs(t.pnl).toFixed(2)}</div>
-        <div class="trade-hist-bal">Balance: $${t.balanceAfter?.toFixed(2)||"—"}</div>
-        ${t.notes ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">${t.notes}</div>` : ""}
+        <div style="font-size:13px;font-weight:600;color:${win?"var(--green)":"var(--red)"}">${win?"+":"-"}$${Math.abs(t.pnl).toFixed(2)}</div>
+        <div style="font-size:9px;color:var(--muted)">$${t.balanceAfter?.toFixed(2)||"—"}</div>
+        ${t.notes?`<div style="font-size:9px;color:var(--muted);max-width:200px">${t.notes}</div>`:""}
       </div>
     </div>`;
   }).join("");
 }
 
-// ─── Update balance ───────────────────────────────────────────────────────────
-async function updateBalance() {
-  const val = parseFloat(document.getElementById("newBalanceInput").value);
-  if (isNaN(val) || val < 0) { alert("Please enter a valid balance amount."); return; }
-  try {
-    const res = await fetch("/api/balance/update", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ balance: val }) });
-    const data = await res.json();
-    if (data.success) {
-      loadChallengeData();
-      document.getElementById("newBalanceInput").value = "";
-      if (data.milestone) showMilestone(data.milestone);
-    }
-  } catch(e) { alert("Error updating balance: " + e.message); }
+async function loadPerformanceCoach(){
+  try{
+    const r=await fetch("/api/performance");const d=await r.json();
+    if(!d.success)return;
+    const p=d.data;
+    const box=document.getElementById("coachBox");
+    if(!p.hasInsights){box.innerHTML='<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px;line-height:1.8">'+p.message+'</div>';return;}
+    box.innerHTML=`<div class="coach-summary">📊 ${p.summary}<br>Average Win: $${p.avgWin?.toFixed(2)||0} | Average Loss: $${p.avgLoss?.toFixed(2)||0} | Trades: ${p.totalTrades}</div>
+    ${(p.insights||[]).map(i=>`<div class="insight-card ${i.positive?"positive":"negative"}">
+      <div class="insight-title">${i.icon} ${i.title}</div>
+      <div>${i.message}</div>
+    </div>`).join("")}`;
+  }catch(e){}
 }
 
-// ─── Live price ticker ────────────────────────────────────────────────────────
-async function updateLivePrice() {
-  try {
-    const res = await fetch("/api/price/" + currentSymbol);
-    const data = await res.json();
-    if (data.success) {
-      document.getElementById("livePriceBadge").textContent = currentSymbol + ": $" + data.price.toFixed(2);
-
-      // Browser notification for monitor
-      if (currentMonitorId) {
-        const stop = parseFloat(document.getElementById("monitorStop").value);
-        const target = parseFloat(document.getElementById("monitorTarget").value);
-        const price = data.price;
-        const isBuy = currentSignal === "BUY";
-        if (isBuy && price <= stop) sendBrowserNotification("🔴 STOP LOSS HIT", `${currentSymbol} at $${price} — SELL NOW!`);
-        if (isBuy && price >= target) sendBrowserNotification("🟢 TARGET HIT!", `${currentSymbol} at $${price} — Take profits!`);
-        if (!isBuy && price >= stop) sendBrowserNotification("🔴 STOP LOSS HIT", `${currentSymbol} at $${price} — Close position!`);
-        if (!isBuy && price <= target) sendBrowserNotification("🟢 TARGET HIT!", `${currentSymbol} at $${price} — Take profits!`);
-      }
-    }
-  } catch(e) {}
+async function loadStrategyPage(){
+  try{
+    const r=await fetch("/api/strategy");const d=await r.json();
+    if(!d.success)return;
+    const {availableStrategies:strats,strategyPerformance,educationLevel}=d.data;
+    document.getElementById("edLevelBadge").textContent="LVL "+educationLevel;
+    const grid=document.getElementById("strategiesGrid");
+    if(!grid)return;
+    const allStrats=["MOMENTUM_SCALP","BREAKOUT","OVERSOLD_BOUNCE","TREND_FOLLOWING","GAP_FILL","EARNINGS_PLAY"];
+    grid.innerHTML=allStrats.map(key=>{
+      const s=strats.find(x=>x.key===key);
+      const perf=strategyPerformance?.[key]||{wins:0,losses:0};
+      const wr=perf.wins+perf.losses>0?Math.round(perf.wins/(perf.wins+perf.losses)*100):0;
+      const locked=!s;
+      const riskColor={"LOW-MEDIUM":"var(--green)","MEDIUM":"var(--yellow)","MEDIUM-HIGH":"var(--orange)","HIGH":"var(--red)"}[s?.riskLevel||"MEDIUM"]||"var(--yellow)";
+      return`<div class="strategy-card ${locked?"locked":""}">
+        <div class="strat-name">${s?.name||key.replace(/_/g," ")}</div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+          <span class="strat-badge" style="color:${riskColor};border-color:${riskColor}">${s?.riskLevel||"—"} RISK</span>
+          ${locked?'<span class="strat-badge" style="color:var(--muted);border-color:var(--muted)">🔒 LOCKED</span>':'<span class="strat-badge" style="color:var(--green);border-color:var(--green)">✓ UNLOCKED</span>'}
+        </div>
+        <div class="strat-desc">${s?.description||"Unlock by completing more trades."}</div>
+        <div class="strat-stats">
+          <div class="strat-stat"><div class="strat-stat-val" style="color:${wr>=50?"var(--green)":"var(--red)"}">${wr}%</div><div class="strat-stat-lbl">WIN RATE</div></div>
+          <div class="strat-stat"><div class="strat-stat-val">${perf.wins+perf.losses}</div><div class="strat-stat-lbl">TRADES</div></div>
+          <div class="strat-stat"><div class="strat-stat-val" style="color:${(perf.totalPnl||0)>=0?"var(--green)":"var(--red)"}">${(perf.totalPnl||0)>=0?"+":""}$${(perf.totalPnl||0).toFixed(2)}</div><div class="strat-stat-lbl">P&L</div></div>
+        </div>
+        ${s?`<div style="font-size:9px;color:var(--muted);margin-top:8px">Best: ${s.bestConditions?.slice(0,50)||"—"}...</div>`:""}
+      </div>`;
+    }).join("");
+  }catch(e){console.error(e);}
 }
 
-// ─── Main analysis ────────────────────────────────────────────────────────────
-async function runAnalysis() {
-  const btn = document.getElementById("analyzeBtn");
-  const loading = document.getElementById("loading");
-  const results = document.getElementById("results");
-  const errorBox = document.getElementById("errorBox");
+async function loadFullJournal(){
+  try{const r=await fetch("/api/challenge");const d=await r.json();if(d.success)renderTradeHistory(d.data.trades||[],"fullTradeHistory");}catch(e){}
+}
 
-  btn.disabled = true;
-  loading.classList.add("show");
-  results.classList.remove("show");
-  errorBox.classList.remove("show");
+async function updateBalance(){
+  const val=parseFloat(document.getElementById("newBalanceInput").value);
+  if(isNaN(val)||val<0){alert("Enter a valid balance.");return;}
+  try{
+    const r=await fetch("/api/balance/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({balance:val})});
+    const d=await r.json();
+    if(d.success){loadChallengeData();document.getElementById("newBalanceInput").value="";if(d.milestone)showMilestone(d.milestone);}
+  }catch(e){alert("Error: "+e.message);}
+}
 
-  ["step1","step2","step3","step4","step5","step6"].forEach(id => document.getElementById(id).className = "");
-  let stepIdx = 0;
-  const steps = ["step1","step2","step3","step4","step5","step6"];
-  const loadInterval = setInterval(() => {
-    if (stepIdx > 0) document.getElementById(steps[stepIdx-1]).className = "done";
-    if (stepIdx < steps.length) { document.getElementById(steps[stepIdx]).className = "active"; stepIdx++; }
-  }, 1200);
+// ─── Paper Trading ────────────────────────────────────────────────────────────
+async function loadPaperStatus(){
+  try{
+    const r=await fetch("/api/paper/status");const d=await r.json();
+    if(!d.success)return;
+    const paper=d.data;
+    document.getElementById("paperBalance").textContent="$"+paper.balance.toFixed(2);
+    const posEl=document.getElementById("paperPositions");
+    if(!paper.active||paper.active.length===0){posEl.innerHTML='<div class="no-trades">No open paper positions.</div>';}
+    else{posEl.innerHTML=paper.active.map(t=>`<div class="paper-trade-item">
+      <div>
+        <div style="font-weight:600;font-size:13px">${t.symbol} ${t.optionType} $${t.strikePrice}</div>
+        <div style="font-size:10px;color:var(--muted)">Bought at $${t.premium}/share | Cost: $${t.cost} | ${new Date(t.date).toLocaleTimeString()}</div>
+        ${t.notes?`<div style="font-size:9px;color:var(--muted)">${t.notes}</div>`:""}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="number" step="0.01" placeholder="Exit premium" id="paperExit${t.id}" style="width:100px;background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 7px;outline:none">
+        <button class="close-paper-btn" onclick="closePaperTrade(${t.id})">CLOSE</button>
+      </div>
+    </div>`).join("");}
+    const histEl=document.getElementById("paperHistory");
+    const closed=paper.trades.filter(t=>t.status==="closed").slice(0,10);
+    if(!closed.length){histEl.innerHTML='<div class="no-trades">No closed paper trades yet.</div>';}
+    else{histEl.innerHTML=closed.map(t=>{const win=(t.pnl||0)>0;return`<div class="trade-hist-item">
+      <div><div style="font-size:13px;font-weight:600">${t.symbol} ${t.optionType} $${t.strikePrice}</div><div style="font-size:9px;color:var(--muted)">${new Date(t.date).toLocaleDateString()}</div></div>
+      <div style="text-align:right"><div style="font-size:13px;font-weight:600;color:${win?"var(--green)":"var(--red)"}">${win?"+":"-"}$${Math.abs(t.pnl||0).toFixed(2)}</div><div style="font-size:9px;color:var(--muted)">In: $${t.premium} → Out: $${t.exitPremium||0}</div></div>
+    </div>`}).join("");}
+  }catch(e){console.error(e);}
+}
 
-  try {
-    const response = await fetch("/api/analyze");
-    if (!response.ok) { const e = await response.json(); throw new Error(e.error || `Server error ${response.status}`); }
-    const result = await response.json();
-    clearInterval(loadInterval);
-    if (!result.success) throw new Error(result.error);
-    const d = result.data;
+async function openPaperTrade(){
+  const symbol=document.getElementById("paperSymbol").value.trim().toUpperCase();
+  const optionType=document.getElementById("paperOptionType").value;
+  const strikePrice=parseFloat(document.getElementById("paperStrike").value);
+  const premium=parseFloat(document.getElementById("paperPremium").value);
+  const contracts=parseInt(document.getElementById("paperContracts").value)||1;
+  const notes=document.getElementById("paperNotes").value;
+  if(!symbol||isNaN(strikePrice)||isNaN(premium)){showPaperStatus("Fill in all required fields.","error");return;}
+  try{
+    const r=await fetch("/api/paper/trade",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol,optionType,strikePrice,premium,contracts,action:"buy",notes})});
+    const d=await r.json();
+    if(d.success){showPaperStatus(`✅ Paper trade opened! ${symbol} ${optionType} $${strikePrice} | Cost: $${d.trade.cost} | New balance: $${d.balance}`,"success");loadPaperStatus();["paperSymbol","paperStrike","paperPremium","paperNotes"].forEach(id=>document.getElementById(id).value="");}
+    else throw new Error(d.error);
+  }catch(e){showPaperStatus("Error: "+e.message,"error");}
+}
 
-    currentSignal = d.signal;
-    currentSymbol = d.chosenSymbol || "TSLA";
-    currentOptionType = d.budget?.suggestedOptionType || "CALL";
+async function closePaperTrade(tradeId){
+  const exitPremium=parseFloat(document.getElementById("paperExit"+tradeId)?.value);
+  if(isNaN(exitPremium)){alert("Enter the exit premium price.");return;}
+  try{
+    const r=await fetch("/api/paper/trade",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"close",tradeId,exitPremium})});
+    const d=await r.json();
+    if(d.success){showPaperStatus(`${d.pnl>=0?"✅ PROFIT":"❌ LOSS"}: ${d.pnl>=0?"+":""}$${d.pnl.toFixed(2)} | New balance: $${d.balance}`,"success");loadPaperStatus();}
+    else throw new Error(d.error);
+  }catch(e){showPaperStatus("Error: "+e.message,"error");}
+}
 
-    // Stock picker
-    document.getElementById("chosenTicker").textContent = d.chosenSymbol;
-    document.getElementById("chosenPrice").textContent = "LIVE: $" + d.currentPrice?.toFixed(2);
-    document.getElementById("chosenReason").textContent = d.symbolReason || "";
-    if (d.stockRankings) {
-      const cMap2 = {green:"var(--green)",red:"var(--red)",yellow:"var(--yellow)",orange:"var(--orange)"};
-      document.getElementById("rankingsGrid").innerHTML = d.stockRankings.map(r => {
-        const sc = r.score >= 65 ? "var(--green)" : r.score >= 45 ? "var(--yellow)" : "var(--red)";
-        return `<div class="rank-card ${r.symbol === d.chosenSymbol ? "":""}">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="rank-symbol">${r.symbol}</div>
-            <div class="rank-score" style="color:${sc}">${r.score}</div>
-          </div>
-          <div class="rank-reason">${r.reason}</div>
-        </div>`;
-      }).join("");
+async function resetPaper(){
+  if(!confirm("Reset paper trading balance to $1,000?"))return;
+  await fetch("/api/paper/reset",{method:"POST"});
+  loadPaperStatus();
+}
+
+function showPaperStatus(msg,type){const el=document.getElementById("paperStatus");el.textContent=msg;el.className="paper-status "+type;}
+
+// ─── Main Analysis ────────────────────────────────────────────────────────────
+function buildTradePanel(trade,idx){
+  const cMap={green:"var(--green)",red:"var(--red)",yellow:"var(--yellow)"};
+  const scClass={bull:"sc-bull",base:"sc-base",bear:"sc-bear",worst:"sc-worst"};
+  const scColor={bull:"var(--green)",base:"var(--accent)",bear:"var(--orange)",worst:"var(--red)"};
+  const chgColor=trade.priceChange>=0?"green":"red";
+  const chgSign=trade.priceChange>=0?"+":"";
+  const probColor=getProbColor(trade.probability?.overallPercent||0);
+
+  return`<div class="trade-panel ${idx===0?"active":""}" id="tradePanel${idx}">
+
+    <!-- Strategy Fit -->
+    ${trade.strategyFit?`<div style="background:rgba(180,79,255,0.05);border-left:3px solid var(--purple);padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--text);line-height:1.7"><strong style="color:var(--purple)">STRATEGY FIT:</strong> ${trade.strategyFit}</div>`:""}
+
+    <!-- Sentiment -->
+    <div class="sentiment-row">
+      <div class="sentiment-card">
+        <div class="sentiment-icon">${trade.newsSentiment==="BULLISH"?"📰✅":trade.newsSentiment==="BEARISH"?"📰❌":"📰➖"}</div>
+        <div class="sentiment-label">NEWS</div>
+        <div class="sentiment-val" style="color:${trade.newsSentiment==="BULLISH"?"var(--green)":trade.newsSentiment==="BEARISH"?"var(--red)":"var(--yellow)"}">${trade.newsSentiment||"NEUTRAL"}</div>
+      </div>
+      <div class="sentiment-card">
+        <div class="sentiment-icon">🐋</div>
+        <div class="sentiment-label">BIG MONEY</div>
+        <div class="sentiment-val" style="font-size:10px;color:var(--text)">${trade.unusualActivity||"Normal"}</div>
+      </div>
+      <div class="sentiment-card">
+        <div class="sentiment-icon">${trade.earningsRisk&&trade.earningsRisk!=="None"?"⚠️":"✅"}</div>
+        <div class="sentiment-label">EARNINGS</div>
+        <div class="sentiment-val" style="font-size:10px;color:${trade.earningsRisk&&trade.earningsRisk!=="None"?"var(--red)":"var(--green)"}">${trade.earningsRisk||"None"}</div>
+      </div>
+    </div>
+
+    ${(trade.newsHeadlines||[]).length>0?`<div class="card" style="margin-bottom:10px"><div class="card-label">LATEST NEWS — ${trade.symbol}</div>${trade.newsHeadlines.map(h=>`<div style="font-size:10px;color:var(--text);padding:4px 0;border-bottom:1px solid var(--border);line-height:1.5">• ${h}</div>`).join("")}</div>`:""}
+
+    <!-- Signal -->
+    <div class="signal-banner ${trade.signal.toLowerCase()}">
+      <div>
+        <div class="signal-label">${trade.signal}</div>
+        <div style="font-size:11px;color:var(--muted);letter-spacing:1px">CONFIDENCE: <span style="color:var(--text);font-weight:600">${trade.confidence}</span></div>
+        <div style="font-size:9px;color:var(--muted);margin-top:3px">▲${trade.indicatorConsensus?.bullish||0} · ▼${trade.indicatorConsensus?.bearish||0} · —${trade.indicatorConsensus?.neutral||0}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:9px;color:var(--muted);letter-spacing:2px">LIVE PRICE</div>
+        <div style="font-size:28px;font-weight:600;color:var(--text)">$${trade.currentPrice?.toFixed(2)||"—"}</div>
+        <div style="font-size:11px;color:${trade.priceChange>=0?"var(--green)":"var(--red)"}">${chgSign}${trade.priceChange?.toFixed(2)||0}%</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text);background:rgba(0,229,255,0.04);border-left:3px solid var(--accent);padding:10px 12px;margin-bottom:10px;line-height:1.8">${trade.signalExplanation||""}</div>
+
+    <!-- Stats -->
+    <div class="grid-4">
+      <div class="card"><div class="card-label">TODAY</div><div class="card-value ${chgColor}">${chgSign}${trade.priceChange?.toFixed(2)||0}%</div></div>
+      <div class="card"><div class="card-label">52W HIGH</div><div class="card-value accent">$${trade.weekHigh||"—"}</div><div class="card-sub">Low: $${trade.weekLow||"—"}</div></div>
+      <div class="card"><div class="card-label">VOLUME</div><div class="card-value">${trade.volume||"—"}</div><div class="card-sub">Avg: ${trade.avgVolume||"—"}</div></div>
+      <div class="card"><div class="card-label">ACCURACY</div><div class="card-value yellow">${trade.accuracyScore||0}%</div></div>
+    </div>
+
+    <!-- Exit -->
+    <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">⏱ EXIT STRATEGY</div>
+    <div class="exit-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <div><div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">HOLD FOR</div><div class="exit-timer">${trade.exitStrategy?.recommendedHoldTime||"—"}</div><div style="font-size:10px;color:var(--muted);margin-top:2px">⏰ ${trade.exitStrategy?.latestExitTime||"Before close"}</div></div>
+        <div style="flex:1;min-width:160px;font-size:11px;color:var(--muted);line-height:1.7"><strong style="color:var(--yellow)">Tips:</strong> ${trade.exitStrategy?.dayTradingTips||""}</div>
+      </div>
+      <div style="font-size:9px;color:var(--red);letter-spacing:1.5px;margin-bottom:6px">🔴 SELL IF:</div>
+      <div class="sell-signals-grid">${(trade.exitStrategy?.sellSignals||[]).map(s=>`<div class="sell-signal-card">${s}</div>`).join("")}</div>
+      <div style="font-size:9px;color:var(--orange);letter-spacing:1.5px;margin:8px 0 5px">⚠️ RULES:</div>
+      ${(trade.exitStrategy?.doNotHoldIf||[]).map(s=>`<div class="donot-card">${s}</div>`).join("")}
+    </div>
+
+    <!-- Budget -->
+    <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">TRADE PLAN</div>
+    <div class="budget-box">
+      ${[["OPTION TYPE",trade.budget?.suggestedOptionType,trade.budget?.suggestedOptionType==="CALL"?"var(--green)":"var(--red)"],["STRIKE PRICE","$"+trade.budget?.strikePrice,"var(--green)"],["EXPIRATION",trade.budget?.expiration,"var(--green)"],["ESTIMATED COST",trade.budget?.estimatedOptionCost,"var(--green)"],["AMOUNT TO RISK",trade.budget?.amountToRisk,"var(--accent)"],["MAX LOSS",trade.budget?.maxLoss,"var(--red)"],["POTENTIAL GAIN",trade.budget?.estimatedGain,"var(--green)"]].map(([l,v,c])=>`<div class="budget-row"><div class="budget-row-label">${l}</div><div class="budget-row-val" style="color:${c}">${v||"—"}</div></div>`).join("")}
+    </div>
+
+    <!-- Levels -->
+    <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">TRADE LEVELS</div>
+    <div class="trade-section">
+      <div class="trade-row"><div><div class="trade-row-label">ENTRY</div><div class="trade-row-note">${trade.entryNote||""}</div></div><div class="trade-row-val entry">$${trade.entryPrice?.toFixed(2)||"—"}</div></div>
+      <div class="trade-row"><div><div class="trade-row-label">STOP LOSS</div><div class="trade-row-note">${trade.stopNote||""}</div></div><div class="trade-row-val stop">$${trade.stopLoss?.toFixed(2)||"—"}</div></div>
+      <div class="trade-row"><div><div class="trade-row-label">TARGET</div><div class="trade-row-note">${trade.targetNote||""}</div></div><div class="trade-row-val target">$${trade.profitTarget?.toFixed(2)||"—"}</div></div>
+      <div class="trade-row"><div><div class="trade-row-label">RISK/REWARD</div></div><div class="trade-row-val rr">${trade.riskReward||"—"}</div></div>
+      ${trade.atrNote?`<div class="atr-note">📐 ${trade.atrNote}</div>`:""}
+    </div>
+
+    <!-- Probability -->
+    <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">PROBABILITY OF PROFIT</div>
+    <div class="prob-box">
+      <div class="prob-main">
+        <div>
+          <div class="prob-circle" style="border-color:${probColor};box-shadow:0 0 16px ${probColor}22"><div class="prob-circle-pct" style="color:${probColor}">${trade.probability?.overallPercent||0}%</div><div class="prob-circle-lbl">CHANCE</div></div>
+          <div style="font-size:9px;color:var(--muted);text-align:center;letter-spacing:1px;margin-top:3px">OF PROFIT</div>
+        </div>
+        <div class="prob-factors">${(trade.probability?.factors||[]).map(f=>{const fc=f.score>=60?"var(--green)":f.score>=40?"var(--yellow)":"var(--red)";return`<div class="prob-factor-row"><div class="prob-factor-info"><div class="prob-factor-label">${f.label}</div><div class="prob-factor-note">${f.note}</div></div><div class="prob-bar-wrap"><div class="prob-bar" style="width:${f.score}%;background:${fc}"></div></div><div class="prob-factor-val" style="color:${fc}">${f.score}</div></div>`;}).join("")}</div>
+      </div>
+      <div class="prob-verdict"><strong>Bottom Line:</strong> ${trade.probability?.verdict||""}</div>
+    </div>
+
+    <!-- Scenarios -->
+    <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">SCENARIOS</div>
+    <div class="scenario-box">
+      <table class="scenario-table">
+        <thead><tr><th>SCENARIO</th><th>PROB</th><th>TARGET</th><th>RESULT</th></tr></thead>
+        <tbody>${(trade.scenarios||[]).map(s=>`<tr><td><span class="sc-badge ${scClass[s.type]||"sc-base"}">${s.label}</span></td><td style="font-weight:600">${s.probability}</td><td>$${s.target}</td><td style="font-weight:600;color:${scColor[s.type]||"var(--text)"}">${s.result}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>
+
+    <!-- Indicators -->
+    <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">12 LIVE INDICATORS</div>
+    <div class="indicators-grid">${(trade.indicators||[]).map(ind=>`<div class="indicator-card"><div class="indicator-top"><div class="indicator-name">${ind.name}</div><div class="indicator-signal" style="color:${cMap[ind.color]||"var(--muted)"}">${ind.signal}</div></div><div class="indicator-value" style="color:${cMap[ind.color]||"var(--text)"}">${ind.value}</div><div class="indicator-meaning">${ind.meaning||""}</div></div>`).join("")}</div>
+
+    <!-- SR -->
+    <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">SUPPORT & RESISTANCE</div>
+    <div class="grid-2">
+      <div class="sr-card"><div class="card-label" style="margin-bottom:8px">SUPPORT (FLOORS)</div>${(trade.support||[]).map(s=>`<div class="sr-row"><span style="color:var(--green);font-size:12px;font-weight:600">$${s.level}</span><span style="font-size:9px;color:var(--muted)">${s.strength}</span></div>`).join("")}</div>
+      <div class="sr-card"><div class="card-label" style="margin-bottom:8px">RESISTANCE (CEILINGS)</div>${(trade.resistance||[]).map(r=>`<div class="sr-row"><span style="color:var(--red);font-size:12px;font-weight:600">$${r.level}</span><span style="font-size:9px;color:var(--muted)">${r.strength}</span></div>`).join("")}</div>
+    </div>
+
+    <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">AI ANALYSIS</div>
+    <div class="analysis-box"><div class="analysis-text">${trade.analysis||""}</div></div>
+
+    <div class="rh-box"><div class="rh-title">📱 HOW TO PLACE THIS TRADE ON ROBINHOOD</div><div class="analysis-text">${trade.budget?.robinhoodSteps||""}</div></div>
+
+    <!-- Monitor -->
+    <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">🔔 SELL ALERTS</div>
+    <div class="monitor-box">
+      <div class="monitor-form">
+        <div class="monitor-field full"><label>Email</label><input type="email" id="alertEmail${idx}" placeholder="yourname@gmail.com"></div>
+        <div class="monitor-field"><label>Entry</label><input type="number" id="monitorEntry${idx}" value="${trade.entryPrice?.toFixed(2)||""}" step="0.01"></div>
+        <div class="monitor-field"><label>Stop Loss</label><input type="number" id="monitorStop${idx}" value="${trade.stopLoss?.toFixed(2)||""}" step="0.01"></div>
+        <div class="monitor-field"><label>Target</label><input type="number" id="monitorTarget${idx}" value="${trade.profitTarget?.toFixed(2)||""}" step="0.01"></div>
+        <div class="monitor-field"><label>Option Type</label><input type="text" id="monitorType${idx}" value="${trade.budget?.suggestedOptionType||""}" readonly></div>
+        <button class="monitor-btn" id="monitorBtn${idx}" onclick="startMonitor(${idx},'${trade.symbol}','${trade.signal}')">🔔 START MONITORING</button>
+        <button class="stop-monitor-btn" id="stopMonitorBtn${idx}" onclick="stopMonitor(${idx})">⛔ STOP</button>
+        <div class="monitor-status" id="monitorStatus${idx}"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function runAnalysis(){
+  const btn=document.getElementById("analyzeBtn");
+  const loading=document.getElementById("loading");
+  const results=document.getElementById("results");
+  const errorBox=document.getElementById("errorBox");
+
+  btn.disabled=true;loading.classList.add("show");results.classList.remove("show");errorBox.classList.remove("show");
+  const steps=["step1","step2","step3","step4","step5","step6","step7"];
+  steps.forEach(id=>document.getElementById(id).className="");
+  let si=0;
+  const li=setInterval(()=>{if(si>0)document.getElementById(steps[si-1]).className="done";if(si<steps.length){document.getElementById(steps[si]).className="active";si++;}},1400);
+
+  try{
+    const r=await fetch("/api/analyze");
+    if(!r.ok){const e=await r.json();throw new Error(e.error||"Server error "+r.status);}
+    const res=await r.json();clearInterval(li);
+    if(!res.success)throw new Error(res.error);
+    const d=res.data;
+
+    currentSignal=d.trades?.[0]?.signal||"BUY";
+    currentSymbol=d.trades?.[0]?.symbol||"SOUN";
+    currentStrategy=d.activeStrategy?.key||"MOMENTUM_SCALP";
+    availableStrategies=d._availableStrategies||[];
+
+    // Education level badge
+    document.getElementById("edLevelBadge").textContent="LVL "+(d._edLevel||1);
+
+    // Market dashboard
+    const ms=d.marketSummary;
+    if(ms){
+      const sc=ms.spyChange>=0?"var(--green)":"var(--red)";
+      const qc=ms.qqqChange>=0?"var(--green)":"var(--red)";
+      document.getElementById("mktSpy").innerHTML=`<span style="color:${sc}">${ms.spyChange>=0?"+":""}${ms.spyChange?.toFixed(2)||0}%</span>`;
+      document.getElementById("mktQqq").innerHTML=`<span style="color:${qc}">${ms.qqqChange>=0?"+":""}${ms.qqqChange?.toFixed(2)||0}%</span>`;
+      document.getElementById("mktFG").textContent=ms.fearGreedScore||"—";
+      document.getElementById("mktFG").style.color=ms.fearGreedScore>=60?"var(--green)":ms.fearGreedScore<=40?"var(--red)":"var(--yellow)";
+      document.getElementById("mktFGSub").textContent=ms.fearGreedRating||"—";
+      const tc=ms.marketTrend?.includes("BULL")?"var(--green)":ms.marketTrend?.includes("BEAR")?"var(--red)":"var(--yellow)";
+      document.getElementById("mktTrend").textContent=ms.marketTrend||"—";
+      document.getElementById("mktTrend").style.color=tc;
+      document.getElementById("mktDirection").textContent="Prefer: "+ms.preferredDirection;
+      document.getElementById("mktTrending").textContent=(ms.trendingStocks||[]).join(" · ");
+    }
+
+    // Active strategy banner
+    const as=d.activeStrategy;
+    if(as){
+      document.getElementById("strategyBanner").innerHTML=`
+        <div class="strategy-header">
+          <div><div class="strategy-name">${as.name}</div><div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:2px">${as.whyToday||""}</div></div>
+          <span class="strategy-badge">${as.key}</span>
+        </div>
+        <div class="strategy-desc">${as.strategyEducation||as.description||""}</div>
+        ${as.shouldAdapt&&as.adaptationAdvice?`<div class="adapt-alert">⚡ ADAPTATION RECOMMENDED: ${as.adaptationAdvice}</div>`:""}`;
+    }
+
+    // Education lesson
+    const el=d.educationLesson;
+    if(el){
+      document.getElementById("eduLesson").innerHTML=`
+        <div class="edu-lesson-level">LEVEL ${el.level} LESSON</div>
+        <div class="edu-lesson-topic">${el.topic}</div>
+        <div class="edu-lesson-text">${el.explanation||""}</div>
+        <div class="edu-lesson-why">💡 <strong>Why it matters:</strong> ${el.whyItMatters||""}</div>
+        <div class="edu-lesson-action">🎯 <strong>Watch for today:</strong> ${el.actionable||""}</div>`;
+    }
+
+    // Pattern match
+    const pm=d.patternMatch;
+    if(pm){
+      document.getElementById("patternMatch").innerHTML=`
+        <div class="pattern-title">🔍 PATTERN RECOGNITION</div>
+        <div style="font-size:11px;color:${pm.found?"var(--green)":"var(--muted)"}">${pm.found?"🎯":"📊"} ${pm.message}</div>`;
     }
 
     // Position sizing
-    const sizing = d._sizing || d.positionSizing;
-    if (sizing) {
-      document.getElementById("positionAmount").textContent = "$" + (sizing.recommendedAmount || sizing.amount || "—");
-      document.getElementById("positionPct").textContent = (sizing.percentOfBalance || sizing.percent || "—") + "% of your balance";
-      document.getElementById("positionDetails").innerHTML = `<strong>Why this amount?</strong><br>${d.positionSizing?.reasoning || sizing.reasoning || "Based on signal confidence and current balance."}`;
-    }
-    document.getElementById("challengeContext").textContent = d.challengeContext || "";
-
-    // Signal
-    const banner = document.getElementById("signalBanner");
-    banner.className = "signal-banner " + d.signal.toLowerCase();
-    document.getElementById("signalLabel").textContent = d.signal;
-    document.getElementById("signalConfidence").textContent = d.confidence;
-    document.getElementById("currentPrice").textContent = "$" + d.currentPrice.toFixed(2);
-    const chgColor = d.priceChange >= 0 ? "var(--green)" : "var(--red)";
-    const chgSign = d.priceChange >= 0 ? "+" : "";
-    document.getElementById("priceChangeDisplay").innerHTML = `<span style="color:${chgColor}">${chgSign}${d.priceChange.toFixed(2)}% today</span>`;
-    document.getElementById("edu-signal").textContent = d.signalExplanation;
-    if (d.indicatorConsensus) {
-      document.getElementById("consensusRow").innerHTML = `▲ ${d.indicatorConsensus.bullish} bullish · ▼ ${d.indicatorConsensus.bearish} bearish · — ${d.indicatorConsensus.neutral} neutral`;
+    const ps=d.positionSizing;
+    if(ps){
+      document.getElementById("positionBox").innerHTML=`
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+          <div><div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:3px">TOTAL TO RISK</div><div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--accent);letter-spacing:2px">${ps.totalBudgetToRisk||"—"}</div><div style="font-size:10px;color:var(--muted)">Reserve: ${ps.reserveAmount||"—"}</div></div>
+          <div style="flex:1;min-width:160px;font-size:11px;color:var(--text);line-height:1.8">${ps.reasoning||""}</div>
+        </div>
+        ${d.trades?.length>1?`${(ps.perTradeBreakdown||[]).map(t=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px"><span>Trade ${t.trade} — ${t.symbol}</span><span style="color:var(--accent);font-weight:600">${t.amount}</span></div>`).join("")}`:""}
+        <div class="challenge-context">${d.challengeContext||""}</div>`;
     }
 
-    // Price stats
-    document.getElementById("priceStats").innerHTML = `
-      <div class="card"><div class="card-label">TODAY'S CHANGE</div><div class="card-value ${d.priceChange>=0?"green":"red"}">${chgSign}${d.priceChange.toFixed(2)}%</div><div class="card-sub">vs prev close</div></div>
-      <div class="card"><div class="card-label">52W HIGH</div><div class="card-value accent">$${d.weekHigh}</div><div class="card-sub">Low: $${d.weekLow}</div></div>
-      <div class="card"><div class="card-label">VOLUME</div><div class="card-value">${d.volume}</div><div class="card-sub">Avg: ${d.avgVolume}</div></div>
-      <div class="card"><div class="card-label">SIGNAL ACCURACY</div><div class="card-value yellow">${d.accuracyScore}%</div><div class="card-sub">indicators agree</div></div>`;
-
-    // Exit strategy
-    if (d.exitStrategy) {
-      const ex = d.exitStrategy;
-      document.getElementById("holdTime").textContent = ex.recommendedHoldTime || "—";
-      document.getElementById("latestExit").textContent = "⏰ " + (ex.latestExitTime || "Before market close");
-      document.getElementById("dayTradingTips").innerHTML = `<strong>Day Trading Tips:</strong><br>${ex.dayTradingTips || ""}`;
-      document.getElementById("sellSignals").innerHTML = (ex.sellSignals||[]).map(s => `<div class="sell-signal-card">${s}</div>`).join("");
-      document.getElementById("doNotHold").innerHTML = (ex.doNotHoldIf||[]).map(s => `<div class="donot-card">${s}</div>`).join("");
+    // Performance coach in results
+    const pc=d.performanceCoach;
+    if(pc?.hasInsights){
+      const coachBox=document.getElementById("coachBox");
+      if(coachBox){
+        coachBox.innerHTML=`<div class="coach-summary">📊 ${pc.summary}</div>${(pc.insights||[]).map(i=>`<div class="insight-card ${i.positive?"positive":"negative"}"><div class="insight-title">${i.icon} ${i.title}</div><div>${i.message}</div></div>`).join("")}`;
+      }
     }
 
-    // Budget
-    const b = d.budget;
-    const optColor = b.suggestedOptionType === "CALL" ? "var(--green)" : "var(--red)";
-    document.getElementById("budgetRows").innerHTML = `
-      <div class="budget-row"><div class="budget-row-label">OPTION TYPE</div><div class="budget-row-val" style="color:${optColor}">${b.suggestedOptionType}</div></div>
-      <div class="budget-row"><div class="budget-row-label">STRIKE PRICE</div><div class="budget-row-val">$${b.strikePrice}</div></div>
-      <div class="budget-row"><div class="budget-row-label">EXPIRATION</div><div class="budget-row-val">${b.expiration}</div></div>
-      <div class="budget-row"><div class="budget-row-label">ESTIMATED COST</div><div class="budget-row-val">${b.estimatedOptionCost}</div></div>
-      <div class="budget-row"><div class="budget-row-label">MAX LOSS</div><div class="budget-row-val" style="color:var(--red)">${b.maxLoss}</div></div>
-      <div class="budget-row"><div class="budget-row-label">POTENTIAL GAIN</div><div class="budget-row-val">${b.estimatedGain}</div></div>`;
-    document.getElementById("budgetNote").textContent = b.robinhoodNote;
+    // Trade tabs
+    const trades=d.trades||[];
+    const tabsEl=document.getElementById("tradeTabs");
+    const panelsEl=document.getElementById("tradePanels");
+    tabsEl.innerHTML="";panelsEl.innerHTML="";
+    trades.forEach((trade,i)=>{
+      const tab=document.createElement("button");
+      tab.className="trade-tab"+(i===0?" active":"");
+      tab.textContent=`TRADE ${i+1}: ${trade.symbol} ${trade.signal}`;
+      tab.onclick=()=>{document.querySelectorAll(".trade-tab").forEach(t=>t.classList.remove("active"));document.querySelectorAll(".trade-panel").forEach(p=>p.classList.remove("active"));tab.classList.add("active");document.getElementById("tradePanel"+i).classList.add("active");};
+      tabsEl.appendChild(tab);
+      panelsEl.innerHTML+=buildTradePanel(trade,i);
+    });
+    document.getElementById("tradeTabsTitle").textContent=`TODAY'S ${trades.length} TRADE${trades.length>1?"S":""} — ${d.activeStrategy?.name||""}`;
 
-    // Trade levels
-    document.getElementById("entryPrice").textContent = "$" + d.entryPrice.toFixed(2);
-    document.getElementById("entryNote").textContent = d.entryNote;
-    document.getElementById("stopPrice").textContent = "$" + d.stopLoss.toFixed(2);
-    document.getElementById("stopNote").textContent = d.stopNote;
-    document.getElementById("targetPrice").textContent = "$" + d.profitTarget.toFixed(2);
-    document.getElementById("targetNote").textContent = d.targetNote;
-    document.getElementById("riskReward").textContent = d.riskReward;
-    if (d.atrNote) document.getElementById("atrNote").textContent = "📐 " + d.atrNote;
-
-    // Probability
-    const p = d.probability;
-    const probColor = p.overallPercent >= 55 ? "var(--green)" : p.overallPercent >= 40 ? "var(--yellow)" : p.overallPercent >= 25 ? "var(--orange)" : "var(--red)";
-    const circle = document.getElementById("probCircle");
-    circle.style.borderColor = probColor;
-    circle.style.boxShadow = `0 0 25px ${probColor}22`;
-    document.getElementById("probPct").style.color = probColor;
-    document.getElementById("probPct").textContent = p.overallPercent + "%";
-    document.getElementById("probFactors").innerHTML = p.factors.map(f => {
-      const fc = f.score >= 60 ? "var(--green)" : f.score >= 40 ? "var(--yellow)" : "var(--red)";
-      return `<div class="prob-factor-row">
-        <div class="prob-factor-info"><div class="prob-factor-label">${f.label}</div><div class="prob-factor-note">${f.note}</div></div>
-        <div class="prob-bar-wrap"><div class="prob-bar" style="width:${f.score}%;background:${fc}"></div></div>
-        <div class="prob-factor-val" style="color:${fc}">${f.score}</div>
-      </div>`;
+    // Rankings
+    document.getElementById("rankingsGrid").innerHTML=(d.stockRankings||[]).map(r=>{
+      const sc=r.score>=65?"var(--green)":r.score>=45?"var(--yellow)":"var(--red)";
+      return`<div class="rank-card"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13px;font-weight:600">${r.symbol}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${sc}">${r.score}</div></div><div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.4">${r.reason}</div><div style="font-size:9px;margin-top:4px;color:${r.newsSentiment==="BULLISH"?"var(--green)":r.newsSentiment==="BEARISH"?"var(--red)":"var(--yellow)"}">News: ${r.newsSentiment||"—"}</div></div>`;
     }).join("");
-    document.getElementById("probVerdict").innerHTML = `<strong>Bottom Line:</strong> ${p.verdict}`;
 
-    // Scenarios
-    const scClass = {bull:"sc-bull",base:"sc-base",bear:"sc-bear",worst:"sc-worst"};
-    const scColor = {bull:"var(--green)",base:"var(--accent)",bear:"var(--orange)",worst:"var(--red)"};
-    document.getElementById("scenarioRows").innerHTML = d.scenarios.map(s => `
-      <tr>
-        <td><span class="sc-badge ${scClass[s.type]||"sc-base"}">${s.label}</span></td>
-        <td style="font-weight:600">${s.probability}</td>
-        <td>$${s.target}</td>
-        <td style="font-weight:600;color:${scColor[s.type]||"var(--text)"}">${s.result}</td>
-      </tr>`).join("");
+    // Pre-fill log
+    if(trades[0]){
+      document.getElementById("logSymbol").value=trades[0].symbol||"";
+      document.getElementById("logOptionType").value=trades[0].budget?.suggestedOptionType||"CALL";
+      document.getElementById("logStrategy").value=currentStrategy;
+    }
 
-    // Indicators
-    const cMap = {green:"var(--green)",red:"var(--red)",yellow:"var(--yellow)"};
-    document.getElementById("indicatorsGrid").innerHTML = d.indicators.map(ind => `
-      <div class="indicator-card">
-        <div class="indicator-top"><div class="indicator-name">${ind.name}</div><div class="indicator-signal" style="color:${cMap[ind.color]||"var(--muted)"}">${ind.signal}</div></div>
-        <div class="indicator-value" style="color:${cMap[ind.color]||"var(--text)"}">${ind.value}</div>
-        <div class="indicator-meaning">${ind.meaning||""}</div>
-      </div>`).join("");
+    // Update strategy page
+    loadStrategyPage();
 
-    // SR
-    document.getElementById("srGrid").innerHTML = `
-      <div class="sr-card">
-        <div class="card-label" style="margin-bottom:10px">SUPPORT (FLOORS)</div>
-        ${d.support.map(s=>`<div class="sr-row"><span style="color:var(--green);font-size:14px;font-weight:600">$${s.level}</span><span style="font-size:10px;color:var(--muted)">${s.strength}</span></div>`).join("")}
-      </div>
-      <div class="sr-card">
-        <div class="card-label" style="margin-bottom:10px">RESISTANCE (CEILINGS)</div>
-        ${d.resistance.map(r=>`<div class="sr-row"><span style="color:var(--red);font-size:14px;font-weight:600">$${r.level}</span><span style="font-size:10px;color:var(--muted)">${r.strength}</span></div>`).join("")}
-      </div>`;
+    // Live price
+    if(livePriceInterval)clearInterval(livePriceInterval);
+    updateLivePrice();livePriceInterval=setInterval(updateLivePrice,30000);
 
-    document.getElementById("analysisText").textContent = d.analysis;
-    document.getElementById("robinhoodSteps").textContent = d.robinhoodSteps;
+    loading.classList.remove("show");results.classList.add("show");
+    loadChallengeData();
 
-    // Pre-fill monitor
-    document.getElementById("monitorEntry").value = d.entryPrice?.toFixed(2) || "";
-    document.getElementById("monitorStop").value = d.stopLoss?.toFixed(2) || "";
-    document.getElementById("monitorTarget").value = d.profitTarget?.toFixed(2) || "";
-    document.getElementById("monitorOptionType").value = d.budget?.suggestedOptionType || "";
-
-    // Pre-fill log form
-    document.getElementById("logSymbol").value = d.chosenSymbol || "";
-    document.getElementById("logOptionType").value = d.budget?.suggestedOptionType || "CALL";
-
-    // Start live price updates for chosen symbol
-    if (livePriceInterval) clearInterval(livePriceInterval);
-    updateLivePrice();
-    livePriceInterval = setInterval(updateLivePrice, 30000);
-
-    loading.classList.remove("show");
-    results.classList.add("show");
-
-  } catch(err) {
-    clearInterval(loadInterval);
-    loading.classList.remove("show");
-    errorBox.classList.add("show");
-    errorBox.innerHTML = `<strong>Error:</strong> ${err.message}<br><br>Make sure your server is running and ANTHROPIC_API_KEY is set in Railway Variables.`;
+  }catch(err){
+    clearInterval(li);loading.classList.remove("show");errorBox.classList.add("show");
+    errorBox.innerHTML=`<strong>Error:</strong> ${err.message}<br><br>Make sure server is running and ANTHROPIC_API_KEY is set.`;
   }
-  btn.disabled = false;
+  btn.disabled=false;
 }
 
-// ─── Monitor ──────────────────────────────────────────────────────────────────
-async function startMonitor() {
-  const email = document.getElementById("alertEmail").value.trim();
-  const entryPrice = parseFloat(document.getElementById("monitorEntry").value);
-  const stopLoss = parseFloat(document.getElementById("monitorStop").value);
-  const profitTarget = parseFloat(document.getElementById("monitorTarget").value);
-  const optionType = document.getElementById("monitorOptionType").value || currentOptionType;
-
-  if (!email || !email.includes("@")) { showMonitorStatus("Please enter a valid email.", "error"); return; }
-  if (isNaN(entryPrice) || isNaN(stopLoss) || isNaN(profitTarget)) { showMonitorStatus("Please fill in all price fields.", "error"); return; }
-
-  document.getElementById("monitorBtn").disabled = true;
-  try {
-    const res = await fetch("/api/monitor/start", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ email, symbol: currentSymbol, entryPrice, stopLoss, profitTarget, signal: currentSignal, optionType }) });
-    const data = await res.json();
-    if (data.success) {
-      currentMonitorId = data.monitorId;
-      showMonitorStatus(`✅ Monitoring ${currentSymbol} every 3 minutes.\nEmail alerts → ${email}\nStop Loss: $${stopLoss} | Target: $${profitTarget}`, "success");
-      document.getElementById("stopMonitorBtn").classList.add("show");
-      requestNotificationPermission();
-    } else throw new Error(data.error);
-  } catch(err) {
-    showMonitorStatus("Error: " + err.message, "error");
-    document.getElementById("monitorBtn").disabled = false;
-  }
+async function startMonitor(idx,symbol,signal){
+  const email=document.getElementById(`alertEmail${idx}`).value.trim();
+  const entry=parseFloat(document.getElementById(`monitorEntry${idx}`).value);
+  const stop=parseFloat(document.getElementById(`monitorStop${idx}`).value);
+  const target=parseFloat(document.getElementById(`monitorTarget${idx}`).value);
+  const optType=document.getElementById(`monitorType${idx}`).value;
+  if(!email||!email.includes("@")){showMonitorStatus(idx,"Please enter a valid email.","error");return;}
+  if(isNaN(entry)||isNaN(stop)||isNaN(target)){showMonitorStatus(idx,"Fill in all price fields.","error");return;}
+  document.getElementById(`monitorBtn${idx}`).disabled=true;
+  try{
+    const r=await fetch("/api/monitor/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,symbol,entryPrice:entry,stopLoss:stop,profitTarget:target,signal,optionType:optType})});
+    const d=await r.json();
+    if(d.success){currentMonitors[idx]=d.monitorId;showMonitorStatus(idx,`✅ Monitoring ${symbol} every 3 min.\nEmail: ${email}\nStop: $${stop} | Target: $${target}`,"success");document.getElementById(`stopMonitorBtn${idx}`).classList.add("show");if("Notification"in window&&Notification.permission==="default")Notification.requestPermission();}
+    else throw new Error(d.error);
+  }catch(e){showMonitorStatus(idx,"Error: "+e.message,"error");document.getElementById(`monitorBtn${idx}`).disabled=false;}
 }
 
-async function stopMonitor() {
-  if (!currentMonitorId) return;
-  try { await fetch("/api/monitor/stop", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ monitorId: currentMonitorId }) }); } catch(e) {}
-  currentMonitorId = null;
-  document.getElementById("monitorBtn").disabled = false;
-  document.getElementById("stopMonitorBtn").classList.remove("show");
-  showMonitorStatus("Monitor stopped.", "success");
+async function stopMonitor(idx){
+  const mid=currentMonitors[idx];if(!mid)return;
+  try{await fetch("/api/monitor/stop",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({monitorId:mid})});}catch(e){}
+  delete currentMonitors[idx];document.getElementById(`monitorBtn${idx}`).disabled=false;document.getElementById(`stopMonitorBtn${idx}`).classList.remove("show");showMonitorStatus(idx,"Monitor stopped.","success");
 }
+function showMonitorStatus(idx,msg,type){const el=document.getElementById("monitorStatus"+idx);el.textContent=msg;el.className="monitor-status "+type;}
 
-function showMonitorStatus(msg, type) {
-  const el = document.getElementById("monitorStatus");
-  el.textContent = msg;
-  el.className = "monitor-status " + type;
+async function logTrade(){
+  const symbol=document.getElementById("logSymbol").value.trim().toUpperCase();
+  const optionType=document.getElementById("logOptionType").value;
+  const amount=parseFloat(document.getElementById("logAmount").value);
+  const exitValue=parseFloat(document.getElementById("logExitValue").value);
+  const result=document.getElementById("logResult").value;
+  const strategy=document.getElementById("logStrategy").value;
+  const notes=document.getElementById("logNotes").value.trim();
+  if(!symbol){showLogStatus("Enter a stock symbol.","error");return;}
+  if(isNaN(amount)||amount<=0){showLogStatus("Enter the amount you risked.","error");return;}
+  if(isNaN(exitValue)){showLogStatus("Enter the exit value.","error");return;}
+  try{
+    const r=await fetch("/api/trade/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol,optionType,entryPrice:amount,exitPrice:exitValue,amount,result,notes,strategy,marketRegime:"UNKNOWN"})});
+    const d=await r.json();
+    if(d.success){
+      const pnl=d.trade.pnl;
+      showLogStatus(`✅ Logged! ${result==="win"?"WIN":"LOSS"}: ${pnl>=0?"+":""}$${pnl.toFixed(2)} | Balance: $${d.newBalance.toFixed(2)} | ${d.consecutiveWins>1?"🔥 "+d.consecutiveWins+" wins in a row!":d.consecutiveLosses>1?"⚠️ "+d.consecutiveLosses+" losses — reduce size":""}`,"success");
+      ["logAmount","logExitValue","logNotes"].forEach(id=>document.getElementById(id).value="");
+      loadChallengeData();loadPerformanceCoach();loadStrategyPage();
+      if(d.milestone)showMilestone(d.milestone);
+    }else throw new Error(d.error);
+  }catch(e){showLogStatus("Error: "+e.message,"error");}
 }
+function showLogStatus(msg,type){const el=document.getElementById("logStatus");el.textContent=msg;el.className="log-status "+type;}
 
-// ─── Log trade ────────────────────────────────────────────────────────────────
-async function logTrade() {
-  const symbol = document.getElementById("logSymbol").value.trim().toUpperCase();
-  const optionType = document.getElementById("logOptionType").value;
-  const amount = parseFloat(document.getElementById("logAmount").value);
-  const exitValue = parseFloat(document.getElementById("logExitValue").value);
-  const result = document.getElementById("logResult").value;
-  const notes = document.getElementById("logNotes").value.trim();
-
-  if (!symbol) { showLogStatus("Please enter a stock symbol.", "error"); return; }
-  if (isNaN(amount) || amount <= 0) { showLogStatus("Please enter the amount you risked.", "error"); return; }
-  if (isNaN(exitValue)) { showLogStatus("Please enter the exit value (0 if lost everything).", "error"); return; }
-
-  try {
-    const res = await fetch("/api/trade/log", { method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ symbol, optionType, entryPrice: amount, exitPrice: exitValue, amount, result, notes }) });
-    const data = await res.json();
-    if (data.success) {
-      const pnl = data.trade.pnl;
-      showLogStatus(`✅ Trade logged! P&L: ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)} | New Balance: $${data.newBalance.toFixed(2)}`, "success");
-      // Clear form
-      ["logAmount","logExitValue","logNotes"].forEach(id => document.getElementById(id).value = "");
-      // Reload challenge data
-      loadChallengeData();
-      // Show milestone if hit
-      if (data.milestone) showMilestone(data.milestone);
-    } else throw new Error(data.error);
-  } catch(err) { showLogStatus("Error: " + err.message, "error"); }
-}
-
-function showLogStatus(msg, type) {
-  const el = document.getElementById("logStatus");
-  el.textContent = msg;
-  el.className = "log-status " + type;
-}
-
-// ─── Milestone ────────────────────────────────────────────────────────────────
-function showMilestone(amount) {
-  document.getElementById("milestoneEmoji").textContent = MILESTONE_EMOJIS[amount] || "🏆";
-  document.getElementById("milestoneTitle").textContent = "$" + amount.toLocaleString() + " REACHED!";
-  document.getElementById("milestoneSub").textContent = amount === 10000
-    ? "YOU DID IT! $10 → $10,000. You beat the challenge! 🏆"
-    : `You crossed $${amount.toLocaleString()} on your journey to $10,000. Keep going!`;
+function showMilestone(amount){
+  const emojis={25:"🌱",50:"💵",100:"💯",250:"🚀",500:"⭐",1000:"🔥",2500:"💎",5000:"👑",10000:"🏆"};
+  document.getElementById("milestoneEmoji").textContent=emojis[amount]||"🏆";
+  document.getElementById("milestoneTitle").textContent="$"+amount.toLocaleString()+" REACHED!";
+  document.getElementById("milestoneSub").textContent=amount===10000?"YOU DID IT! $10 → $10,000! 🏆 You beat the challenge!":`You crossed $${amount.toLocaleString()} on your journey to $10,000. Keep going!`;
   document.getElementById("milestonePopup").classList.add("show");
   document.getElementById("milestoneOverlay").classList.add("show");
 }
-
-function closeMilestone() {
-  document.getElementById("milestonePopup").classList.remove("show");
-  document.getElementById("milestoneOverlay").classList.remove("show");
-}
+function closeMilestone(){document.getElementById("milestonePopup").classList.remove("show");document.getElementById("milestoneOverlay").classList.remove("show");}
 </script>
 </body>
 </html>
