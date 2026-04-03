@@ -7,227 +7,224 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #060a0f;
-    --card: #111d2e;
-    --border: #1e3448;
-    --accent: #00e5ff;
-    --green: #00ff88;
-    --red: #ff3b5c;
-    --yellow: #ffd600;
-    --orange: #ff8c00;
-    --text: #c8dff0;
-    --muted: #4a6b85;
+    --bg:#060a0f; --card:#111d2e; --border:#1e3448;
+    --accent:#00e5ff; --green:#00ff88; --red:#ff3b5c;
+    --yellow:#ffd600; --orange:#ff8c00; --text:#c8dff0; --muted:#4a6b85;
   }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--bg); color:var(--text); font-family:'IBM Plex Mono',monospace; min-height:100vh; overflow-x:hidden; }
-  body::before {
-    content:''; position:fixed; inset:0;
-    background-image: linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px), linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);
-    background-size:40px 40px; pointer-events:none; z-index:0;
-  }
-  .wrapper { position:relative; z-index:1; max-width:960px; margin:0 auto; padding:24px 16px 80px; }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+  .wrapper{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:24px 16px 80px;}
 
-  /* Header */
-  .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; padding-bottom:16px; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:12px; }
-  .logo-ticker { font-family:'Bebas Neue',sans-serif; font-size:52px; color:var(--accent); letter-spacing:4px; text-shadow:0 0 30px rgba(0,229,255,0.5); line-height:1; }
-  .logo-label { font-size:11px; color:var(--muted); letter-spacing:2px; margin-top:2px; }
-  .header-badges { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .badge { padding:6px 12px; font-size:10px; letter-spacing:1.5px; border:1px solid; }
-  .badge.green { color:var(--green); border-color:rgba(0,255,136,0.4); background:rgba(0,255,136,0.06); }
-  .badge.accent { color:var(--accent); border-color:rgba(0,229,255,0.4); background:rgba(0,229,255,0.06); }
-  .live-dot { width:7px; height:7px; background:var(--green); border-radius:50%; display:inline-block; margin-right:5px; animation:pulse 1.5s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:12px;}
+  .logo-ticker{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--accent);letter-spacing:4px;text-shadow:0 0 30px rgba(0,229,255,0.5);line-height:1;}
+  .logo-label{font-size:11px;color:var(--muted);letter-spacing:2px;margin-top:2px;}
+  .header-badges{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .badge{padding:6px 12px;font-size:10px;letter-spacing:1.5px;border:1px solid;}
+  .badge.green{color:var(--green);border-color:rgba(0,255,136,0.4);background:rgba(0,255,136,0.06);}
+  .badge.accent{color:var(--accent);border-color:rgba(0,229,255,0.4);background:rgba(0,229,255,0.06);}
+  .live-price-badge{color:var(--yellow);border-color:rgba(255,214,0,0.4);background:rgba(255,214,0,0.06);}
+  .live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;display:inline-block;margin-right:5px;animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.8)}}
 
-  /* Button */
-  .analyze-btn { width:100%; padding:18px; background:transparent; border:1px solid var(--accent); color:var(--accent); font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:600; letter-spacing:4px; text-transform:uppercase; cursor:pointer; position:relative; overflow:hidden; transition:all 0.3s; margin-bottom:24px; }
-  .analyze-btn::before { content:''; position:absolute; inset:0; background:var(--accent); transform:translateX(-100%); transition:transform 0.3s; z-index:-1; }
-  .analyze-btn:hover::before { transform:translateX(0); }
-  .analyze-btn:hover { color:var(--bg); }
-  .analyze-btn:disabled { opacity:0.4; cursor:not-allowed; color:var(--accent) !important; }
-  .analyze-btn:disabled::before { transform:translateX(-100%) !important; }
+  .analyze-btn{width:100%;padding:18px;background:transparent;border:1px solid var(--accent);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;letter-spacing:4px;text-transform:uppercase;cursor:pointer;position:relative;overflow:hidden;transition:all 0.3s;margin-bottom:24px;}
+  .analyze-btn::before{content:'';position:absolute;inset:0;background:var(--accent);transform:translateX(-100%);transition:transform 0.3s;z-index:-1;}
+  .analyze-btn:hover::before{transform:translateX(0);}
+  .analyze-btn:hover{color:var(--bg);}
+  .analyze-btn:disabled{opacity:0.4;cursor:not-allowed;color:var(--accent)!important;}
+  .analyze-btn:disabled::before{transform:translateX(-100%)!important;}
 
-  /* Loading */
-  .loading { display:none; padding:48px; text-align:center; }
-  .loading.show { display:block; }
-  .loading-steps { list-style:none; text-align:left; max-width:320px; margin:0 auto 20px; }
-  .loading-steps li { font-size:11px; color:var(--muted); letter-spacing:1px; padding:4px 0; }
-  .loading-steps li.active { color:var(--accent); }
-  .loading-steps li.done { color:var(--green); }
-  .loading-steps li::before { content:'○ '; }
-  .loading-steps li.active::before { content:'● '; }
-  .loading-steps li.done::before { content:'✓ '; }
-  .loading-bar { width:100%; height:2px; background:var(--border); overflow:hidden; }
-  .loading-bar-fill { height:100%; background:linear-gradient(90deg,transparent,var(--accent),transparent); animation:scan 1.2s linear infinite; width:40%; }
-  @keyframes scan { from{transform:translateX(-100%)} to{transform:translateX(350%)} }
+  .loading{display:none;padding:48px;text-align:center;}
+  .loading.show{display:block;}
+  .loading-steps{list-style:none;text-align:left;max-width:320px;margin:0 auto 20px;}
+  .loading-steps li{font-size:11px;color:var(--muted);letter-spacing:1px;padding:4px 0;}
+  .loading-steps li.active{color:var(--accent);}
+  .loading-steps li.done{color:var(--green);}
+  .loading-steps li::before{content:'○ ';}
+  .loading-steps li.active::before{content:'● ';}
+  .loading-steps li.done::before{content:'✓ ';}
+  .loading-bar{width:100%;height:2px;background:var(--border);overflow:hidden;}
+  .loading-bar-fill{height:100%;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scan 1.2s linear infinite;width:40%;}
+  @keyframes scan{from{transform:translateX(-100%)}to{transform:translateX(350%)}}
 
-  /* Results */
-  .results { display:none; }
-  .results.show { display:block; animation:fadeIn 0.5s ease; }
-  @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  .results{display:none;}
+  .results.show{display:block;animation:fadeIn 0.5s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 
-  /* Timestamp & accuracy */
-  .meta-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
-  .timestamp { font-size:10px; color:var(--muted); letter-spacing:1px; }
-  .accuracy-chip { display:flex; align-items:center; gap:6px; font-size:11px; letter-spacing:1px; }
-  .accuracy-val { font-weight:600; }
-  .consensus-row { display:flex; gap:12px; font-size:10px; letter-spacing:1px; }
-  .cons-bull { color:var(--green); }
-  .cons-bear { color:var(--red); }
-  .cons-neut { color:var(--yellow); }
+  .meta-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .timestamp{font-size:10px;color:var(--muted);letter-spacing:1px;}
+  .accuracy-chip{font-size:11px;letter-spacing:1px;}
+  .accuracy-val{font-weight:600;}
+  .consensus-row{display:flex;gap:12px;font-size:10px;letter-spacing:1px;margin-top:4px;}
 
-  /* Signal */
-  .signal-banner { padding:22px 24px; margin-bottom:12px; border-left:4px solid; background:var(--card); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
-  .signal-banner.buy { border-color:var(--green); }
-  .signal-banner.sell { border-color:var(--red); }
-  .signal-banner.hold { border-color:var(--yellow); }
-  .signal-left { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
-  .signal-label { font-family:'Bebas Neue',sans-serif; font-size:42px; letter-spacing:4px; }
-  .signal-banner.buy .signal-label { color:var(--green); text-shadow:0 0 20px rgba(0,255,136,0.3); }
-  .signal-banner.sell .signal-label { color:var(--red); text-shadow:0 0 20px rgba(255,59,92,0.3); }
-  .signal-banner.hold .signal-label { color:var(--yellow); }
-  .signal-conf { font-size:12px; color:var(--muted); letter-spacing:1px; }
-  .signal-conf span { color:var(--text); font-weight:600; }
-  .signal-right { text-align:right; }
-  .price-label { font-size:10px; color:var(--muted); letter-spacing:2px; }
-  .price-val { font-size:32px; font-weight:600; color:var(--text); }
+  .signal-banner{padding:22px 24px;margin-bottom:12px;border-left:4px solid;background:var(--card);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  .signal-banner.buy{border-color:var(--green);}
+  .signal-banner.sell{border-color:var(--red);}
+  .signal-banner.hold{border-color:var(--yellow);}
+  .signal-label{font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:4px;}
+  .signal-banner.buy .signal-label{color:var(--green);}
+  .signal-banner.sell .signal-label{color:var(--red);}
+  .signal-banner.hold .signal-label{color:var(--yellow);}
+  .signal-conf{font-size:12px;color:var(--muted);letter-spacing:1px;}
+  .signal-conf span{color:var(--text);font-weight:600;}
+  .price-label{font-size:10px;color:var(--muted);letter-spacing:2px;}
+  .price-val{font-size:32px;font-weight:600;color:var(--text);}
 
-  /* Section headers */
-  .section-header { display:flex; align-items:center; justify-content:space-between; margin:16px 0 10px; }
-  .section-title { font-size:10px; color:var(--muted); letter-spacing:2.5px; text-transform:uppercase; }
-  .learn-pill { font-size:10px; color:var(--accent); border:1px solid rgba(0,229,255,0.3); padding:3px 10px; cursor:pointer; background:transparent; font-family:'IBM Plex Mono',monospace; letter-spacing:1px; transition:background 0.2s; }
-  .learn-pill:hover { background:rgba(0,229,255,0.08); }
+  .section-header{display:flex;align-items:center;justify-content:space-between;margin:16px 0 10px;}
+  .section-title{font-size:10px;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;}
+  .learn-pill{font-size:10px;color:var(--accent);border:1px solid rgba(0,229,255,0.3);padding:3px 10px;cursor:pointer;background:transparent;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;transition:background 0.2s;}
+  .learn-pill:hover{background:rgba(0,229,255,0.08);}
 
-  /* Edu box */
-  .edu-box { background:rgba(0,229,255,0.04); border-left:3px solid var(--accent); padding:14px 16px; margin-bottom:12px; font-size:11px; color:var(--text); line-height:1.95; display:none; }
-  .edu-box.open { display:block; animation:fadeIn 0.3s ease; }
-  .edu-box strong { color:var(--accent); }
+  .edu-box{background:rgba(0,229,255,0.04);border-left:3px solid var(--accent);padding:14px 16px;margin-bottom:12px;font-size:11px;color:var(--text);line-height:1.95;display:none;}
+  .edu-box.open{display:block;animation:fadeIn 0.3s ease;}
+  .edu-box strong{color:var(--accent);}
 
-  /* Grids */
-  .grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-  .grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px; }
-  .grid-2 { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:12px; }
-  @media(max-width:700px){ .grid-4{grid-template-columns:1fr 1fr;} .grid-3{grid-template-columns:1fr 1fr;} .grid-2{grid-template-columns:1fr;} }
+  /* EXIT STRATEGY */
+  .exit-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
+  .exit-timer-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+  .exit-timer-wrap{text-align:center;}
+  .exit-timer-label{font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:6px;}
+  .exit-timer{font-family:'Bebas Neue',sans-serif;font-size:38px;color:var(--yellow);letter-spacing:3px;line-height:1;}
+  .exit-timer.warning{color:var(--red);animation:blink 1s infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+  .exit-deadline{font-size:11px;color:var(--muted);margin-top:4px;}
+  .exit-tips{flex:1;min-width:200px;font-size:11px;color:var(--muted);line-height:1.8;}
+  .exit-tips strong{color:var(--yellow);}
 
-  /* Cards */
-  .card { background:var(--card); border:1px solid var(--border); padding:14px 16px; }
-  .card-label { font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:7px; }
-  .card-value { font-size:20px; font-weight:600; color:var(--text); line-height:1; }
-  .card-value.green { color:var(--green); }
-  .card-value.red { color:var(--red); }
-  .card-value.accent { color:var(--accent); }
-  .card-value.yellow { color:var(--yellow); }
-  .card-sub { font-size:10px; color:var(--muted); margin-top:4px; }
+  .sell-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+  @media(max-width:600px){.sell-signals-grid{grid-template-columns:1fr;}}
+  .sell-signal-card{background:rgba(255,59,92,0.05);border:1px solid rgba(255,59,92,0.2);padding:12px 14px;font-size:11px;color:var(--text);line-height:1.6;}
+  .sell-signal-card::before{content:'🔴 ';font-size:10px;}
+  .donot-card{background:rgba(255,140,0,0.05);border:1px solid rgba(255,140,0,0.2);padding:12px 14px;font-size:11px;color:var(--text);line-height:1.6;margin-bottom:8px;}
+  .donot-card::before{content:'⚠️ ';}
 
-  /* Probability */
-  .prob-box { background:var(--card); border:1px solid var(--border); padding:20px; margin-bottom:12px; }
-  .prob-main { display:flex; align-items:flex-start; gap:24px; flex-wrap:wrap; margin-bottom:16px; }
-  .prob-circle-wrap { text-align:center; flex-shrink:0; }
-  .prob-circle { width:120px; height:120px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; border:3px solid var(--border); margin:0 auto 8px; transition:all 0.5s; }
-  .prob-circle-pct { font-family:'Bebas Neue',sans-serif; font-size:40px; letter-spacing:2px; line-height:1; }
-  .prob-circle-lbl { font-size:9px; color:var(--muted); letter-spacing:1px; }
-  .prob-circle-sub { font-size:10px; color:var(--muted); letter-spacing:1px; }
-  .prob-factors { flex:1; min-width:200px; }
-  .prob-factor-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); }
-  .prob-factor-row:last-child { border-bottom:none; }
-  .prob-factor-info { flex:1; }
-  .prob-factor-label { font-size:10px; color:var(--muted); letter-spacing:0.5px; }
-  .prob-factor-note { font-size:9px; color:var(--muted); margin-top:2px; opacity:0.7; }
-  .prob-bar-wrap { width:90px; height:5px; background:var(--border); border-radius:3px; overflow:hidden; }
-  .prob-bar { height:100%; border-radius:3px; transition:width 0.8s ease 0.2s; }
-  .prob-factor-val { font-size:11px; font-weight:600; width:32px; text-align:right; }
-  .prob-verdict { font-size:12px; line-height:1.85; color:var(--text); border-top:1px solid var(--border); padding-top:14px; }
-  .prob-verdict strong { color:var(--accent); }
+  /* MONITOR / ALERT SETUP */
+  .monitor-box{background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.25);padding:20px;margin-bottom:12px;}
+  .monitor-title{font-size:10px;color:var(--green);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+  .monitor-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media(max-width:600px){.monitor-form{grid-template-columns:1fr;}}
+  .monitor-field{display:flex;flex-direction:column;gap:5px;}
+  .monitor-field label{font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;}
+  .monitor-field input{background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 10px;outline:none;transition:border 0.2s;width:100%;}
+  .monitor-field input:focus{border-color:var(--accent);}
+  .monitor-field.full{grid-column:1/-1;}
+  .monitor-btn{grid-column:1/-1;padding:12px;background:transparent;border:1px solid var(--green);color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;transition:all 0.2s;margin-top:4px;}
+  .monitor-btn:hover{background:rgba(0,255,136,0.08);}
+  .monitor-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .monitor-status{grid-column:1/-1;font-size:11px;padding:10px;margin-top:4px;display:none;line-height:1.6;}
+  .monitor-status.success{display:block;color:var(--green);background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.2);}
+  .monitor-status.error{display:block;color:var(--red);background:rgba(255,59,92,0.06);border:1px solid rgba(255,59,92,0.2);}
+  .stop-monitor-btn{display:none;grid-column:1/-1;padding:10px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;margin-top:4px;}
+  .stop-monitor-btn.show{display:block;}
+  .stop-monitor-btn:hover{background:rgba(255,59,92,0.08);}
 
-  /* Scenarios */
-  .scenario-box { background:var(--card); border:1px solid var(--border); padding:20px; margin-bottom:12px; overflow-x:auto; }
-  .scenario-table { width:100%; border-collapse:collapse; min-width:400px; }
-  .scenario-table th { font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; padding:6px 8px; text-align:left; border-bottom:1px solid var(--border); }
-  .scenario-table td { font-size:12px; padding:10px 8px; border-bottom:1px solid rgba(30,52,72,0.5); }
-  .scenario-table tr:last-child td { border-bottom:none; }
-  .sc-badge { display:inline-block; padding:2px 8px; font-size:10px; letter-spacing:1px; border:1px solid; }
-  .sc-bull { color:var(--green); border-color:rgba(0,255,136,0.4); background:rgba(0,255,136,0.08); }
-  .sc-base { color:var(--accent); border-color:rgba(0,229,255,0.4); background:rgba(0,229,255,0.08); }
-  .sc-bear { color:var(--orange); border-color:rgba(255,140,0,0.4); background:rgba(255,140,0,0.08); }
-  .sc-worst { color:var(--red); border-color:rgba(255,59,92,0.4); background:rgba(255,59,92,0.08); }
+  /* GRIDS & CARDS */
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;}
+  .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;}
+  @media(max-width:700px){.grid-4{grid-template-columns:1fr 1fr;}.grid-3{grid-template-columns:1fr 1fr;}.grid-2{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--border);padding:14px 16px;}
+  .card-label{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:7px;}
+  .card-value{font-size:20px;font-weight:600;color:var(--text);line-height:1;}
+  .card-value.green{color:var(--green);}.card-value.red{color:var(--red);}.card-value.accent{color:var(--accent);}.card-value.yellow{color:var(--yellow);}
+  .card-sub{font-size:10px;color:var(--muted);margin-top:4px;}
 
-  /* Budget */
-  .budget-box { background:rgba(0,255,136,0.04); border:1px solid rgba(0,255,136,0.2); padding:20px; margin-bottom:12px; }
-  .budget-row { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid rgba(0,255,136,0.08); }
-  .budget-row:last-child { border-bottom:none; }
-  .budget-row-label { font-size:10px; color:var(--muted); letter-spacing:1px; }
-  .budget-row-val { font-size:14px; font-weight:600; color:var(--green); }
-  .budget-note { font-size:11px; color:var(--muted); margin-top:14px; line-height:1.8; border-top:1px solid rgba(0,255,136,0.1); padding-top:12px; }
+  /* PROBABILITY */
+  .prob-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
+  .prob-main{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:16px;}
+  .prob-circle-wrap{text-align:center;flex-shrink:0;}
+  .prob-circle{width:120px;height:120px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid var(--border);margin:0 auto 8px;transition:all 0.5s;}
+  .prob-circle-pct{font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:2px;line-height:1;}
+  .prob-circle-lbl{font-size:9px;color:var(--muted);letter-spacing:1px;}
+  .prob-circle-sub{font-size:10px;color:var(--muted);letter-spacing:1px;}
+  .prob-factors{flex:1;min-width:200px;}
+  .prob-factor-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);}
+  .prob-factor-row:last-child{border-bottom:none;}
+  .prob-factor-info{flex:1;}
+  .prob-factor-label{font-size:10px;color:var(--muted);}
+  .prob-factor-note{font-size:9px;color:var(--muted);margin-top:2px;opacity:0.7;}
+  .prob-bar-wrap{width:90px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+  .prob-bar{height:100%;border-radius:3px;transition:width 0.8s ease 0.2s;}
+  .prob-factor-val{font-size:11px;font-weight:600;width:32px;text-align:right;}
+  .prob-verdict{font-size:12px;line-height:1.85;color:var(--text);border-top:1px solid var(--border);padding-top:14px;}
+  .prob-verdict strong{color:var(--accent);}
 
-  /* Trade levels */
-  .trade-section { background:var(--card); border:1px solid var(--border); padding:20px; margin-bottom:12px; }
-  .trade-row { display:flex; justify-content:space-between; align-items:flex-start; padding:11px 0; border-bottom:1px solid var(--border); gap:8px; }
-  .trade-row:last-child { border-bottom:none; }
-  .trade-row-left { flex:1; }
-  .trade-row-label { font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; }
-  .trade-row-note { font-size:10px; color:var(--muted); margin-top:3px; }
-  .trade-row-val { font-size:18px; font-weight:600; white-space:nowrap; }
-  .trade-row-val.entry { color:var(--accent); }
-  .trade-row-val.stop { color:var(--red); }
-  .trade-row-val.target { color:var(--green); }
-  .trade-row-val.rr { color:var(--yellow); }
-  .atr-note { font-size:10px; color:var(--muted); margin-top:6px; line-height:1.6; padding:10px; background:rgba(255,214,0,0.04); border-left:2px solid rgba(255,214,0,0.3); }
+  /* SCENARIOS */
+  .scenario-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;overflow-x:auto;}
+  .scenario-table{width:100%;border-collapse:collapse;min-width:400px;}
+  .scenario-table th{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);}
+  .scenario-table td{font-size:12px;padding:10px 8px;border-bottom:1px solid rgba(30,52,72,0.5);}
+  .scenario-table tr:last-child td{border-bottom:none;}
+  .sc-badge{display:inline-block;padding:2px 8px;font-size:10px;letter-spacing:1px;border:1px solid;}
+  .sc-bull{color:var(--green);border-color:rgba(0,255,136,0.4);background:rgba(0,255,136,0.08);}
+  .sc-base{color:var(--accent);border-color:rgba(0,229,255,0.4);background:rgba(0,229,255,0.08);}
+  .sc-bear{color:var(--orange);border-color:rgba(255,140,0,0.4);background:rgba(255,140,0,0.08);}
+  .sc-worst{color:var(--red);border-color:rgba(255,59,92,0.4);background:rgba(255,59,92,0.08);}
 
-  /* Indicators grid */
-  .indicators-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
-  @media(max-width:700px){ .indicators-grid{grid-template-columns:repeat(2,1fr);} }
-  .indicator-card { background:var(--card); border:1px solid var(--border); padding:12px 14px; }
-  .indicator-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
-  .indicator-name { font-size:10px; color:var(--muted); letter-spacing:1px; }
-  .indicator-signal { font-size:9px; letter-spacing:1px; font-weight:600; }
-  .indicator-value { font-size:13px; font-weight:600; margin-bottom:3px; }
-  .indicator-meaning { font-size:9px; color:var(--muted); line-height:1.5; }
+  /* BUDGET */
+  .budget-box{background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.2);padding:20px;margin-bottom:12px;}
+  .budget-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(0,255,136,0.08);}
+  .budget-row:last-child{border-bottom:none;}
+  .budget-row-label{font-size:10px;color:var(--muted);letter-spacing:1px;}
+  .budget-row-val{font-size:14px;font-weight:600;color:var(--green);}
+  .budget-note{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.8;border-top:1px solid rgba(0,255,136,0.1);padding-top:12px;}
+
+  /* TRADE LEVELS */
+  .trade-section{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
+  .trade-row{display:flex;justify-content:space-between;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--border);gap:8px;}
+  .trade-row:last-child{border-bottom:none;}
+  .trade-row-label{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;}
+  .trade-row-note{font-size:10px;color:var(--muted);margin-top:3px;}
+  .trade-row-val{font-size:18px;font-weight:600;white-space:nowrap;}
+  .trade-row-val.entry{color:var(--accent);}.trade-row-val.stop{color:var(--red);}.trade-row-val.target{color:var(--green);}.trade-row-val.rr{color:var(--yellow);}
+  .atr-note{font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6;padding:10px;background:rgba(255,214,0,0.04);border-left:2px solid rgba(255,214,0,0.3);}
+
+  /* INDICATORS */
+  .indicators-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
+  @media(max-width:700px){.indicators-grid{grid-template-columns:repeat(2,1fr);}}
+  .indicator-card{background:var(--card);border:1px solid var(--border);padding:12px 14px;}
+  .indicator-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .indicator-name{font-size:10px;color:var(--muted);letter-spacing:1px;}
+  .indicator-signal{font-size:9px;letter-spacing:1px;font-weight:600;}
+  .indicator-value{font-size:13px;font-weight:600;margin-bottom:3px;}
+  .indicator-meaning{font-size:9px;color:var(--muted);line-height:1.5;}
 
   /* SR */
-  .sr-card { background:var(--card); border:1px solid var(--border); padding:16px; }
-  .sr-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--border); }
-  .sr-row:last-child { border-bottom:none; }
+  .sr-card{background:var(--card);border:1px solid var(--border);padding:16px;}
+  .sr-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);}
+  .sr-row:last-child{border-bottom:none;}
 
-  /* Analysis boxes */
-  .analysis-box { background:var(--card); border:1px solid var(--border); padding:20px; margin-bottom:12px; }
-  .analysis-text { font-size:12px; line-height:1.95; color:var(--text); white-space:pre-wrap; }
+  /* ANALYSIS BOXES */
+  .analysis-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
+  .analysis-text{font-size:12px;line-height:1.95;color:var(--text);white-space:pre-wrap;}
+  .rh-box{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:12px;}
+  .rh-title{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
 
-  /* Robinhood steps */
-  .rh-box { background:var(--card); border:1px solid var(--border); padding:20px; margin-bottom:12px; }
-  .rh-title { font-size:10px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
-  .rh-steps { font-size:12px; line-height:2.1; color:var(--text); white-space:pre-wrap; }
-
-  /* Error */
-  .error-box { display:none; padding:16px; background:rgba(255,59,92,0.08); border:1px solid var(--red); color:var(--red); font-size:12px; margin-bottom:20px; line-height:1.6; }
-  .error-box.show { display:block; }
-
-  /* Disclaimer */
-  .disclaimer { margin-top:24px; padding:14px; border:1px solid var(--border); font-size:10px; color:var(--muted); line-height:1.7; }
-  .disclaimer strong { color:var(--red); }
-
-  /* Raw data toggle */
-  .raw-data-toggle { font-size:10px; color:var(--muted); cursor:pointer; letter-spacing:1px; text-decoration:underline; margin-top:8px; display:inline-block; }
-  .raw-data { display:none; background:#060a0f; border:1px solid var(--border); padding:14px; margin-top:8px; font-size:10px; color:var(--muted); overflow-x:auto; white-space:pre; line-height:1.6; }
-  .raw-data.show { display:block; }
+  .error-box{display:none;padding:16px;background:rgba(255,59,92,0.08);border:1px solid var(--red);color:var(--red);font-size:12px;margin-bottom:20px;line-height:1.6;}
+  .error-box.show{display:block;}
+  .disclaimer{margin-top:24px;padding:14px;border:1px solid var(--border);font-size:10px;color:var(--muted);line-height:1.7;}
+  .disclaimer strong{color:var(--red);}
+  .raw-data-toggle{font-size:10px;color:var(--muted);cursor:pointer;letter-spacing:1px;text-decoration:underline;margin-top:8px;display:inline-block;}
+  .raw-data{display:none;background:#060a0f;border:1px solid var(--border);padding:14px;margin-top:8px;font-size:10px;color:var(--muted);overflow-x:auto;white-space:pre;line-height:1.6;}
+  .raw-data.show{display:block;}
 </style>
 </head>
 <body>
 <div class="wrapper">
-
   <div class="header">
     <div>
       <div class="logo-ticker">TSLA</div>
-      <div class="logo-label">Tesla Inc. · Real-Time Options Analyzer · Beginner Mode</div>
+      <div class="logo-label">Tesla Inc. · Real-Time Day Trading Analyzer · Beginner Mode</div>
     </div>
     <div class="header-badges">
       <div class="badge green">💰 BUDGET: $10</div>
-      <div class="badge accent"><span class="live-dot"></span>LIVE DATA</div>
+      <div class="badge accent live-price-badge">LIVE: <span id="livePriceTicker">—</span></div>
+      <div class="badge accent"><span class="live-dot"></span>REAL-TIME DATA</div>
     </div>
   </div>
 
   <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">▶ RUN LIVE ANALYSIS</button>
-
   <div class="error-box" id="errorBox"></div>
-
   <div class="loading" id="loading">
     <ul class="loading-steps" id="loadingSteps">
       <li id="step1">Connecting to Yahoo Finance</li>
@@ -235,31 +232,27 @@
       <li id="step3">Calculating 12 technical indicators</li>
       <li id="step4">Reading TSLA options chain</li>
       <li id="step5">Running AI analysis on live data</li>
-      <li id="step6">Building your trade plan</li>
+      <li id="step6">Building your exit strategy</li>
     </ul>
     <div class="loading-bar"><div class="loading-bar-fill"></div></div>
   </div>
 
   <div class="results" id="results">
-
-    <!-- Meta row -->
     <div class="meta-row">
       <div class="timestamp" id="timestamp"></div>
       <div>
-        <div class="accuracy-chip">
-          SIGNAL ACCURACY: <span class="accuracy-val" id="accuracyVal" style="margin-left:6px">—</span>
-        </div>
+        <div class="accuracy-chip">SIGNAL ACCURACY: <span class="accuracy-val" id="accuracyVal" style="margin-left:6px">—</span></div>
         <div class="consensus-row" id="consensusRow"></div>
       </div>
     </div>
 
     <!-- Signal -->
     <div class="signal-banner" id="signalBanner">
-      <div class="signal-left">
+      <div>
         <div class="signal-label" id="signalLabel">—</div>
         <div class="signal-conf">CONFIDENCE: <span id="signalConfidence">—</span></div>
       </div>
-      <div class="signal-right">
+      <div style="text-align:right">
         <div class="price-label">LIVE PRICE</div>
         <div class="price-val" id="currentPrice">—</div>
         <div style="font-size:12px;margin-top:2px" id="priceChangeDisplay">—</div>
@@ -270,6 +263,134 @@
       <button class="learn-pill" onclick="toggleEdu('edu-signal')">SHOW / HIDE</button>
     </div>
     <div class="edu-box open" id="edu-signal"></div>
+
+    <!-- EXIT STRATEGY -->
+    <div class="section-header">
+      <div class="section-title">⏱ EXIT STRATEGY — WHEN TO SELL</div>
+      <button class="learn-pill" onclick="toggleEdu('edu-exit')">EXPLAIN THIS</button>
+    </div>
+    <div class="exit-box">
+      <div class="exit-timer-row">
+        <div class="exit-timer-wrap">
+          <div class="exit-timer-label">HOLD FOR</div>
+          <div class="exit-timer" id="holdTime">—</div>
+          <div class="exit-deadline" id="latestExit">—</div>
+        </div>
+        <div class="exit-tips" id="dayTradingTips"></div>
+      </div>
+      <div style="font-size:10px;color:var(--red);letter-spacing:1.5px;margin-bottom:10px;">🔴 SELL IMMEDIATELY IF ANY OF THESE HAPPEN:</div>
+      <div class="sell-signals-grid" id="sellSignals"></div>
+      <div style="font-size:10px;color:var(--orange);letter-spacing:1.5px;margin:12px 0 8px;">⚠️ RULES — DO NOT BREAK THESE:</div>
+      <div id="doNotHold"></div>
+    </div>
+    <div class="edu-box" id="edu-exit">
+      <strong>Why same-day trading needs strict exits</strong> — Options lose value every single day just from time passing (called "theta decay"). If you hold past market close or into expiration day, your option can lose most of its value even if TSLA moves in your direction. Getting out before 3:45 PM ET is critical for day trades.<br><br>
+      <strong>The 5 sell signals</strong> — These are the specific conditions that tell you the trade is turning against you or has reached its goal. You don't need ALL of them to happen — just ONE is enough reason to exit.<br><br>
+      <strong>Profit taking</strong> — On a day trade, locking in 30–50% gain is often smarter than waiting for 100%. Options can swing back fast. A bird in hand is worth two in the bush.<br><br>
+      <strong>Stop loss discipline</strong> — This is the #1 skill in trading. The moment your stop loss is hit, sell. No second-guessing. No "it'll come back." Protecting your capital is more important than any single trade.
+    </div>
+
+    <!-- ALERT SETUP -->
+    <div class="section-header">
+      <div class="section-title">🔔 SET UP SELL ALERTS</div>
+      <button class="learn-pill" onclick="toggleEdu('edu-monitor')">EXPLAIN THIS</button>
+    </div>
+    <div class="monitor-box">
+      <div class="monitor-title">GET EMAILED & NOTIFIED WHEN TO SELL</div>
+      <div class="monitor-form" id="monitorForm">
+        <div class="monitor-field full">
+          <label>Your Email Address</label>
+          <input type="email" id="alertEmail" placeholder="yourname@gmail.com">
+        </div>
+        <div class="monitor-field">
+          <label>Entry Price (TSLA stock price)</label>
+          <input type="number" id="monitorEntry" placeholder="e.g. 248.50" step="0.01">
+        </div>
+        <div class="monitor-field">
+          <label>Stop Loss Price</label>
+          <input type="number" id="monitorStop" placeholder="e.g. 242.00" step="0.01">
+        </div>
+        <div class="monitor-field">
+          <label>Profit Target Price</label>
+          <input type="number" id="monitorTarget" placeholder="e.g. 258.00" step="0.01">
+        </div>
+        <div class="monitor-field">
+          <label>Option Type</label>
+          <input type="text" id="monitorOptionType" placeholder="CALL or PUT" readonly>
+        </div>
+        <button class="monitor-btn" id="monitorBtn" onclick="startMonitor()">🔔 START MONITORING — ALERT ME WHEN TO SELL</button>
+        <button class="stop-monitor-btn" id="stopMonitorBtn" onclick="stopMonitor()">⛔ STOP MONITORING</button>
+        <div class="monitor-status" id="monitorStatus"></div>
+      </div>
+      <p style="font-size:10px;color:var(--muted);margin-top:12px;line-height:1.7;">
+        ℹ️ Enter your email and the trade levels from the analysis above. The app will check TSLA's price every 3 minutes and email you the moment your stop loss or profit target is hit. Browser notifications will also fire if you allow them.
+      </p>
+    </div>
+    <div class="edu-box" id="edu-monitor">
+      <strong>How the monitor works</strong> — After you place your trade on Robinhood, enter your email and trade levels here and hit Start Monitoring. Every 3 minutes the server checks TSLA's live price. The moment it hits your stop loss or profit target, you get an email alert immediately telling you to sell.<br><br>
+      <strong>Browser notifications</strong> — Click "Allow" when your browser asks for notification permission. You'll get a pop-up even if the app isn't in front of you, so you don't have to stare at the screen all day.<br><br>
+      <strong>Important</strong> — The monitor runs on the server so it works even if you close this tab. Just make sure to enter your real email address. Check your spam folder if you don't see emails within a few minutes of a level being hit.
+    </div>
+
+    <!-- Price Stats -->
+    <div class="section-header">
+      <div class="section-title">LIVE PRICE OVERVIEW</div>
+      <button class="learn-pill" onclick="toggleEdu('edu-price')">EXPLAIN THIS</button>
+    </div>
+    <div class="grid-4" id="priceStats"></div>
+    <div class="edu-box" id="edu-price">
+      <strong>Today's Change</strong> — How much TSLA moved vs. yesterday. Green = up, Red = down.<br><br>
+      <strong>52-Week High/Low</strong> — The full range for the year. Near the high = potentially expensive. Near the low = could still be falling.<br><br>
+      <strong>Volume</strong> — Shares traded today vs. average. High volume = stronger signal. Low volume = weaker, be cautious.<br><br>
+      <strong>ATR</strong> — Average daily movement. Helps set realistic stops and targets.
+    </div>
+
+    <!-- Budget -->
+    <div class="section-header">
+      <div class="section-title">YOUR $10 TRADE PLAN</div>
+      <button class="learn-pill" onclick="toggleEdu('edu-budget')">EXPLAIN THIS</button>
+    </div>
+    <div class="budget-box">
+      <div id="budgetRows"></div>
+      <div class="budget-note" id="budgetNote"></div>
+    </div>
+    <div class="edu-box" id="edu-budget">
+      <strong>CALL</strong> — Bet TSLA goes UP. Profit if it rises above strike price before expiration.<br><br>
+      <strong>PUT</strong> — Bet TSLA goes DOWN. Profit if it falls below strike price before expiration.<br><br>
+      <strong>Expiration for day trading</strong> — For same-day trades, you want options expiring TODAY or TOMORROW (called 0DTE or 1DTE). They're cheap but move fast — great for learning, high risk.<br><br>
+      <strong>Why $10?</strong> — You can lose 100% of it. $10 lets you trade real markets with real emotions without damaging your savings.
+    </div>
+
+    <!-- Trade Levels -->
+    <div class="section-header">
+      <div class="section-title">TRADE LEVELS</div>
+      <button class="learn-pill" onclick="toggleEdu('edu-levels')">EXPLAIN THIS</button>
+    </div>
+    <div class="trade-section">
+      <div class="trade-row">
+        <div><div class="trade-row-label">ENTRY POINT</div><div class="trade-row-note" id="entryNote"></div></div>
+        <div class="trade-row-val entry" id="entryPrice">—</div>
+      </div>
+      <div class="trade-row">
+        <div><div class="trade-row-label">STOP LOSS — EXIT HERE TO LIMIT LOSSES</div><div class="trade-row-note" id="stopNote"></div></div>
+        <div class="trade-row-val stop" id="stopPrice">—</div>
+      </div>
+      <div class="trade-row">
+        <div><div class="trade-row-label">PROFIT TARGET — TAKE GAINS HERE</div><div class="trade-row-note" id="targetNote"></div></div>
+        <div class="trade-row-val target" id="targetPrice">—</div>
+      </div>
+      <div class="trade-row">
+        <div><div class="trade-row-label">RISK / REWARD RATIO</div></div>
+        <div class="trade-row-val rr" id="riskReward">—</div>
+      </div>
+      <div class="atr-note" id="atrNote"></div>
+    </div>
+    <div class="edu-box" id="edu-levels">
+      <strong>Entry Point</strong> — Best price to open the trade. Use a limit order on Robinhood.<br><br>
+      <strong>Stop Loss</strong> — Your automatic exit if wrong. Set a stop-limit sell order immediately after buying. Never skip this.<br><br>
+      <strong>Profit Target</strong> — Where you close and bank gains. When it hits, sell. Don't get greedy.<br><br>
+      <strong>Risk/Reward</strong> — At least 1:2 means potential gain is 2x the potential loss.
+    </div>
 
     <!-- Probability -->
     <div class="section-header">
@@ -290,11 +411,9 @@
       <div class="prob-verdict" id="probVerdict"></div>
     </div>
     <div class="edu-box" id="edu-prob">
-      <strong>Probability of Profit (PoP)</strong> — An estimate of how likely this trade makes money, based on ALL the live indicators working together. It is NOT a guarantee — markets are unpredictable.<br><br>
-      <strong>Why it's rarely above 60%</strong> — Cheap out-of-the-money options (affordable on $10) have lower win rates but bigger payouts when they hit. A 35% win rate with 1:3 risk/reward is actually profitable over time. Professional traders often take trades with 30–40% PoP because the reward justifies the risk.<br><br>
-      <strong>Delta</strong> — Each indicator has a score 0–100. The higher the score, the more that factor supports a profitable trade. Low scores mean that factor is working against you.<br><br>
-      <strong>Implied Volatility (IV)</strong> — How much the market expects TSLA to move. TSLA has naturally high IV, which makes options more expensive but also means bigger potential moves in your favor.<br><br>
-      <strong>The honest reality</strong> — About 75–80% of all options expire worthless. This is why discipline, stop losses, and starting with small amounts you can afford to lose are absolutely critical.
+      <strong>What this means</strong> — An estimate of how likely this trade makes money based on all 12 live indicators working together. Not a guarantee.<br><br>
+      <strong>Why it's rarely above 60%</strong> — Cheap options (0DTE/1DTE) have lower win rates but bigger payouts when they hit. A 35% win rate with 1:3 risk/reward is profitable over time.<br><br>
+      <strong>The honest reality</strong> — About 75–80% of all options expire worthless. Discipline and stop losses are what separate successful traders from losing ones.
     </div>
 
     <!-- Scenarios -->
@@ -304,84 +423,15 @@
     </div>
     <div class="scenario-box">
       <table class="scenario-table">
-        <thead>
-          <tr>
-            <th>SCENARIO</th>
-            <th>PROBABILITY</th>
-            <th>TSLA PRICE TARGET</th>
-            <th>YOUR $10 BECOMES</th>
-          </tr>
-        </thead>
+        <thead><tr><th>SCENARIO</th><th>PROBABILITY</th><th>TSLA TARGET</th><th>YOUR $10 BECOMES</th></tr></thead>
         <tbody id="scenarioRows"></tbody>
       </table>
     </div>
     <div class="edu-box" id="edu-scenario">
-      <strong>Bull Case</strong> — Everything goes your way. Strong move, high volume, indicators confirm. Your option multiplies in value.<br><br>
-      <strong>Base Case</strong> — Modest move in your direction. You make a small profit or roughly break even.<br><br>
-      <strong>Bear Case</strong> — The trade goes against you or TSLA barely moves. Your option loses most of its value.<br><br>
-      <strong>Worst Case</strong> — Option expires worthless. You lose the full $10. This is always possible — never invest money you can't afford to lose.<br><br>
-      <strong>Key lesson</strong> — Even if you only win 30% of the time, if your wins average 3x your losses, you're profitable. Consistency and discipline matter more than any single trade.
-    </div>
-
-    <!-- Price overview -->
-    <div class="section-header">
-      <div class="section-title">LIVE PRICE OVERVIEW</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-price')">EXPLAIN THIS</button>
-    </div>
-    <div class="grid-4" id="priceStats"></div>
-    <div class="edu-box" id="edu-price">
-      <strong>Today's Change</strong> — How much TSLA moved vs. yesterday's close. Green = up, Red = down.<br><br>
-      <strong>52-Week High/Low</strong> — The full range TSLA has traded this year. Near the high = potentially expensive. Near the low = could be a bargain or still declining.<br><br>
-      <strong>Volume</strong> — Shares traded today vs. average. High volume = strong conviction behind the move. Low volume = weaker signal, be cautious.<br><br>
-      <strong>ATR (Average True Range)</strong> — The average daily price movement of TSLA. This tells you how much TSLA typically moves in a day, which helps set realistic stop losses and targets.
-    </div>
-
-    <!-- Budget plan -->
-    <div class="section-header">
-      <div class="section-title">YOUR $10 TRADE PLAN</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-budget')">EXPLAIN THIS</button>
-    </div>
-    <div class="budget-box">
-      <div id="budgetRows"></div>
-      <div class="budget-note" id="budgetNote"></div>
-    </div>
-    <div class="edu-box" id="edu-budget">
-      <strong>CALL Option</strong> — Bet that TSLA goes UP. You profit if TSLA rises above your strike price before expiration.<br><br>
-      <strong>PUT Option</strong> — Bet that TSLA goes DOWN. You profit if TSLA falls below your strike price before expiration.<br><br>
-      <strong>Strike Price</strong> — The target price you're betting on. The stock needs to move past this in your favor for the option to be profitable at expiration.<br><br>
-      <strong>Expiration</strong> — Your deadline. After this the option has no value if it hasn't moved your way. Longer = more time but more expensive.<br><br>
-      <strong>Why $10 to start</strong> — You can lose 100% of your option premium. $10 lets you learn with real money and real emotions without devastating your savings. Scale up only after consistent profitable trades.
-    </div>
-
-    <!-- Trade levels -->
-    <div class="section-header">
-      <div class="section-title">TRADE LEVELS (BASED ON LIVE DATA)</div>
-      <button class="learn-pill" onclick="toggleEdu('edu-levels')">EXPLAIN THIS</button>
-    </div>
-    <div class="trade-section">
-      <div class="trade-row">
-        <div class="trade-row-left"><div class="trade-row-label">ENTRY POINT</div><div class="trade-row-note" id="entryNote"></div></div>
-        <div class="trade-row-val entry" id="entryPrice">—</div>
-      </div>
-      <div class="trade-row">
-        <div class="trade-row-left"><div class="trade-row-label">STOP LOSS — EXIT HERE TO LIMIT LOSSES</div><div class="trade-row-note" id="stopNote"></div></div>
-        <div class="trade-row-val stop" id="stopPrice">—</div>
-      </div>
-      <div class="trade-row">
-        <div class="trade-row-left"><div class="trade-row-label">PROFIT TARGET — TAKE GAINS HERE</div><div class="trade-row-note" id="targetNote"></div></div>
-        <div class="trade-row-val target" id="targetPrice">—</div>
-      </div>
-      <div class="trade-row">
-        <div class="trade-row-left"><div class="trade-row-label">RISK / REWARD RATIO</div></div>
-        <div class="trade-row-val rr" id="riskReward">—</div>
-      </div>
-      <div class="atr-note" id="atrNote"></div>
-    </div>
-    <div class="edu-box" id="edu-levels">
-      <strong>Entry Point</strong> — The ideal stock price to open your trade. Set a limit order at or near this price on Robinhood for the best fill.<br><br>
-      <strong>Stop Loss</strong> — Your automatic exit if the trade goes wrong. Set this as a stop-limit sell order on Robinhood when you open the trade. Do NOT skip this step.<br><br>
-      <strong>Profit Target</strong> — Where you close the trade and bank your gains. Discipline here is everything. When TSLA hits this, sell and don't look back.<br><br>
-      <strong>Risk/Reward</strong> — The math behind the trade. 1:2.5 means for every $1 at risk, you could make $2.50. You want at least 1:2 before taking any trade.
+      <strong>Bull Case</strong> — Strong move your way. Option multiplies in value quickly.<br><br>
+      <strong>Base Case</strong> — Modest move. Small profit or roughly break even.<br><br>
+      <strong>Bear Case</strong> — Trade goes wrong. Option loses most of its value.<br><br>
+      <strong>Worst Case</strong> — Option expires worthless. Full $10 lost. Always possible — only risk what you can afford to lose.
     </div>
 
     <!-- Indicators -->
@@ -391,150 +441,189 @@
     </div>
     <div class="indicators-grid" id="indicatorsGrid"></div>
     <div class="edu-box" id="edu-indicators">
-      <strong>RSI (14)</strong> — 0–100. Above 70 = overbought (may fall). Below 30 = oversold (may rise). 40–60 = neutral.<br><br>
-      <strong>MACD</strong> — Momentum indicator. Positive & rising = bullish. Negative & falling = bearish. Crossovers signal trend changes.<br><br>
-      <strong>EMA 20/50/200</strong> — Moving averages. Price above all three = strong uptrend. Below all three = strong downtrend. The 200 EMA is the most important long-term trend line.<br><br>
-      <strong>Bollinger Bands</strong> — Near upper band = potentially overbought. Near lower band = potentially oversold. Price breaking out of bands = strong momentum.<br><br>
-      <strong>Stochastic (14)</strong> — Like RSI but faster. Above 80 = overbought. Below 20 = oversold. Good for timing entries.<br><br>
-      <strong>Williams %R</strong> — Above -20 = overbought. Below -80 = oversold. Confirms RSI and Stochastic readings.<br><br>
-      <strong>OBV (On-Balance Volume)</strong> — Rising OBV with rising price = strong trend. Falling OBV with rising price = weak trend, potential reversal.<br><br>
-      <strong>ATR</strong> — Average daily range of TSLA. Used to set realistic stop losses and targets. Higher ATR = more volatile, wider stops needed.<br><br>
-      <strong>Implied Volatility</strong> — Market's expected TSLA movement. High IV = expensive options but bigger moves possible. Low IV = cheaper options, smaller expected moves.
+      <strong>RSI</strong> — Above 70 = overbought. Below 30 = oversold. For day trading, RSI moving fast is more important than the exact number.<br><br>
+      <strong>MACD</strong> — Bullish Cross = buy signal. Bearish Cross = sell signal. Watch for crossovers during the day.<br><br>
+      <strong>EMA 20/50/200</strong> — Short-term trend (20), medium (50), long-term (200). Price above all = strong uptrend.<br><br>
+      <strong>Stochastic & Williams %R</strong> — Fast momentum indicators. Great for day trading entries and exits.<br><br>
+      <strong>OBV</strong> — Is volume confirming the price move? Rising OBV with rising price = strong. Divergence = warning.<br><br>
+      <strong>ATR</strong> — Daily range. Higher ATR = more volatile, bigger moves possible in your direction (or against you).
     </div>
 
-    <!-- Support & Resistance -->
+    <!-- SR -->
     <div class="section-header">
-      <div class="section-title">SUPPORT &amp; RESISTANCE (CALCULATED FROM LIVE DATA)</div>
+      <div class="section-title">SUPPORT &amp; RESISTANCE</div>
       <button class="learn-pill" onclick="toggleEdu('edu-sr')">EXPLAIN THIS</button>
     </div>
     <div class="grid-2" id="srGrid"></div>
     <div class="edu-box" id="edu-sr">
-      <strong>Support (Floors)</strong> — Price levels where TSLA has historically bounced back up. Calculated from real price data. These are your entry zones and stop loss reference points.<br><br>
-      <strong>Resistance (Ceilings)</strong> — Price levels where TSLA has historically struggled to break above. These are your profit target reference points.<br><br>
-      <strong>Strength ratings</strong> — STRONG means it has held multiple times and is a major level. MODERATE means it has held once or twice. WEAK means it's a minor level that may not hold.<br><br>
-      <strong>Pro tip</strong> — When TSLA breaks above a resistance level with high volume, that resistance often becomes new support. Watch for these breakouts.
+      <strong>Support (Floors)</strong> — Price bounces here. Enter near support on buy trades. Stop loss goes just below.<br><br>
+      <strong>Resistance (Ceilings)</strong> — Price stalls here. Your profit target goes near resistance.<br><br>
+      <strong>For day trading</strong> — Watch these levels in real time on Robinhood's chart. A break above resistance with volume = strong buy signal.
     </div>
 
     <!-- AI Analysis -->
-    <div class="section-header"><div class="section-title">AI ANALYSIS (BASED ON LIVE DATA)</div></div>
+    <div class="section-header"><div class="section-title">AI ANALYSIS SUMMARY</div></div>
     <div class="analysis-box"><div class="analysis-text" id="analysisText"></div></div>
 
     <!-- Robinhood Steps -->
     <div class="rh-box">
-      <div class="rh-title">
-        <span style="font-size:16px">📱</span>
-        HOW TO PLACE THIS TRADE ON ROBINHOOD RIGHT NOW
-      </div>
-      <div class="rh-steps" id="robinhoodSteps"></div>
+      <div class="rh-title"><span style="font-size:16px">📱</span>HOW TO PLACE THIS TRADE ON ROBINHOOD RIGHT NOW</div>
+      <div class="analysis-text" id="robinhoodSteps"></div>
     </div>
 
-    <!-- Raw data -->
-    <span class="raw-data-toggle" onclick="toggleRaw()">▶ View raw market data fetched</span>
+    <span class="raw-data-toggle" onclick="document.getElementById('rawData').classList.toggle('show')">▶ View raw market data fetched</span>
     <div class="raw-data" id="rawData"></div>
 
     <div class="disclaimer">
-      <strong>⚠ DISCLAIMER:</strong> This tool uses real-time market data and AI analysis for educational purposes only. It does NOT constitute financial advice. Options trading involves substantial risk of loss and is not appropriate for all investors. You can lose your entire investment. Past performance of indicators does not guarantee future results. Always consult a licensed financial advisor before trading. The probability estimates shown are based on technical analysis and are not guarantees of any outcome.
+      <strong>⚠ DISCLAIMER:</strong> Educational purposes only. NOT financial advice. Options trading involves substantial risk — you can lose your entire investment. Day trading options (0DTE/1DTE) is especially high risk. Probability estimates are not guarantees. Always consult a licensed financial advisor before trading.
     </div>
   </div>
 </div>
 
 <script>
-function toggleEdu(id) { document.getElementById(id).classList.toggle('open'); }
-function toggleRaw() {
-  const el = document.getElementById('rawData');
-  el.classList.toggle('show');
+// ─── State ────────────────────────────────────────────────────────────────────
+let currentMonitorId = null;
+let livePriceInterval = null;
+let currentSignal = "BUY";
+let currentOptionType = "CALL";
+
+// ─── Browser notifications ────────────────────────────────────────────────────
+function requestNotificationPermission() {
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
 }
 
+function sendBrowserNotification(title, body) {
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification(title, { body, icon: "https://cdn-icons-png.flaticon.com/512/2888/2888756.png" });
+  }
+}
+
+// ─── Live price ticker ────────────────────────────────────────────────────────
+async function updateLivePriceTicker() {
+  try {
+    const res = await fetch("/api/price");
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("livePriceTicker").textContent = "$" + data.price.toFixed(2);
+
+      // Check monitor levels client-side too for browser notifications
+      if (currentMonitorId) {
+        const entry = parseFloat(document.getElementById("monitorEntry").value);
+        const stop = parseFloat(document.getElementById("monitorStop").value);
+        const target = parseFloat(document.getElementById("monitorTarget").value);
+        const price = data.price;
+
+        const isBuy = currentSignal === "BUY";
+        if (isBuy && price <= stop) sendBrowserNotification("🔴 STOP LOSS HIT", `TSLA at $${price} — SELL NOW on Robinhood!`);
+        if (isBuy && price >= target) sendBrowserNotification("🟢 PROFIT TARGET HIT", `TSLA at $${price} — Take your gains!`);
+        if (!isBuy && price >= stop) sendBrowserNotification("🔴 STOP LOSS HIT", `TSLA at $${price} — Close position NOW!`);
+        if (!isBuy && price <= target) sendBrowserNotification("🟢 PROFIT TARGET HIT", `TSLA at $${price} — Take your gains!`);
+      }
+    }
+  } catch (e) {}
+}
+
+// ─── Toggle edu ───────────────────────────────────────────────────────────────
+function toggleEdu(id) { document.getElementById(id).classList.toggle("open"); }
+
 function getProbColor(pct) {
-  if (pct >= 55) return 'var(--green)';
-  if (pct >= 40) return 'var(--yellow)';
-  if (pct >= 25) return 'var(--orange)';
-  return 'var(--red)';
+  if (pct >= 55) return "var(--green)";
+  if (pct >= 40) return "var(--yellow)";
+  if (pct >= 25) return "var(--orange)";
+  return "var(--red)";
 }
 
 function animateLoadingSteps() {
-  const steps = ['step1','step2','step3','step4','step5','step6'];
+  const steps = ["step1","step2","step3","step4","step5","step6"];
   let i = 0;
-  const interval = setInterval(() => {
-    if (i > 0) document.getElementById(steps[i-1]).className = 'done';
-    if (i < steps.length) {
-      document.getElementById(steps[i]).className = 'active';
-      i++;
-    } else {
-      clearInterval(interval);
-    }
+  return setInterval(() => {
+    if (i > 0) document.getElementById(steps[i-1]).className = "done";
+    if (i < steps.length) { document.getElementById(steps[i]).className = "active"; i++; }
   }, 800);
-  return interval;
 }
 
+// ─── Main analysis ────────────────────────────────────────────────────────────
 async function runAnalysis() {
-  const btn = document.getElementById('analyzeBtn');
-  const loading = document.getElementById('loading');
-  const results = document.getElementById('results');
-  const errorBox = document.getElementById('errorBox');
+  const btn = document.getElementById("analyzeBtn");
+  const loading = document.getElementById("loading");
+  const results = document.getElementById("results");
+  const errorBox = document.getElementById("errorBox");
 
   btn.disabled = true;
-  loading.classList.add('show');
-  results.classList.remove('show');
-  errorBox.classList.remove('show');
-
-  // Reset loading steps
-  ['step1','step2','step3','step4','step5','step6'].forEach(id => {
-    document.getElementById(id).className = '';
-  });
+  loading.classList.add("show");
+  results.classList.remove("show");
+  errorBox.classList.remove("show");
+  ["step1","step2","step3","step4","step5","step6"].forEach(id => document.getElementById(id).className = "");
   const loadInterval = animateLoadingSteps();
 
+  requestNotificationPermission();
+
   try {
-    const response = await fetch('/api/analyze');
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || `Server error ${response.status}`);
-    }
+    const response = await fetch("/api/analyze");
+    if (!response.ok) { const err = await response.json(); throw new Error(err.error || `Server error ${response.status}`); }
     const result = await response.json();
     clearInterval(loadInterval);
     if (!result.success) throw new Error(result.error);
     const d = result.data;
 
-    // Timestamp
-    document.getElementById('timestamp').textContent =
-      `LIVE DATA FETCHED: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`;
+    currentSignal = d.signal;
+    currentOptionType = d.budget?.suggestedOptionType || "CALL";
 
-    // Accuracy & consensus
-    const accColor = d.accuracyScore >= 70 ? 'var(--green)' : d.accuracyScore >= 50 ? 'var(--yellow)' : 'var(--red)';
-    document.getElementById('accuracyVal').textContent = d.accuracyScore + '%';
-    document.getElementById('accuracyVal').style.color = accColor;
+    // Timestamp & accuracy
+    document.getElementById("timestamp").textContent = `LIVE DATA: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`;
+    const accColor = d.accuracyScore >= 70 ? "var(--green)" : d.accuracyScore >= 50 ? "var(--yellow)" : "var(--red)";
+    document.getElementById("accuracyVal").textContent = d.accuracyScore + "%";
+    document.getElementById("accuracyVal").style.color = accColor;
     if (d.indicatorConsensus) {
-      document.getElementById('consensusRow').innerHTML = `
-        <span class="cons-bull">▲ ${d.indicatorConsensus.bullish} BULLISH</span>
-        <span class="cons-bear">▼ ${d.indicatorConsensus.bearish} BEARISH</span>
-        <span class="cons-neut">— ${d.indicatorConsensus.neutral} NEUTRAL</span>
-      `;
+      document.getElementById("consensusRow").innerHTML = `
+        <span style="color:var(--green)">▲ ${d.indicatorConsensus.bullish} BULLISH</span>
+        <span style="color:var(--red)">▼ ${d.indicatorConsensus.bearish} BEARISH</span>
+        <span style="color:var(--yellow)">— ${d.indicatorConsensus.neutral} NEUTRAL</span>`;
     }
 
     // Signal
-    const banner = document.getElementById('signalBanner');
-    banner.className = 'signal-banner ' + d.signal.toLowerCase();
-    document.getElementById('signalLabel').textContent = d.signal;
-    document.getElementById('signalConfidence').textContent = d.confidence;
-    document.getElementById('currentPrice').textContent = '$' + d.currentPrice.toFixed(2);
-    const chgColor = d.priceChange >= 0 ? 'var(--green)' : 'var(--red)';
-    const chgSign = d.priceChange >= 0 ? '+' : '';
-    document.getElementById('priceChangeDisplay').innerHTML =
-      `<span style="color:${chgColor}">${chgSign}${d.priceChange.toFixed(2)}% today</span>`;
-    document.getElementById('edu-signal').textContent = d.signalExplanation;
+    const banner = document.getElementById("signalBanner");
+    banner.className = "signal-banner " + d.signal.toLowerCase();
+    document.getElementById("signalLabel").textContent = d.signal;
+    document.getElementById("signalConfidence").textContent = d.confidence;
+    document.getElementById("currentPrice").textContent = "$" + d.currentPrice.toFixed(2);
+    const chgColor = d.priceChange >= 0 ? "var(--green)" : "var(--red)";
+    const chgSign = d.priceChange >= 0 ? "+" : "";
+    document.getElementById("priceChangeDisplay").innerHTML = `<span style="color:${chgColor}">${chgSign}${d.priceChange.toFixed(2)}% today</span>`;
+    document.getElementById("edu-signal").textContent = d.signalExplanation;
+
+    // Exit Strategy
+    if (d.exitStrategy) {
+      const ex = d.exitStrategy;
+      document.getElementById("holdTime").textContent = ex.recommendedHoldTime || "—";
+      document.getElementById("latestExit").textContent = "⏰ Latest exit: " + (ex.latestExitTime || "Before market close");
+      document.getElementById("dayTradingTips").innerHTML = `<strong>Day Trading Tips:</strong><br>${ex.dayTradingTips || ""}`;
+
+      document.getElementById("sellSignals").innerHTML = (ex.sellSignals || []).map(s =>
+        `<div class="sell-signal-card">${s}</div>`).join("");
+
+      document.getElementById("doNotHold").innerHTML = (ex.doNotHoldIf || []).map(s =>
+        `<div class="donot-card">${s}</div>`).join("");
+    }
+
+    // Pre-fill monitor form
+    document.getElementById("monitorEntry").value = d.entryPrice?.toFixed(2) || "";
+    document.getElementById("monitorStop").value = d.stopLoss?.toFixed(2) || "";
+    document.getElementById("monitorTarget").value = d.profitTarget?.toFixed(2) || "";
+    document.getElementById("monitorOptionType").value = d.budget?.suggestedOptionType || "";
 
     // Probability
     const p = d.probability;
     const probColor = getProbColor(p.overallPercent);
-    const circle = document.getElementById('probCircle');
+    const circle = document.getElementById("probCircle");
     circle.style.borderColor = probColor;
     circle.style.boxShadow = `0 0 25px ${probColor}22`;
-    const pctEl = document.getElementById('probPct');
-    pctEl.style.color = probColor;
-    pctEl.textContent = p.overallPercent + '%';
-
-    document.getElementById('probFactors').innerHTML = p.factors.map(f => {
-      const fc = f.score >= 60 ? 'var(--green)' : f.score >= 40 ? 'var(--yellow)' : 'var(--red)';
+    document.getElementById("probPct").style.color = probColor;
+    document.getElementById("probPct").textContent = p.overallPercent + "%";
+    document.getElementById("probFactors").innerHTML = p.factors.map(f => {
+      const fc = f.score >= 60 ? "var(--green)" : f.score >= 40 ? "var(--yellow)" : "var(--red)";
       return `<div class="prob-factor-row">
         <div class="prob-factor-info">
           <div class="prob-factor-label">${f.label}</div>
@@ -543,118 +632,147 @@ async function runAnalysis() {
         <div class="prob-bar-wrap"><div class="prob-bar" style="width:${f.score}%;background:${fc}"></div></div>
         <div class="prob-factor-val" style="color:${fc}">${f.score}</div>
       </div>`;
-    }).join('');
-    document.getElementById('probVerdict').innerHTML = `<strong>Bottom Line:</strong> ${p.verdict}`;
+    }).join("");
+    document.getElementById("probVerdict").innerHTML = `<strong>Bottom Line:</strong> ${p.verdict}`;
 
     // Scenarios
-    const scClass = { bull:'sc-bull', base:'sc-base', bear:'sc-bear', worst:'sc-worst' };
-    const scResultColor = { bull:'var(--green)', base:'var(--accent)', bear:'var(--orange)', worst:'var(--red)' };
-    document.getElementById('scenarioRows').innerHTML = d.scenarios.map(s => `
+    const scClass = {bull:"sc-bull",base:"sc-base",bear:"sc-bear",worst:"sc-worst"};
+    const scColor = {bull:"var(--green)",base:"var(--accent)",bear:"var(--orange)",worst:"var(--red)"};
+    document.getElementById("scenarioRows").innerHTML = d.scenarios.map(s => `
       <tr>
-        <td><span class="sc-badge ${scClass[s.type]||'sc-base'}">${s.label}</span></td>
+        <td><span class="sc-badge ${scClass[s.type]||"sc-base"}">${s.label}</span></td>
         <td style="font-weight:600">${s.probability}</td>
         <td>$${s.tslaTarget}</td>
-        <td style="font-weight:600;color:${scResultColor[s.type]||'var(--text)'}">${s.tenDollarResult}</td>
-      </tr>
-    `).join('');
+        <td style="font-weight:600;color:${scColor[s.type]||"var(--text)"}">${s.tenDollarResult}</td>
+      </tr>`).join("");
 
     // Price stats
-    document.getElementById('priceStats').innerHTML = `
-      <div class="card">
-        <div class="card-label">TODAY'S CHANGE</div>
-        <div class="card-value ${d.priceChange >= 0 ? 'green' : 'red'}">${chgSign}${d.priceChange.toFixed(2)}%</div>
-        <div class="card-sub">vs prev close</div>
-      </div>
-      <div class="card">
-        <div class="card-label">52W HIGH</div>
-        <div class="card-value accent">$${d.weekHigh}</div>
-        <div class="card-sub">Low: $${d.weekLow}</div>
-      </div>
-      <div class="card">
-        <div class="card-label">VOLUME</div>
-        <div class="card-value">${d.volume}</div>
-        <div class="card-sub">Avg: ${d.avgVolume}</div>
-      </div>
-      <div class="card">
-        <div class="card-label">INDICATORS</div>
-        <div class="card-value yellow">${d.accuracyScore}%</div>
-        <div class="card-sub">signal accuracy</div>
-      </div>
-    `;
+    document.getElementById("priceStats").innerHTML = `
+      <div class="card"><div class="card-label">TODAY'S CHANGE</div><div class="card-value ${d.priceChange>=0?"green":"red"}">${chgSign}${d.priceChange.toFixed(2)}%</div><div class="card-sub">vs prev close</div></div>
+      <div class="card"><div class="card-label">52W HIGH</div><div class="card-value accent">$${d.weekHigh}</div><div class="card-sub">Low: $${d.weekLow}</div></div>
+      <div class="card"><div class="card-label">VOLUME</div><div class="card-value">${d.volume}</div><div class="card-sub">Avg: ${d.avgVolume}</div></div>
+      <div class="card"><div class="card-label">SIGNAL ACCURACY</div><div class="card-value yellow">${d.accuracyScore}%</div><div class="card-sub">indicators agree</div></div>`;
 
     // Budget
     const b = d.budget;
-    const optColor = b.suggestedOptionType === 'CALL' ? 'var(--green)' : 'var(--red)';
-    document.getElementById('budgetRows').innerHTML = `
+    const optColor = b.suggestedOptionType === "CALL" ? "var(--green)" : "var(--red)";
+    document.getElementById("budgetRows").innerHTML = `
       <div class="budget-row"><div class="budget-row-label">OPTION TYPE</div><div class="budget-row-val" style="color:${optColor}">${b.suggestedOptionType}</div></div>
       <div class="budget-row"><div class="budget-row-label">STRIKE PRICE</div><div class="budget-row-val">$${b.strikePrice}</div></div>
       <div class="budget-row"><div class="budget-row-label">EXPIRATION</div><div class="budget-row-val">${b.expiration}</div></div>
       <div class="budget-row"><div class="budget-row-label">ESTIMATED COST</div><div class="budget-row-val">${b.estimatedOptionCost}</div></div>
       <div class="budget-row"><div class="budget-row-label">MAX YOU CAN LOSE</div><div class="budget-row-val" style="color:var(--red)">${b.maxLoss}</div></div>
-      <div class="budget-row"><div class="budget-row-label">POTENTIAL GAIN IF TARGET HIT</div><div class="budget-row-val">${b.estimatedGain}</div></div>
-    `;
-    document.getElementById('budgetNote').textContent = b.robinhoodNote;
+      <div class="budget-row"><div class="budget-row-label">POTENTIAL GAIN IF TARGET HIT</div><div class="budget-row-val">${b.estimatedGain}</div></div>`;
+    document.getElementById("budgetNote").textContent = b.robinhoodNote;
 
     // Trade levels
-    document.getElementById('entryPrice').textContent = '$' + d.entryPrice.toFixed(2);
-    document.getElementById('entryNote').textContent = d.entryNote;
-    document.getElementById('stopPrice').textContent = '$' + d.stopLoss.toFixed(2);
-    document.getElementById('stopNote').textContent = d.stopNote;
-    document.getElementById('targetPrice').textContent = '$' + d.profitTarget.toFixed(2);
-    document.getElementById('targetNote').textContent = d.targetNote;
-    document.getElementById('riskReward').textContent = d.riskReward;
-    if (d.atrNote) document.getElementById('atrNote').textContent = '📐 ' + d.atrNote;
+    document.getElementById("entryPrice").textContent = "$" + d.entryPrice.toFixed(2);
+    document.getElementById("entryNote").textContent = d.entryNote;
+    document.getElementById("stopPrice").textContent = "$" + d.stopLoss.toFixed(2);
+    document.getElementById("stopNote").textContent = d.stopNote;
+    document.getElementById("targetPrice").textContent = "$" + d.profitTarget.toFixed(2);
+    document.getElementById("targetNote").textContent = d.targetNote;
+    document.getElementById("riskReward").textContent = d.riskReward;
+    if (d.atrNote) document.getElementById("atrNote").textContent = "📐 " + d.atrNote;
 
     // Indicators
-    const cMap = { green:'var(--green)', red:'var(--red)', yellow:'var(--yellow)' };
-    document.getElementById('indicatorsGrid').innerHTML = d.indicators.map(ind => `
+    const cMap = {green:"var(--green)",red:"var(--red)",yellow:"var(--yellow)"};
+    document.getElementById("indicatorsGrid").innerHTML = d.indicators.map(ind => `
       <div class="indicator-card">
         <div class="indicator-top">
           <div class="indicator-name">${ind.name}</div>
-          <div class="indicator-signal" style="color:${cMap[ind.color]||'var(--muted)'}">${ind.signal}</div>
+          <div class="indicator-signal" style="color:${cMap[ind.color]||"var(--muted)"}">${ind.signal}</div>
         </div>
-        <div class="indicator-value" style="color:${cMap[ind.color]||'var(--text)'}">${ind.value}</div>
-        <div class="indicator-meaning">${ind.meaning || ''}</div>
-      </div>
-    `).join('');
+        <div class="indicator-value" style="color:${cMap[ind.color]||"var(--text)"}">${ind.value}</div>
+        <div class="indicator-meaning">${ind.meaning||""}</div>
+      </div>`).join("");
 
     // SR
-    document.getElementById('srGrid').innerHTML = `
+    document.getElementById("srGrid").innerHTML = `
       <div class="sr-card">
-        <div class="card-label" style="margin-bottom:10px">SUPPORT LEVELS (FLOORS)</div>
-        ${d.support.map(s=>`<div class="sr-row">
-          <span style="color:var(--green);font-size:14px;font-weight:600">$${s.level}</span>
-          <span style="font-size:10px;color:var(--muted)">${s.strength}</span>
-        </div>`).join('')}
+        <div class="card-label" style="margin-bottom:10px">SUPPORT (FLOORS)</div>
+        ${d.support.map(s=>`<div class="sr-row"><span style="color:var(--green);font-size:14px;font-weight:600">$${s.level}</span><span style="font-size:10px;color:var(--muted)">${s.strength}</span></div>`).join("")}
       </div>
       <div class="sr-card">
-        <div class="card-label" style="margin-bottom:10px">RESISTANCE LEVELS (CEILINGS)</div>
-        ${d.resistance.map(r=>`<div class="sr-row">
-          <span style="color:var(--red);font-size:14px;font-weight:600">$${r.level}</span>
-          <span style="font-size:10px;color:var(--muted)">${r.strength}</span>
-        </div>`).join('')}
-      </div>
-    `;
+        <div class="card-label" style="margin-bottom:10px">RESISTANCE (CEILINGS)</div>
+        ${d.resistance.map(r=>`<div class="sr-row"><span style="color:var(--red);font-size:14px;font-weight:600">$${r.level}</span><span style="font-size:10px;color:var(--muted)">${r.strength}</span></div>`).join("")}
+      </div>`;
 
-    document.getElementById('analysisText').textContent = d.analysis;
-    document.getElementById('robinhoodSteps').textContent = d.robinhoodSteps;
+    document.getElementById("analysisText").textContent = d.analysis;
+    document.getElementById("robinhoodSteps").textContent = d.robinhoodSteps;
+    if (d._rawData) document.getElementById("rawData").textContent = JSON.stringify(d._rawData, null, 2);
 
-    // Raw data
-    if (d._rawData) {
-      document.getElementById('rawData').textContent = JSON.stringify(d._rawData, null, 2);
-    }
+    // Start live price ticker
+    if (livePriceInterval) clearInterval(livePriceInterval);
+    updateLivePriceTicker();
+    livePriceInterval = setInterval(updateLivePriceTicker, 30000); // every 30 seconds
 
-    loading.classList.remove('show');
-    results.classList.add('show');
+    loading.classList.remove("show");
+    results.classList.add("show");
 
   } catch(err) {
     clearInterval(loadInterval);
-    loading.classList.remove('show');
-    errorBox.classList.add('show');
-    errorBox.innerHTML = `<strong>Error:</strong> ${err.message}<br><br>Make sure your server is running and ANTHROPIC_API_KEY is set. See the README for setup instructions.`;
+    loading.classList.remove("show");
+    errorBox.classList.add("show");
+    errorBox.innerHTML = `<strong>Error:</strong> ${err.message}<br><br>Make sure your server is running and ANTHROPIC_API_KEY is set.`;
   }
-
   btn.disabled = false;
+}
+
+// ─── Monitor ──────────────────────────────────────────────────────────────────
+async function startMonitor() {
+  const email = document.getElementById("alertEmail").value.trim();
+  const entryPrice = parseFloat(document.getElementById("monitorEntry").value);
+  const stopLoss = parseFloat(document.getElementById("monitorStop").value);
+  const profitTarget = parseFloat(document.getElementById("monitorTarget").value);
+  const optionType = document.getElementById("monitorOptionType").value || currentOptionType;
+
+  if (!email || !email.includes("@")) { showMonitorStatus("Please enter a valid email address.", "error"); return; }
+  if (isNaN(entryPrice) || isNaN(stopLoss) || isNaN(profitTarget)) { showMonitorStatus("Please fill in all price fields.", "error"); return; }
+
+  document.getElementById("monitorBtn").disabled = true;
+  showMonitorStatus("Starting monitor...", "success");
+
+  try {
+    const res = await fetch("/api/monitor/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, entryPrice, stopLoss, profitTarget, signal: currentSignal, optionType }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      currentMonitorId = data.monitorId;
+      showMonitorStatus(`✅ Monitor active! Checking every 3 minutes.\nYou'll get an email at ${email} when TSLA hits $${stopLoss} (stop) or $${profitTarget} (target).\nA confirmation email has been sent.`, "success");
+      document.getElementById("stopMonitorBtn").classList.add("show");
+      requestNotificationPermission();
+    } else {
+      throw new Error(data.error || "Failed to start monitor");
+    }
+  } catch(err) {
+    showMonitorStatus("Error: " + err.message + "\n\nNote: Email alerts require ALERT_EMAIL and ALERT_EMAIL_PASSWORD to be set in Railway Variables.", "error");
+    document.getElementById("monitorBtn").disabled = false;
+  }
+}
+
+async function stopMonitor() {
+  if (!currentMonitorId) return;
+  try {
+    await fetch("/api/monitor/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ monitorId: currentMonitorId }),
+    });
+  } catch(e) {}
+  currentMonitorId = null;
+  document.getElementById("monitorBtn").disabled = false;
+  document.getElementById("stopMonitorBtn").classList.remove("show");
+  showMonitorStatus("Monitor stopped.", "success");
+}
+
+function showMonitorStatus(msg, type) {
+  const el = document.getElementById("monitorStatus");
+  el.textContent = msg;
+  el.className = "monitor-status " + type;
 }
 </script>
 </body>
