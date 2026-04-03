@@ -171,12 +171,28 @@ app.get("/api/analyze", async (req, res) => {
 
     // Pick watchlist based on current balance
     const activeWatchlist = getWatchlist(data.balance);
-    const batch = activeWatchlist.slice(0, 6);
-    const allData = await Promise.allSettled(batch.map(s => fetchMarketData(s)));
+    const batch = activeWatchlist.slice(0, 8);
+
+    // Always fetch SPY and QQQ for overall market context
+    const [spyData, qqqData, ...stockResults] = await Promise.allSettled([
+      fetchMarketData("SPY"),
+      fetchMarketData("QQQ"),
+      ...batch.map(s => fetchMarketData(s))
+    ]);
+
     const marketDataMap = {};
     for (let i = 0; i < batch.length; i++) {
-      if (allData[i].status === "fulfilled") marketDataMap[batch[i]] = allData[i].value;
+      if (stockResults[i].status === "fulfilled") marketDataMap[batch[i]] = stockResults[i].value;
     }
+
+    // Market context
+    const spyChange = spyData.status === "fulfilled" ? spyData.value.priceData.change : 0;
+    const qqqChange = qqqData.status === "fulfilled" ? qqqData.value.priceData.change : 0;
+    const marketTrend = spyChange < -1.5 ? "STRONGLY BEARISH" : spyChange < -0.5 ? "BEARISH" : spyChange > 1.5 ? "STRONGLY BULLISH" : spyChange > 0.5 ? "BULLISH" : "NEUTRAL";
+    const marketContext = { spyChange, qqqChange, marketTrend, recommendation: spyChange < -1.5 ? "Strong down day — prefer PUT options over CALLs" : spyChange > 1.5 ? "Strong up day — prefer CALL options" : "Mixed market — pick direction based on individual stock strength" };
+
+    // Add market context to summaries
+    console.log(`Market: SPY ${spyChange}% QQQ ${qqqChange}% — ${marketTrend}`);
 
     const summaries = Object.entries(marketDataMap).map(([sym, d]) => ({
       symbol: sym,
@@ -194,12 +210,25 @@ app.get("/api/analyze", async (req, res) => {
       obvTrend: d.indicators.obv?.trend,
     }));
 
-    const prompt = `You are an elite options trading analyst. You have LIVE market data for ${batch.length} stocks. The user is on a $10 → $10,000 challenge. Current balance: $${data.balance}. Total trades so far: ${data.trades.length}. Win rate: ${data.trades.length > 0 ? Math.round((data.trades.filter(t=>t.result==='win').length/data.trades.length)*100) : 0}%.
+    const prompt = `You are an elite options trading analyst. You have LIVE market data fetched RIGHT NOW at ${new Date().toLocaleTimeString()} ET. The user is on a $10 → $10,000 challenge. Current balance: $${data.balance}. Total trades: ${data.trades.length}. Win rate: ${data.trades.length > 0 ? Math.round((data.trades.filter(t=>t.result==='win').length/data.trades.length)*100) : 0}%.
 
-LIVE MARKET SUMMARIES:
+OVERALL MARKET CONDITIONS RIGHT NOW:
+SPY (S&P 500): ${spyChange}% today
+QQQ (Nasdaq): ${qqqChange}% today
+Market Trend: ${marketTrend}
+Guidance: ${marketContext.recommendation}
+
+CRITICAL MARKET DIRECTION RULE:
+- If SPY is down more than 1.5% today → market is in a SELLOFF. Recommend PUT options NOT calls. Stocks go down in selloffs.
+- If SPY is up more than 1.5% today → market is BULLISH. Recommend CALL options.
+- If SPY is between -1.5% and +1.5% → neutral. Pick based on individual stock strength.
+- NEVER recommend a CALL option when the overall market is down 2%+ unless the stock has an extraordinary individual catalyst.
+- If market conditions make trading too risky, signal HOLD and explain why clearly.
+
+LIVE STOCK DATA (fetched right now):
 ${JSON.stringify(summaries, null, 2)}
 
-DETAILED DATA FOR TOP CANDIDATES:
+DETAILED DATA:
 ${JSON.stringify(marketDataMap, null, 2)}
 
 Your job:
