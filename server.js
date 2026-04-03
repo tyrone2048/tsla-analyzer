@@ -37,7 +37,15 @@ function saveData(data) {
 }
 
 // ─── Watchlist of high-volatility options stocks ──────────────────────────────
-const WATCHLIST = ["TSLA", "NVDA", "AAPL", "AMD", "META", "AMZN", "GOOGL", "MSFT", "SPY", "QQQ"];
+// Cheap stocks with options under $0.50/share (affordable on $10)
+const CHEAP_WATCHLIST = ["SOUN", "SOFI", "MARA", "RIOT", "PLTR", "HOOD", "AAL", "VALE", "CLSK", "GRAB"];
+const MID_WATCHLIST = ["TSLA", "AMD", "NVDA", "AAPL", "SPY", "QQQ"];
+function getWatchlist(balance) {
+  if (balance < 50) return CHEAP_WATCHLIST;
+  if (balance < 200) return [...CHEAP_WATCHLIST.slice(0,5), ...MID_WATCHLIST.slice(0,4)];
+  return MID_WATCHLIST;
+}
+const WATCHLIST = CHEAP_WATCHLIST;
 
 // ─── Email alerts ─────────────────────────────────────────────────────────────
 const activeMonitors = {};
@@ -161,8 +169,9 @@ app.get("/api/analyze", async (req, res) => {
   try {
     const data = loadData();
 
-    // Fetch data for all watchlist symbols in parallel (limit to 5 at a time)
-    const batch = WATCHLIST.slice(0, 6);
+    // Pick watchlist based on current balance
+    const activeWatchlist = getWatchlist(data.balance);
+    const batch = activeWatchlist.slice(0, 6);
     const allData = await Promise.allSettled(batch.map(s => fetchMarketData(s)));
     const marketDataMap = {};
     for (let i = 0; i < batch.length; i++) {
@@ -196,8 +205,17 @@ ${JSON.stringify(marketDataMap, null, 2)}
 Your job:
 1. Pick the SINGLE BEST stock to trade today for maximum probability of profit
 2. Decide BUY (CALL) or SELL (PUT)
-3. Give a complete day-trading plan
-4. Recommend how much of $${data.balance} to risk based on signal confidence
+3. Give a complete day-trading plan designed for someone with ONLY $${data.balance}
+
+CRITICAL BUDGET RULE — THIS IS THE MOST IMPORTANT INSTRUCTION:
+The user has $${data.balance}. Options cost 100x the per-share price (1 contract = 100 shares).
+So if an option costs $0.08/share, 1 contract = $8. That is affordable on $10.
+If an option costs $0.50/share, 1 contract = $50. NOT affordable on $10.
+You MUST only recommend options where 1 contract costs $${data.balance} or less.
+For a $10 budget, only recommend options priced at $0.10/share or LESS (= $10 or less per contract).
+The stocks being analyzed (SOUN, SOFI, MARA, RIOT, PLTR, HOOD, AAL) all have cheap options.
+Pick strikes that are slightly out of the money where premiums are $0.05-0.10/share.
+NEVER recommend a trade that costs more than the user's balance. If no option fits, say HOLD.
 
 Return ONLY valid JSON, no markdown:
 {
