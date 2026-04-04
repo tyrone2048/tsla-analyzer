@@ -261,7 +261,7 @@ function shouldAdaptStrategy(data, strategyMemory) {
 }
 
 // ─── Watchlists by balance ────────────────────────────────────────────────────
-const CHEAP_WATCHLIST = ["SOUN","SOFI","MARA","RIOT","PLTR","HOOD","AAL","VALE","CLSK","GRAB","TELL","NKLA","WKHS","SPCE","CRON","SAVE","CLOV","OPEN","EXPR","BBBY"];
+const CHEAP_WATCHLIST = ["SOUN","SOFI","MARA","RIOT","PLTR","HOOD","AAL","VALE","CLSK","GRAB","TELL","NKLA","WKHS","SPCE","CRON","SAVE","NIO","XPEV","PLUG","BBAI","CLOV","OPEN","EXPR","FUBO","HIMS"];
 const MID_WATCHLIST   = ["TSLA","AMD","NVDA","AAPL","AMZN","META","SPY","QQQ","COIN","RBLX"];
 const HIGH_WATCHLIST  = ["TSLA","NVDA","AAPL","AMZN","META","MSFT","GOOGL","SPY","QQQ","GS"];
 
@@ -366,6 +366,136 @@ async function getUpcomingEarnings(symbols) {
   return map;
 }
 
+// ─── Opening Range & VWAP (intraday context) ─────────────────────────────────
+async function getIntradayContext(symbol) {
+  try {
+    // Fetch 5-minute intraday data for today
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=5m&range=1d`;
+    const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const d = await r.json();
+    const result = d.chart?.result?.[0];
+    if (!result) return null;
+
+    const meta = result.meta;
+    const quotes = result.indicators?.quote?.[0];
+    const timestamps = result.timestamp || [];
+    if (!quotes || timestamps.length < 6) return null;
+
+    const closes = quotes.close || [];
+    const highs  = quotes.high  || [];
+    const lows   = quotes.low   || [];
+    const volumes = quotes.volume || [];
+    const opens  = quotes.open  || [];
+
+    // Opening range = first 6 bars (30 minutes of 5min data)
+    const orBars = Math.min(6, closes.length);
+    const orHighs  = highs.slice(0, orBars).filter(Boolean);
+    const orLows   = lows.slice(0, orBars).filter(Boolean);
+    const orHigh   = orHighs.length > 0 ? Math.max(...orHighs) : null;
+    const orLow    = orLows.length  > 0 ? Math.min(...orLows)  : null;
+    const openPrice = opens[0] || null;
+
+    // Current price
+    const currentPrice = parseFloat(meta.regularMarketPrice?.toFixed(2) || 0);
+    const prevClose    = parseFloat(meta.chartPreviousClose?.toFixed(2) || 0);
+
+    // Gap analysis
+    const gapPct = prevClose > 0 ? parseFloat(((openPrice - prevClose) / prevClose * 100).toFixed(2)) : 0;
+    const gapType = gapPct > 2 ? "GAP_UP" : gapPct < -2 ? "GAP_DOWN" : "FLAT_OPEN";
+
+    // VWAP calculation (cumulative)
+    let cumTPV = 0, cumVol = 0;
+    const validBars = closes.length;
+    for (let i = 0; i < validBars; i++) {
+      if (closes[i] && highs[i] && lows[i] && volumes[i]) {
+        const tp = (highs[i] + lows[i] + closes[i]) / 3;
+        cumTPV += tp * volumes[i];
+        cumVol += volumes[i];
+      }
+    }
+    const vwap = cumVol > 0 ? parseFloat((cumTPV / cumVol).toFixed(2)) : null;
+    const aboveVWAP = vwap ? currentPrice > vwap : null;
+
+    // Opening range breakout detection
+    let orbSignal = "INSIDE_RANGE";
+    if (orHigh && orLow && currentPrice) {
+      if (currentPrice > orHigh) orbSignal = "BULLISH_BREAKOUT";
+      else if (currentPrice < orLow) orbSignal = "BEARISH_BREAKDOWN";
+    }
+
+    // Morning trend (first 30min direction)
+    const firstClose = closes[0];
+    const lastOrClose = closes[orBars - 1];
+    const morningTrend = firstClose && lastOrClose
+      ? (lastOrClose > firstClose ? "BULLISH" : lastOrClose < firstClose ? "BEARISH" : "FLAT")
+      : "UNKNOWN";
+
+    // Volume comparison — morning vs average
+    const morningVol = volumes.slice(0, orBars).filter(Boolean).reduce((a,b)=>a+b,0);
+    const totalVol   = volumes.filter(Boolean).reduce((a,b)=>a+b,0);
+
+    return {
+      openPrice,
+      prevClose,
+      gapPct,
+      gapType,
+      openingRangeHigh: orHigh ? parseFloat(orHigh.toFixed(2)) : null,
+      openingRangeLow:  orLow  ? parseFloat(orLow.toFixed(2))  : null,
+      orbSignal,
+      morningTrend,
+      vwap,
+      aboveVWAP,
+      morningVolume: morningVol,
+      totalVolumeSoFar: totalVol,
+      gapDescription: gapType === "GAP_UP"
+        ? `Gapped UP ${gapPct}% from yesterday — strong opening momentum`
+        : gapType === "GAP_DOWN"
+        ? `Gapped DOWN ${Math.abs(gapPct)}% from yesterday — weak opening`
+        : `Opened flat near yesterday's close — no directional bias at open`,
+      orbDescription: orbSignal === "BULLISH_BREAKOUT"
+        ? `Price BROKE ABOVE the opening range high ($${orHigh?.toFixed(2)}) — bullish momentum confirmed`
+        : orbSignal === "BEARISH_BREAKDOWN"
+        ? `Price BROKE BELOW the opening range low ($${orLow?.toFixed(2)}) — bearish momentum confirmed`
+        : `Price still INSIDE the opening range ($${orLow?.toFixed(2)} - $${orHigh?.toFixed(2)}) — wait for breakout`,
+      vwapDescription: vwap
+        ? `VWAP at $${vwap} — price is ${aboveVWAP ? "ABOVE (bullish)" : "BELOW (bearish)"} the day's average price`
+        : "VWAP unavailable",
+    };
+  } catch(e) {
+    console.error("Intraday context error:", symbol, e.message);
+    return null;
+  }
+}
+
+// ─── Economic Calendar (major scheduled events) ──────────────────────────────
+function getTodayEconomicEvents() {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon...5=Fri
+  const hour = now.getHours();
+  const etHour = hour; // Assumes server is in ET or adjust accordingly
+
+  const events = [];
+
+  // Fed meetings happen 8x per year — approximate detection
+  // We'll use a simple flag system for known high-impact times
+  if (etHour >= 14 && etHour <= 15) {
+    events.push({ type: "WARNING", time: "2:00 PM ET", event: "Prime trading hours — high volatility window", impact: "MEDIUM" });
+  }
+  if (etHour >= 9 && etHour <= 10) {
+    events.push({ type: "INFO", time: "9:30-10:30 AM ET", event: "Market open — first hour high volatility", impact: "HIGH" });
+  }
+  if (etHour >= 15) {
+    events.push({ type: "WARNING", time: "3:00-4:00 PM ET", event: "Power hour — fast moves, exit before 3:45 PM", impact: "HIGH" });
+  }
+
+  // Options expiration (every Friday)
+  if (day === 5) {
+    events.push({ type: "WARNING", time: "All day", event: "OPTIONS EXPIRATION FRIDAY — options lose value faster today", impact: "HIGH" });
+  }
+
+  return events;
+}
+
 // ─── Technical Indicators ─────────────────────────────────────────────────────
 function calcRSI(c,p=14){if(c.length<p+1)return null;let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l+=Math.abs(d);}let ag=g/p,al=l/p;for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];ag=(ag*(p-1)+(d>0?d:0))/p;al=(al*(p-1)+(d<0?Math.abs(d):0))/p;}return al===0?100:parseFloat((100-100/(1+ag/al)).toFixed(2));}
 function calcEMA(c,p){if(c.length<p)return null;const k=2/(p+1);let e=c.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<c.length;i++)e=c[i]*k+e*(1-k);return parseFloat(e.toFixed(2));}
@@ -424,16 +554,20 @@ app.get("/api/analyze", async (req, res) => {
     for(let i=0;i<batch.length;i++){if(stockR[i].status==="fulfilled")marketDataMap[batch[i]]=stockR[i].value;}
 
     const topSymbols=Object.keys(marketDataMap).slice(0,5);
-    const [newsR,unusualR,earningsR]=await Promise.allSettled([
+    const economicEvents = getTodayEconomicEvents();
+    const [newsR,unusualR,earningsR,intradayR]=await Promise.allSettled([
       Promise.all(topSymbols.map(s=>getStockNews(s).then(n=>({symbol:s,news:n})))),
       Promise.all(topSymbols.map(s=>getUnusualOptionsActivity(s).then(u=>({symbol:s,unusual:u})))),
-      getUpcomingEarnings(topSymbols)
+      getUpcomingEarnings(topSymbols),
+      Promise.all(topSymbols.map(s=>getIntradayContext(s).then(intra=>({symbol:s,intraday:intra}))))
     ]);
     const newsMap={};
     if(newsR.status==="fulfilled")newsR.value.forEach(n=>{newsMap[n.symbol]=n.news;});
     const unusualMap={};
     if(unusualR.status==="fulfilled")unusualR.value.forEach(u=>{unusualMap[u.symbol]=u.unusual;});
     const earningsMap=earningsR.status==="fulfilled"?earningsR.value:{};
+    const intradayMap={};
+    if(intradayR.status==="fulfilled")intradayR.value.forEach(i=>{intradayMap[i.symbol]=i.intraday;});
 
     // Best strategy for today
     const bestStrategy = selectBestStrategy(data, strategyMemory, marketRegime, spyChange);
@@ -463,7 +597,17 @@ app.get("/api/analyze", async (req, res) => {
       recentNews:(newsMap[sym]||[]).slice(0,3).map(n=>n.title),
       unusualActivity:unusualMap[sym]?{bigMoney:unusualMap[sym].bigMoneyDirection,pcRatio:unusualMap[sym].putCallRatio}:null,
       earningsWarning:earningsMap[sym]?.warning||null,
-      isTrending:trending.includes(sym)
+      isTrending:trending.includes(sym),
+      intraday:intradayMap[sym]?{
+        gapPct:intradayMap[sym].gapPct,
+        gapType:intradayMap[sym].gapType,
+        orbSignal:intradayMap[sym].orbSignal,
+        morningTrend:intradayMap[sym].morningTrend,
+        aboveVWAP:intradayMap[sym].aboveVWAP,
+        vwap:intradayMap[sym].vwap,
+        openingRangeHigh:intradayMap[sym].openingRangeHigh,
+        openingRangeLow:intradayMap[sym].openingRangeLow,
+      }:null
     }));
 
     const topScore=Math.max(...summaries.map(s=>{let sc=50;if(s.macdBullish)sc+=8;if(s.aboveEMA50)sc+=5;if(s.obvTrend==="RISING")sc+=8;if(s.unusualActivity?.bigMoney==="BULLISH")sc+=12;if(s.isTrending)sc+=5;return sc;}),0);
