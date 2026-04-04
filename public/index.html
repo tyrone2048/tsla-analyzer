@@ -445,20 +445,144 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div class="rankings-grid" id="rankingsGrid"></div>
 
       <!-- Log Trade -->
-      <div class="section-header"><div class="section-title">📒 LOG THIS TRADE</div></div>
+      <div class="section-header"><div class="section-title">📒 LOG YOUR TRADE</div></div>
       <div class="log-box">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.7">After closing a trade on Robinhood, log it here. Your strategy memory updates automatically.</div>
-        <div class="log-form">
-          <div class="log-field"><label>Symbol</label><input type="text" id="logSymbol" placeholder="e.g. RIOT"></div>
-          <div class="log-field"><label>Option Type</label><select id="logOptionType"><option value="CALL">CALL</option><option value="PUT">PUT</option></select></div>
-          <div class="log-field"><label>Amount Risked ($)</label><input type="number" id="logAmount" step="0.01" placeholder="e.g. 9.00"></div>
-          <div class="log-field"><label>Amount Received Back ($)</label><input type="number" id="logExitValue" step="0.01" placeholder="e.g. 18.00 or 0"></div>
-          <div class="log-field"><label>Result</label><select id="logResult"><option value="win">WIN</option><option value="loss">LOSS</option></select></div>
-          <div class="log-field"><label>Strategy Used</label><select id="logStrategy"><option value="MOMENTUM_SCALP">Momentum Scalp</option><option value="BREAKOUT">Breakout</option><option value="OVERSOLD_BOUNCE">Oversold Bounce</option><option value="TREND_FOLLOWING">Trend Following</option><option value="GAP_FILL">Gap Fill</option><option value="EARNINGS_PLAY">Earnings Play</option></select></div>
-          <div class="log-field full"><label>Notes — What did you learn?</label><input type="text" id="logNotes" placeholder="e.g. Should have exited earlier when RSI crossed 70"></div>
-          <button class="log-btn" onclick="logTrade()">💾 LOG TRADE & UPDATE EVERYTHING</button>
-          <div class="log-status" id="logStatus"></div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.8">Every time you try a trade — win, loss, skipped, or never filled — log it here. This is how the system learns YOUR patterns and gets smarter for you.</div>
+
+        <div style="font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:10px">STEP 1 — WHAT HAPPENED?</div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px;">
+          <button id="btn-win" onclick="selectOutcome('win')" style="padding:16px 8px;background:transparent;border:1px solid rgba(0,255,136,0.3);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;text-align:center;transition:all 0.2s;line-height:1.8">
+            ✅ I MADE MONEY<br><span style="font-size:9px">Trade filled and I profited</span>
+          </button>
+          <button id="btn-loss" onclick="selectOutcome('loss')" style="padding:16px 8px;background:transparent;border:1px solid rgba(255,59,92,0.3);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;text-align:center;transition:all 0.2s;line-height:1.8">
+            ❌ I LOST MONEY<br><span style="font-size:9px">Trade filled but I lost</span>
+          </button>
+          <button id="btn-skip" onclick="selectOutcome('skip')" style="padding:16px 8px;background:transparent;border:1px solid rgba(255,214,0,0.3);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;text-align:center;transition:all 0.2s;line-height:1.8">
+            ⏭️ I SKIPPED IT<br><span style="font-size:9px">Chose not to take this trade</span>
+          </button>
+          <button id="btn-pending" onclick="selectOutcome('pending')" style="padding:16px 8px;background:transparent;border:1px solid rgba(0,229,255,0.3);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;text-align:center;transition:all 0.2s;line-height:1.8">
+            ⏳ ORDER NEVER FILLED<br><span style="font-size:9px">Tried but stayed queued/cancelled</span>
+          </button>
         </div>
+
+        <!-- WIN or LOSS FORM -->
+        <div id="formWinLoss" style="display:none">
+          <div style="font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:10px">STEP 2 — FILL IN THE NUMBERS</div>
+          <div class="log-form">
+            <div class="log-field">
+              <label>Which Stock?</label>
+              <input type="text" id="logSymbol" placeholder="e.g. RIOT, SOUN, MARA">
+            </div>
+            <div class="log-field">
+              <label>CALL or PUT?</label>
+              <select id="logOptionType">
+                <option value="CALL">CALL — I bet it goes UP</option>
+                <option value="PUT">PUT — I bet it goes DOWN</option>
+              </select>
+            </div>
+            <div class="log-field">
+              <label>💸 How much did I put in? ($)</label>
+              <input type="number" id="logAmount" step="0.01" oninput="updatePnlPreview()" placeholder="e.g. 9.00">
+              <span style="font-size:9px;color:var(--muted);margin-top:3px">What you paid for the option on Robinhood</span>
+            </div>
+            <div class="log-field">
+              <label>💰 How much did I get back? ($)</label>
+              <input type="number" id="logExitValue" step="0.01" oninput="updatePnlPreview()" placeholder="e.g. 18.00 — put 0 if lost everything">
+              <span style="font-size:9px;color:var(--muted);margin-top:3px">What Robinhood gave you when you sold. Lost it all? Put 0.</span>
+            </div>
+            <div class="log-field">
+              <label>🔄 How many tries to fill?</label>
+              <select id="logAttempts">
+                <option value="1">1 try — filled right away ✅</option>
+                <option value="2">2 tries — had to adjust price once</option>
+                <option value="3">3 tries — kept retrying</option>
+                <option value="4">4+ tries — very hard to fill</option>
+              </select>
+            </div>
+            <div class="log-field">
+              <label>Strategy Used</label>
+              <select id="logStrategy">
+                <option value="MOMENTUM_SCALP">Momentum Scalp</option>
+                <option value="BREAKOUT">Breakout</option>
+                <option value="OVERSOLD_BOUNCE">Oversold Bounce</option>
+                <option value="TREND_FOLLOWING">Trend Following</option>
+                <option value="GAP_FILL">Gap Fill</option>
+                <option value="EARNINGS_PLAY">Earnings Play</option>
+              </select>
+            </div>
+            <div class="log-field full">
+              <label>📝 What did you learn? (optional but important)</label>
+              <input type="text" id="logNotes" placeholder="e.g. Should have sold when it hit the target instead of waiting">
+            </div>
+            <div id="logPnlPreview" style="display:none;grid-column:1/-1;padding:12px;border:1px solid var(--border);font-size:12px;line-height:1.9;margin-bottom:4px;"></div>
+            <button class="log-btn" onclick="logTrade()">💾 SAVE TRADE & UPDATE MY BALANCE</button>
+            <div class="log-status" id="logStatus"></div>
+          </div>
+        </div>
+
+        <!-- SKIP FORM -->
+        <div id="formSkip" style="display:none">
+          <div style="font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:10px">STEP 2 — WHY DID YOU SKIP?</div>
+          <div class="log-form">
+            <div class="log-field full">
+              <label>Which Stock Was Recommended?</label>
+              <input type="text" id="skipSymbol" placeholder="e.g. RIOT">
+            </div>
+            <div class="log-field full">
+              <label>Why Did You Skip?</label>
+              <select id="skipReason">
+                <option value="not_confident">Wasn't confident enough in the signal</option>
+                <option value="market_conditions">Market looked too risky today</option>
+                <option value="no_time">Didn't have time to monitor it</option>
+                <option value="too_expensive">Option was too expensive for my budget</option>
+                <option value="already_in_trade">Already had another trade open</option>
+                <option value="other">Other reason</option>
+              </select>
+            </div>
+            <div class="log-field full">
+              <label>Any notes?</label>
+              <input type="text" id="skipNotes" placeholder="e.g. Market felt too volatile">
+            </div>
+            <button class="log-btn" style="border-color:var(--yellow);color:var(--yellow)" onclick="logSkip()">💾 LOG SKIPPED TRADE</button>
+            <div class="log-status" id="skipStatus"></div>
+          </div>
+        </div>
+
+        <!-- ORDER NEVER FILLED FORM -->
+        <div id="formPending" style="display:none">
+          <div style="font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:10px">STEP 2 — ORDER NEVER FILLED DETAILS</div>
+          <div class="log-form">
+            <div class="log-field full">
+              <label>Which Stock Did You Try?</label>
+              <input type="text" id="pendingSymbol" placeholder="e.g. SOUN, RIOT">
+            </div>
+            <div class="log-field full">
+              <label>How Many Times Did You Try?</label>
+              <select id="pendingAttempts">
+                <option value="1">Once — queued but never filled</option>
+                <option value="2">Twice — changed price but still didn't fill</option>
+                <option value="3">3 times — tried different prices</option>
+                <option value="4">4+ times — gave up after many tries</option>
+              </select>
+            </div>
+            <div class="log-field full">
+              <label>Why do you think it didn't fill?</label>
+              <select id="pendingReason">
+                <option value="low_liquidity">Not enough buyers/sellers (low liquidity)</option>
+                <option value="price_moved">Price kept moving before it filled</option>
+                <option value="volatile_market">Market was too volatile</option>
+                <option value="not_sure">Not sure</option>
+              </select>
+            </div>
+            <div class="log-field full">
+              <label>Notes (optional)</label>
+              <input type="text" id="pendingNotes" placeholder="e.g. SOUN had very few contracts available">
+            </div>
+            <button class="log-btn" style="border-color:var(--accent);color:var(--accent)" onclick="logPending()">💾 LOG ATTEMPTED TRADE</button>
+            <div class="log-status" id="pendingStatus"></div>
+          </div>
+        </div>
+
       </div>
 
       <div class="disclaimer"><strong>⚠ DISCLAIMER:</strong> Educational purposes only. NOT financial advice. Options trading involves substantial risk. The $10→$10,000 goal is aspirational. Most traders lose money. Always consult a licensed financial advisor.</div>
@@ -1078,30 +1202,136 @@ async function stopMonitor(idx){
 }
 function showMonitorStatus(idx,msg,type){const el=document.getElementById("monitorStatus"+idx);el.textContent=msg;el.className="monitor-status "+type;}
 
+// ─── Outcome selector ────────────────────────────────────────────────────────
+let selectedOutcome = null;
+
+function selectOutcome(type) {
+  selectedOutcome = type;
+  // Reset all buttons
+  const colors = { win:"rgba(0,255,136,0.3)", loss:"rgba(255,59,92,0.3)", skip:"rgba(255,214,0,0.3)", pending:"rgba(0,229,255,0.3)" };
+  const activeColors = { win:"rgba(0,255,136,0.2)", loss:"rgba(255,59,92,0.2)", skip:"rgba(255,214,0,0.2)", pending:"rgba(0,229,255,0.2)" };
+  const textColors = { win:"var(--green)", loss:"var(--red)", skip:"var(--yellow)", pending:"var(--accent)" };
+  ["win","loss","skip","pending"].forEach(t => {
+    const btn = document.getElementById("btn-"+t);
+    if(btn) {
+      btn.style.background = t===type ? activeColors[t] : "transparent";
+      btn.style.color = t===type ? textColors[t] : "var(--muted)";
+      btn.style.borderColor = colors[t];
+    }
+  });
+  // Show correct form
+  ["formWinLoss","formSkip","formPending"].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = "none";
+  });
+  if(type==="win"||type==="loss") {
+    document.getElementById("formWinLoss").style.display = "block";
+    // Auto-set result hidden field
+    const resultEl = document.getElementById("logResult");
+    if(resultEl) resultEl.value = type;
+  }
+  if(type==="skip") document.getElementById("formSkip").style.display = "block";
+  if(type==="pending") document.getElementById("formPending").style.display = "block";
+}
+
+// ─── P&L Preview ─────────────────────────────────────────────────────────────
+function updatePnlPreview() {
+  const amount = parseFloat(document.getElementById("logAmount")?.value || 0);
+  const exit = parseFloat(document.getElementById("logExitValue")?.value || 0);
+  const preview = document.getElementById("logPnlPreview");
+  if(!preview) return;
+  if(isNaN(amount)||isNaN(exit)||amount<=0) { preview.style.display="none"; return; }
+  const pnl = exit - amount;
+  const pct = ((pnl/amount)*100).toFixed(1);
+  const win = pnl >= 0;
+  preview.style.display = "block";
+  preview.style.borderColor = win ? "var(--green)" : "var(--red)";
+  preview.style.background = win ? "rgba(0,255,136,0.04)" : "rgba(255,59,92,0.04)";
+  preview.innerHTML = `
+    <span style="color:${win?"var(--green)":"var(--red)"}">
+      ${win?"✅ PROFIT":"❌ LOSS"}: ${pnl>=0?"+":""}$${pnl.toFixed(2)} (${pnl>=0?"+":""}${pct}%)
+    </span><br>
+    <span style="color:var(--muted)">Put in: $${amount.toFixed(2)} → Got back: $${exit.toFixed(2)}</span>
+  `;
+}
+
+// ─── Log trade (win/loss) ─────────────────────────────────────────────────────
 async function logTrade(){
   const symbol=document.getElementById("logSymbol").value.trim().toUpperCase();
   const optionType=document.getElementById("logOptionType").value;
   const amount=parseFloat(document.getElementById("logAmount").value);
   const exitValue=parseFloat(document.getElementById("logExitValue").value);
-  const result=document.getElementById("logResult").value;
+  const result=selectedOutcome||"loss";
   const strategy=document.getElementById("logStrategy").value;
   const notes=document.getElementById("logNotes").value.trim();
-  if(!symbol){showLogStatus("Enter a stock symbol.","error");return;}
-  if(isNaN(amount)||amount<=0){showLogStatus("Enter the amount you risked.","error");return;}
-  if(isNaN(exitValue)){showLogStatus("Enter the exit value.","error");return;}
+  const attempts=document.getElementById("logAttempts")?.value||"1";
+  if(!symbol){showLogStatus("Enter the stock symbol — e.g. RIOT","error");return;}
+  if(isNaN(amount)||amount<=0){showLogStatus("Enter how much you put in — e.g. 9.00","error");return;}
+  if(isNaN(exitValue)){showLogStatus("Enter how much you got back — put 0 if you lost everything","error");return;}
   try{
-    const r=await fetch("/api/trade/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol,optionType,entryPrice:amount,exitPrice:exitValue,amount,result,notes,strategy,marketRegime:"UNKNOWN"})});
+    const r=await fetch("/api/trade/log",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({symbol,optionType,entryPrice:amount,exitPrice:exitValue,amount,result,
+        notes:notes+(attempts!=="1"?` | Fill attempts: ${attempts}`:""),strategy,marketRegime:"UNKNOWN"})});
     const d=await r.json();
     if(d.success){
       const pnl=d.trade.pnl;
-      showLogStatus(`✅ Logged! ${result==="win"?"WIN":"LOSS"}: ${pnl>=0?"+":""}$${pnl.toFixed(2)} | Balance: $${d.newBalance.toFixed(2)} | ${d.consecutiveWins>1?"🔥 "+d.consecutiveWins+" wins in a row!":d.consecutiveLosses>1?"⚠️ "+d.consecutiveLosses+" losses — reduce size":""}`,"success");
-      ["logAmount","logExitValue","logNotes"].forEach(id=>document.getElementById(id).value="");
+      const msg = result==="win"
+        ? `✅ WIN logged! You made $${pnl.toFixed(2)} profit! New balance: $${d.newBalance.toFixed(2)} ${d.consecutiveWins>1?"🔥 "+d.consecutiveWins+" wins in a row!":""}`
+        : `❌ LOSS logged. You lost $${Math.abs(pnl).toFixed(2)}. New balance: $${d.newBalance.toFixed(2)} ${d.consecutiveLosses>1?"⚠️ "+d.consecutiveLosses+" losses — consider reducing size":""}`
+      showLogStatus(msg, result==="win"?"success":"error");
+      ["logAmount","logExitValue","logNotes"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+      document.getElementById("logPnlPreview").style.display="none";
       loadChallengeData();loadPerformanceCoach();loadStrategyPage();
       if(d.milestone)showMilestone(d.milestone);
     }else throw new Error(d.error);
   }catch(e){showLogStatus("Error: "+e.message,"error");}
 }
-function showLogStatus(msg,type){const el=document.getElementById("logStatus");el.textContent=msg;el.className="log-status "+type;}
+
+// ─── Log skip ─────────────────────────────────────────────────────────────────
+async function logSkip(){
+  const symbol=document.getElementById("skipSymbol").value.trim().toUpperCase()||"UNKNOWN";
+  const reason=document.getElementById("skipReason").value;
+  const notes=document.getElementById("skipNotes").value.trim();
+  // Log as a skipped entry in notes — doesn't affect balance
+  try{
+    await fetch("/api/trade/log",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({symbol,optionType:"CALL",entryPrice:0,exitPrice:0,amount:0,
+        result:"skip",notes:`SKIPPED — Reason: ${reason}${notes?" | "+notes:""}`,strategy:"SKIP",marketRegime:"UNKNOWN"})});
+    const el=document.getElementById("skipStatus");
+    el.textContent="✅ Logged as skipped. The system noted why you passed on this trade.";
+    el.className="log-status success";
+    document.getElementById("skipSymbol").value="";
+    document.getElementById("skipNotes").value="";
+  }catch(e){
+    const el=document.getElementById("skipStatus");
+    el.textContent="Error: "+e.message;
+    el.className="log-status error";
+  }
+}
+
+// ─── Log pending/never filled ─────────────────────────────────────────────────
+async function logPending(){
+  const symbol=document.getElementById("pendingSymbol").value.trim().toUpperCase()||"UNKNOWN";
+  const attempts=document.getElementById("pendingAttempts").value;
+  const reason=document.getElementById("pendingReason").value;
+  const notes=document.getElementById("pendingNotes")?.value.trim()||"";
+  try{
+    await fetch("/api/trade/log",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({symbol,optionType:"CALL",entryPrice:0,exitPrice:0,amount:0,
+        result:"skip",notes:`ORDER NEVER FILLED — Attempts: ${attempts} | Reason: ${reason}${notes?" | "+notes:""}`,strategy:"UNFILLED",marketRegime:"UNKNOWN"})});
+    const el=document.getElementById("pendingStatus");
+    el.textContent=`✅ Logged. The system noted that ${symbol} didn't fill after ${attempts} attempt(s) — this helps improve future recommendations for liquidity.`;
+    el.className="log-status success";
+    document.getElementById("pendingSymbol").value="";
+    if(document.getElementById("pendingNotes")) document.getElementById("pendingNotes").value="";
+  }catch(e){
+    const el=document.getElementById("pendingStatus");
+    el.textContent="Error: "+e.message;
+    el.className="log-status error";
+  }
+}
+
+function showLogStatus(msg,type){const el=document.getElementById("logStatus");if(el){el.textContent=msg;el.className="log-status "+type;}}
 
 function showMilestone(amount){
   const emojis={25:"🌱",50:"💵",100:"💯",250:"🚀",500:"⭐",1000:"🔥",2500:"💎",5000:"👑",10000:"🏆"};
