@@ -358,7 +358,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <button class="nav-tab active" onclick="showPage('page-trade')">📊 TRADE</button>
     <button class="nav-tab" onclick="showPage('page-coach')">🧠 COACH</button>
     <button class="nav-tab" onclick="showPage('page-strategy')">🎯 STRATEGY</button>
-    <button class="nav-tab" onclick="showPage('page-paper')">📝 PAPER TRADE</button>
+
     <button class="nav-tab" onclick="showPage('page-journal')">📒 JOURNAL</button>
   </div>
 
@@ -616,50 +616,37 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════ PAGE: PAPER ═══ -->
-  <div class="page" id="page-paper">
-    <div class="section-header"><div class="section-title">📝 PAPER TRADING — PRACTICE WITHOUT REAL MONEY</div></div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.8">Paper trading lets you practice options trades with fake money. Use this to test strategies and learn how options move without risking your real $10. You start with $1,000 virtual dollars.</div>
-
-    <div class="paper-box">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <div>
-          <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">PAPER BALANCE</div>
-          <div class="paper-balance" id="paperBalance">$1,000.00</div>
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button class="small-btn accent" onclick="loadPaperStatus()">REFRESH</button>
-          <button class="small-btn" style="color:var(--red);border-color:var(--red)" onclick="resetPaper()">RESET</button>
-        </div>
-      </div>
-
-      <div style="font-size:10px;color:var(--yellow);letter-spacing:2px;margin-bottom:10px">OPEN A PAPER TRADE:</div>
-      <div class="paper-form">
-        <div class="paper-field"><label>Symbol</label><input type="text" id="paperSymbol" placeholder="e.g. RIOT"></div>
-        <div class="paper-field"><label>Option Type</label><select id="paperOptionType"><option value="CALL">CALL</option><option value="PUT">PUT</option></select></div>
-        <div class="paper-field"><label>Strike Price</label><input type="number" id="paperStrike" step="0.5" placeholder="e.g. 14.50"></div>
-        <div class="paper-field"><label>Premium (per share)</label><input type="number" id="paperPremium" step="0.01" placeholder="e.g. 0.09"></div>
-        <div class="paper-field"><label>Contracts</label><input type="number" id="paperContracts" value="1" min="1" max="10"></div>
-        <div class="paper-field"><label>Notes</label><input type="text" id="paperNotes" placeholder="Why are you taking this trade?"></div>
-        <button class="paper-btn" onclick="openPaperTrade()">📝 OPEN PAPER TRADE</button>
-        <div class="paper-status" id="paperStatus"></div>
-      </div>
-    </div>
-
-    <div class="section-header"><div class="section-title">OPEN PAPER POSITIONS</div></div>
-    <div class="history-box" id="paperPositions">
-      <div class="no-trades">No open paper positions. Open a trade above to practice!</div>
-    </div>
-
-    <div class="section-header"><div class="section-title">PAPER TRADE HISTORY</div></div>
-    <div class="history-box" id="paperHistory">
-      <div class="no-trades">No paper trade history yet.</div>
-    </div>
-  </div>
-
   <!-- ═══════════════════════════════════════════ PAGE: JOURNAL ═══ -->
   <div class="page" id="page-journal">
-    <div class="section-header"><div class="section-title">📒 FULL TRADE JOURNAL</div></div>
+
+    <!-- Weekly Summary Cards -->
+    <div class="section-header"><div class="section-title">📅 THIS WEEK AT A GLANCE</div></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;" id="weekSummaryCards">
+      <div class="card"><div class="card-label">THIS WEEK P&L</div><div class="card-value" id="weekPnl">$0</div><div class="card-sub">vs last week</div></div>
+      <div class="card"><div class="card-label">TRADES THIS WEEK</div><div class="card-value" id="weekTrades">0</div><div class="card-sub" id="weekWinLoss">0W / 0L</div></div>
+      <div class="card"><div class="card-label">BEST DAY</div><div class="card-value green" id="weekBestDay">—</div><div class="card-sub" id="weekBestDayDate">—</div></div>
+      <div class="card"><div class="card-label">WIN RATE THIS WEEK</div><div class="card-value" id="weekWinRate">0%</div><div class="card-sub">weekly average</div></div>
+    </div>
+
+    <!-- Daily Breakdown -->
+    <div class="section-header"><div class="section-title">📊 DAILY BREAKDOWN</div></div>
+    <div id="dailyBreakdown" style="margin-bottom:14px">
+      <div class="no-trades">No trades logged yet. Start trading and logging to see your daily breakdown!</div>
+    </div>
+
+    <!-- All-Time Stats -->
+    <div class="section-header"><div class="section-title">🏆 ALL-TIME STATS</div></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
+      <div class="card"><div class="card-label">TOTAL P&L</div><div class="card-value" id="allTimePnl">$0</div></div>
+      <div class="card"><div class="card-label">BEST SINGLE TRADE</div><div class="card-value green" id="bestTrade">$0</div></div>
+      <div class="card"><div class="card-label">WORST SINGLE TRADE</div><div class="card-value red" id="worstTrade">$0</div></div>
+      <div class="card"><div class="card-label">TOTAL TRADES</div><div class="card-value" id="allTimeTrades">0</div></div>
+      <div class="card"><div class="card-label">TOTAL WINS</div><div class="card-value green" id="allTimeWins">0</div></div>
+      <div class="card"><div class="card-label">TOTAL LOSSES</div><div class="card-value red" id="allTimeLosses">0</div></div>
+    </div>
+
+    <!-- Full Trade History -->
+    <div class="section-header"><div class="section-title">📒 FULL TRADE HISTORY</div></div>
     <div class="history-box" id="fullTradeHistory">
       <div class="no-trades">No trades logged yet.</div>
     </div>
@@ -689,7 +676,6 @@ let availableStrategies=[];
 window.onload=()=>{
   loadChallengeData();
   loadPerformanceCoach();
-  loadPaperStatus();
   loadStrategyPage();
   if("Notification"in window&&Notification.permission==="default")Notification.requestPermission();
   livePriceInterval=setInterval(updateLivePrice,30000);
@@ -701,7 +687,6 @@ function showPage(id){
   document.getElementById(id).classList.add("active");
   event.target.classList.add("active");
   if(id==="page-coach")loadPerformanceCoach();
-  if(id==="page-paper")loadPaperStatus();
   if(id==="page-strategy")loadStrategyPage();
   if(id==="page-journal")loadFullJournal();
 }
@@ -817,7 +802,118 @@ async function loadStrategyPage(){
 }
 
 async function loadFullJournal(){
-  try{const r=await fetch("/api/challenge");const d=await r.json();if(d.success)renderTradeHistory(d.data.trades||[],"fullTradeHistory");}catch(e){}
+  try{
+    const r=await fetch("/api/challenge");
+    const d=await r.json();
+    if(!d.success)return;
+    const trades=(d.data.trades||[]).filter(t=>t.result!=="skip"&&t.amountRisked>0);
+    renderTradeHistory(d.data.trades||[],"fullTradeHistory");
+    renderWeekSummary(trades);
+    renderDailyBreakdown(trades);
+    renderAllTimeStats(trades);
+  }catch(e){console.error(e);}
+}
+
+function renderWeekSummary(trades){
+  const now=new Date();
+  const dow=now.getDay()===0?6:now.getDay()-1;
+  const weekStart=new Date(now);weekStart.setDate(now.getDate()-dow);weekStart.setHours(0,0,0,0);
+  const lastStart=new Date(weekStart);lastStart.setDate(weekStart.getDate()-7);
+
+  const thisWeek=trades.filter(t=>new Date(t.date)>=weekStart);
+  const lastWeek=trades.filter(t=>new Date(t.date)>=lastStart&&new Date(t.date)<weekStart);
+  const pnl=thisWeek.reduce((s,t)=>s+(t.pnl||0),0);
+  const lastPnl=lastWeek.reduce((s,t)=>s+(t.pnl||0),0);
+  const wins=thisWeek.filter(t=>t.result==="win").length;
+  const losses=thisWeek.filter(t=>t.result==="loss").length;
+  const wr=thisWeek.length>0?Math.round(wins/thisWeek.length*100):0;
+
+  // Best day
+  const dayMap={};
+  thisWeek.forEach(t=>{
+    const k=new Date(t.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+    dayMap[k]=(dayMap[k]||0)+(t.pnl||0);
+  });
+  const best=Object.entries(dayMap).sort((a,b)=>b[1]-a[1])[0];
+
+  const pnlEl=document.getElementById("weekPnl");
+  if(pnlEl){pnlEl.textContent=(pnl>=0?"+":"")+"$"+pnl.toFixed(2);pnlEl.style.color=pnl>=0?"var(--green)":"var(--red)";}
+  const vsEl=pnlEl?.nextElementSibling;
+  if(vsEl)vsEl.textContent=lastWeek.length>0?(pnl>lastPnl?"▲ better than last week":"▼ worse than last week"):"First week!";
+  const trEl=document.getElementById("weekTrades");
+  if(trEl){trEl.textContent=thisWeek.length;document.getElementById("weekWinLoss").textContent=wins+"W / "+losses+"L";}
+  const bdEl=document.getElementById("weekBestDay");
+  if(bdEl&&best){bdEl.textContent=(best[1]>=0?"+":"")+"$"+best[1].toFixed(2);bdEl.style.color=best[1]>=0?"var(--green)":"var(--red)";document.getElementById("weekBestDayDate").textContent=best[0];}
+  else if(bdEl){bdEl.textContent="No trades";document.getElementById("weekBestDayDate").textContent="yet";}
+  const wrEl=document.getElementById("weekWinRate");
+  if(wrEl){wrEl.textContent=wr+"%";wrEl.style.color=wr>=50?"var(--green)":wr>=35?"var(--yellow)":"var(--red)";}
+}
+
+function renderDailyBreakdown(trades){
+  const el=document.getElementById("dailyBreakdown");
+  if(!el)return;
+  if(!trades.length){el.innerHTML='<div class="no-trades">No trades logged yet.</div>';return;}
+
+  // Group by date
+  const dayMap={};
+  trades.forEach(t=>{
+    const key=new Date(t.date).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"short",day:"numeric"});
+    if(!dayMap[key])dayMap[key]={trades:[],pnl:0,wins:0,losses:0,date:new Date(t.date)};
+    dayMap[key].trades.push(t);
+    dayMap[key].pnl+=t.pnl||0;
+    if(t.result==="win")dayMap[key].wins++;
+    if(t.result==="loss")dayMap[key].losses++;
+  });
+
+  // Sort by date newest first
+  const sorted=Object.entries(dayMap).sort((a,b)=>b[1].date-a[1].date);
+
+  el.innerHTML=sorted.map(([date,day])=>{
+    const win=day.pnl>=0;
+    const wr=day.trades.length>0?Math.round(day.wins/day.trades.length*100):0;
+    return`<div style="background:var(--card);border:1px solid ${win?"rgba(0,255,136,0.2)":"rgba(255,59,92,0.2)"};border-left:4px solid ${win?"var(--green)":"var(--red)"};padding:14px 16px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${date}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${day.trades.length} trade${day.trades.length!==1?"s":""} · ${day.wins}W / ${day.losses}L · ${wr}% win rate</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${win?"var(--green)":"var(--red)"};letter-spacing:2px">${win?"+":""}$${day.pnl.toFixed(2)}</div>
+          <div style="font-size:10px;color:var(--muted)">${win?"Profitable day ✅":"Loss day ❌"}</div>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:10px;">
+        ${day.trades.map(t=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(30,52,72,0.4);font-size:11px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-weight:600">${t.symbol}</span>
+              <span style="font-size:9px;padding:1px 5px;border:1px solid;color:${t.optionType==="CALL"?"var(--green)":"var(--red)"};border-color:${t.optionType==="CALL"?"rgba(0,255,136,0.4)":"rgba(255,59,92,0.4)"}">${t.optionType}</span>
+              <span style="font-size:9px;color:var(--muted)">${new Date(t.date).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}</span>
+            </div>
+            <div style="text-align:right;">
+              <span style="font-weight:600;color:${(t.pnl||0)>=0?"var(--green)":"var(--red)"}">${(t.pnl||0)>=0?"+":""}$${(t.pnl||0).toFixed(2)}</span>
+              ${t.notes?`<div style="font-size:9px;color:var(--muted);max-width:200px;text-align:right">${t.notes}</div>`:""}
+            </div>
+          </div>`).join("")}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderAllTimeStats(trades){
+  const pnl=trades.reduce((s,t)=>s+(t.pnl||0),0);
+  const wins=trades.filter(t=>t.result==="win");
+  const losses=trades.filter(t=>t.result==="loss");
+  const best=wins.length>0?Math.max(...wins.map(t=>t.pnl||0)):0;
+  const worst=losses.length>0?Math.min(...losses.map(t=>t.pnl||0)):0;
+
+  const pnlEl=document.getElementById("allTimePnl");
+  if(pnlEl){pnlEl.textContent=(pnl>=0?"+":"")+"$"+pnl.toFixed(2);pnlEl.style.color=pnl>=0?"var(--green)":"var(--red)";}
+  const btEl=document.getElementById("bestTrade");if(btEl)btEl.textContent="+$"+best.toFixed(2);
+  const wtEl=document.getElementById("worstTrade");if(wtEl)wtEl.textContent="$"+worst.toFixed(2);
+  const atEl=document.getElementById("allTimeTrades");if(atEl)atEl.textContent=trades.length;
+  const awEl=document.getElementById("allTimeWins");if(awEl)awEl.textContent=wins.length;
+  const alEl=document.getElementById("allTimeLosses");if(alEl)alEl.textContent=losses.length;
 }
 
 async function updateBalance(){
@@ -830,70 +926,7 @@ async function updateBalance(){
   }catch(e){alert("Error: "+e.message);}
 }
 
-// ─── Paper Trading ────────────────────────────────────────────────────────────
-async function loadPaperStatus(){
-  try{
-    const r=await fetch("/api/paper/status");const d=await r.json();
-    if(!d.success)return;
-    const paper=d.data;
-    document.getElementById("paperBalance").textContent="$"+paper.balance.toFixed(2);
-    const posEl=document.getElementById("paperPositions");
-    if(!paper.active||paper.active.length===0){posEl.innerHTML='<div class="no-trades">No open paper positions.</div>';}
-    else{posEl.innerHTML=paper.active.map(t=>`<div class="paper-trade-item">
-      <div>
-        <div style="font-weight:600;font-size:13px">${t.symbol} ${t.optionType} $${t.strikePrice}</div>
-        <div style="font-size:10px;color:var(--muted)">Bought at $${t.premium}/share | Cost: $${t.cost} | ${new Date(t.date).toLocaleTimeString()}</div>
-        ${t.notes?`<div style="font-size:9px;color:var(--muted)">${t.notes}</div>`:""}
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <input type="number" step="0.01" placeholder="Exit premium" id="paperExit${t.id}" style="width:100px;background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 7px;outline:none">
-        <button class="close-paper-btn" onclick="closePaperTrade(${t.id})">CLOSE</button>
-      </div>
-    </div>`).join("");}
-    const histEl=document.getElementById("paperHistory");
-    const closed=paper.trades.filter(t=>t.status==="closed").slice(0,10);
-    if(!closed.length){histEl.innerHTML='<div class="no-trades">No closed paper trades yet.</div>';}
-    else{histEl.innerHTML=closed.map(t=>{const win=(t.pnl||0)>0;return`<div class="trade-hist-item">
-      <div><div style="font-size:13px;font-weight:600">${t.symbol} ${t.optionType} $${t.strikePrice}</div><div style="font-size:9px;color:var(--muted)">${new Date(t.date).toLocaleDateString()}</div></div>
-      <div style="text-align:right"><div style="font-size:13px;font-weight:600;color:${win?"var(--green)":"var(--red)"}">${win?"+":"-"}$${Math.abs(t.pnl||0).toFixed(2)}</div><div style="font-size:9px;color:var(--muted)">In: $${t.premium} → Out: $${t.exitPremium||0}</div></div>
-    </div>`}).join("");}
-  }catch(e){console.error(e);}
-}
-
-async function openPaperTrade(){
-  const symbol=document.getElementById("paperSymbol").value.trim().toUpperCase();
-  const optionType=document.getElementById("paperOptionType").value;
-  const strikePrice=parseFloat(document.getElementById("paperStrike").value);
-  const premium=parseFloat(document.getElementById("paperPremium").value);
-  const contracts=parseInt(document.getElementById("paperContracts").value)||1;
-  const notes=document.getElementById("paperNotes").value;
-  if(!symbol||isNaN(strikePrice)||isNaN(premium)){showPaperStatus("Fill in all required fields.","error");return;}
-  try{
-    const r=await fetch("/api/paper/trade",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol,optionType,strikePrice,premium,contracts,action:"buy",notes})});
-    const d=await r.json();
-    if(d.success){showPaperStatus(`✅ Paper trade opened! ${symbol} ${optionType} $${strikePrice} | Cost: $${d.trade.cost} | New balance: $${d.balance}`,"success");loadPaperStatus();["paperSymbol","paperStrike","paperPremium","paperNotes"].forEach(id=>document.getElementById(id).value="");}
-    else throw new Error(d.error);
-  }catch(e){showPaperStatus("Error: "+e.message,"error");}
-}
-
-async function closePaperTrade(tradeId){
-  const exitPremium=parseFloat(document.getElementById("paperExit"+tradeId)?.value);
-  if(isNaN(exitPremium)){alert("Enter the exit premium price.");return;}
-  try{
-    const r=await fetch("/api/paper/trade",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"close",tradeId,exitPremium})});
-    const d=await r.json();
-    if(d.success){showPaperStatus(`${d.pnl>=0?"✅ PROFIT":"❌ LOSS"}: ${d.pnl>=0?"+":""}$${d.pnl.toFixed(2)} | New balance: $${d.balance}`,"success");loadPaperStatus();}
-    else throw new Error(d.error);
-  }catch(e){showPaperStatus("Error: "+e.message,"error");}
-}
-
-async function resetPaper(){
-  if(!confirm("Reset paper trading balance to $1,000?"))return;
-  await fetch("/api/paper/reset",{method:"POST"});
-  loadPaperStatus();
-}
-
-function showPaperStatus(msg,type){const el=document.getElementById("paperStatus");el.textContent=msg;el.className="paper-status "+type;}
+// Paper trading removed
 
 // ─── Main Analysis ────────────────────────────────────────────────────────────
 function buildTradePanel(trade,idx){
