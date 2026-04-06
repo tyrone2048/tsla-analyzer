@@ -324,6 +324,81 @@ async function getFearGreedIndex() {
   } catch(e) { return { score:50, rating:"Neutral" }; }
 }
 
+// ─── VIX Fear Index ───────────────────────────────────────────────────────────
+async function getVIX() {
+  try {
+    const r = await fetch("https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=5d", { headers: {"User-Agent":"Mozilla/5.0"} });
+    const d = await r.json();
+    const price = d.chart?.result?.[0]?.meta?.regularMarketPrice;
+    if (!price) return { value: 20, level: "NORMAL", description: "VIX unavailable" };
+    const vix = parseFloat(price.toFixed(2));
+    const level = vix > 40 ? "EXTREME_FEAR" : vix > 30 ? "HIGH_FEAR" : vix > 20 ? "ELEVATED" : vix > 12 ? "NORMAL" : "LOW";
+    const optionCost = vix > 30 ? "Options are VERY EXPENSIVE today due to high fear" : vix > 20 ? "Options are slightly expensive" : "Options are normally priced today";
+    const tradingAdvice = vix > 40 ? "AVOID TRADING — extreme fear makes options unpredictable and expensive" : vix > 30 ? "REDUCE position size by 50% — high volatility inflates option prices" : vix > 20 ? "Trade normally but be cautious" : "Good conditions for trading";
+    return { value: vix, level, optionCost, tradingAdvice, description: `VIX at ${vix} — ${level.replace(/_/g," ")}` };
+  } catch(e) { return { value: 20, level: "NORMAL", description: "VIX data unavailable", tradingAdvice: "Trade normally" }; }
+}
+
+// ─── Bitcoin/Crypto Correlation ───────────────────────────────────────────────
+async function getCryptoCorrelation() {
+  try {
+    const [btcR, ethR] = await Promise.allSettled([
+      fetch("https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD?interval=1d&range=2d", { headers: {"User-Agent":"Mozilla/5.0"} }),
+      fetch("https://query1.finance.yahoo.com/v8/finance/chart/ETH-USD?interval=1d&range=2d", { headers: {"User-Agent":"Mozilla/5.0"} })
+    ]);
+    let btcChange = 0, ethChange = 0, btcPrice = 0;
+    if (btcR.status === "fulfilled") {
+      const d = await btcR.value.json();
+      const meta = d.chart?.result?.[0]?.meta;
+      btcPrice = parseFloat(meta?.regularMarketPrice?.toFixed(2) || 0);
+      const prev = parseFloat(meta?.chartPreviousClose?.toFixed(2) || btcPrice);
+      btcChange = parseFloat(((btcPrice - prev) / prev * 100).toFixed(2));
+    }
+    if (ethR.status === "fulfilled") {
+      const d = await ethR.value.json();
+      const meta = d.chart?.result?.[0]?.meta;
+      const ep = parseFloat(meta?.regularMarketPrice || 0);
+      const prev = parseFloat(meta?.chartPreviousClose || ep);
+      ethChange = parseFloat(((ep - prev) / prev * 100).toFixed(2));
+    }
+    const cryptoMood = btcChange > 3 ? "STRONGLY BULLISH" : btcChange > 1 ? "BULLISH" : btcChange < -3 ? "STRONGLY BEARISH" : btcChange < -1 ? "BEARISH" : "NEUTRAL";
+    const impact = btcChange > 2 ? "MARA and RIOT calls are likely profitable — crypto stocks follow Bitcoin" : btcChange < -2 ? "MARA and RIOT puts may be better — crypto stocks are falling with Bitcoin" : "Neutral crypto impact on mining stocks";
+    return { btcPrice, btcChange, ethChange, cryptoMood, impact, description: `Bitcoin ${btcChange >= 0 ? "+" : ""}${btcChange}% today` };
+  } catch(e) { return { btcChange: 0, cryptoMood: "NEUTRAL", impact: "Crypto data unavailable", description: "Bitcoin data unavailable" }; }
+}
+
+// ─── Google Trends proxy (via Yahoo trending + news volume) ───────────────────
+async function getSocialSentiment(symbols) {
+  const sentiment = {};
+  for (const sym of symbols.slice(0, 4)) {
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${sym}&newsCount=8&enableFuzzyQuery=false`, { headers: {"User-Agent":"Mozilla/5.0"} });
+      const d = await r.json();
+      const news = d.news || [];
+      const recentNews = news.filter(n => Date.now() - n.providerPublishTime * 1000 < 24 * 60 * 60 * 1000);
+      // Analyze headlines for sentiment words
+      const bullishWords = ["surge", "jump", "gain", "rise", "rally", "bull", "buy", "upgrade", "beat", "profit", "growth", "up", "high", "record", "strong", "positive", "boost"];
+      const bearishWords = ["drop", "fall", "loss", "down", "bear", "sell", "downgrade", "miss", "decline", "weak", "negative", "cut", "low", "risk", "concern", "warn"];
+      let bullScore = 0, bearScore = 0;
+      recentNews.forEach(n => {
+        const title = (n.title || "").toLowerCase();
+        bullishWords.forEach(w => { if (title.includes(w)) bullScore++; });
+        bearishWords.forEach(w => { if (title.includes(w)) bearScore++; });
+      });
+      const total = bullScore + bearScore;
+      const sentimentScore = total > 0 ? Math.round((bullScore / total) * 100) : 50;
+      sentiment[sym] = {
+        newsCount: recentNews.length,
+        bullScore, bearScore, sentimentScore,
+        label: sentimentScore > 65 ? "BULLISH" : sentimentScore < 35 ? "BEARISH" : "NEUTRAL",
+        headlines: recentNews.slice(0, 3).map(n => n.title),
+        buzz: recentNews.length > 5 ? "HIGH BUZZ" : recentNews.length > 2 ? "MODERATE" : "LOW BUZZ"
+      };
+    } catch(e) { sentiment[sym] = { sentimentScore: 50, label: "NEUTRAL", buzz: "UNKNOWN", headlines: [] }; }
+  }
+  return sentiment;
+}
+
 async function getTrendingTickers() {
   try {
     const r = await fetch("https://query1.finance.yahoo.com/v1/finance/trending/US?count=10", { headers:{"User-Agent":"Mozilla/5.0"} });
@@ -550,9 +625,10 @@ app.get("/api/analyze", async (req, res) => {
     const batch = activeWatchlist.slice(0,8);
     const edLevel = getEducationLevel(data, strategyMemory);
 
-    const [spyR,qqqR,fgR,trendR,...stockR] = await Promise.allSettled([
+    const [spyR,qqqR,fgR,trendR,vixR,cryptoR,...stockR] = await Promise.allSettled([
       fetchMarketData("SPY"), fetchMarketData("QQQ"),
       getFearGreedIndex(), getTrendingTickers(),
+      getVIX(), getCryptoCorrelation(),
       ...batch.map(s=>fetchMarketData(s))
     ]);
 
@@ -560,20 +636,44 @@ app.get("/api/analyze", async (req, res) => {
     const qqqChange = qqqR.status==="fulfilled"?qqqR.value.priceData.change:0;
     const fearGreed = fgR.status==="fulfilled"?fgR.value:{score:50,rating:"Neutral"};
     const trending  = trendR.status==="fulfilled"?trendR.value:[];
+    const vix = vixR.status==="fulfilled"?vixR.value:{value:20,level:"NORMAL",tradingAdvice:"Trade normally",optionCost:"Options normally priced"};
+    const crypto = cryptoR.status==="fulfilled"?cryptoR.value:{btcChange:0,cryptoMood:"NEUTRAL",impact:"Crypto data unavailable"};
     const marketRegime = detectMarketRegime(spyChange, 0, 0);
     const marketTrend = spyChange<-2?"STRONGLY BEARISH":spyChange<-0.75?"BEARISH":spyChange>2?"STRONGLY BULLISH":spyChange>0.75?"BULLISH":"NEUTRAL";
     const preferredDir = spyChange<-1.5?"PUT":spyChange>1.5?"CALL":"EITHER";
+    
+    // Volatile market detection
+    const isExtremelyVolatile = Math.abs(spyChange) > 5;
+    const volatileWarning = isExtremelyVolatile 
+      ? `⚠️ EXTREME VOLATILITY WARNING: Market is moving ${spyChange > 0 ? "UP" : "DOWN"} ${Math.abs(spyChange).toFixed(1)}% today. Option prices are inflated and unpredictable. Consider reducing position size by 50% or sitting out today.`
+      : null;
+
+    // PDT check - count today's day trades
+    const todayStr = new Date().toDateString();
+    const todayTrades = data.trades.filter(t => new Date(t.date).toDateString() === todayStr && t.result !== "skip").length;
+    const pdtWarning = todayTrades >= 2 
+      ? `⚠️ PDT WARNING: You have made ${todayTrades} day trades today. If you make ${3 - todayTrades} more you risk hitting the 3-day-trade limit. Consider switching to a Cash Account to avoid restrictions.`
+      : null;
+    
+    // Already up big warning  
+    const bigMoverWarning = (stock) => {
+      if (Math.abs(stock.priceData?.change || 0) > 15) {
+        return `⚠️ This stock is already ${stock.priceData.change > 0 ? "UP" : "DOWN"} ${Math.abs(stock.priceData.change).toFixed(1)}% today — options are expensive and the move may be exhausted`;
+      }
+      return null;
+    };
 
     const marketDataMap={};
     for(let i=0;i<batch.length;i++){if(stockR[i].status==="fulfilled")marketDataMap[batch[i]]=stockR[i].value;}
 
     const topSymbols=Object.keys(marketDataMap).slice(0,5);
     const economicEvents = getTodayEconomicEvents();
-    const [newsR,unusualR,earningsR,intradayR]=await Promise.allSettled([
+    const [newsR,unusualR,earningsR,intradayR,socialR]=await Promise.allSettled([
       Promise.all(topSymbols.map(s=>getStockNews(s).then(n=>({symbol:s,news:n})))),
       Promise.all(topSymbols.map(s=>getUnusualOptionsActivity(s).then(u=>({symbol:s,unusual:u})))),
       getUpcomingEarnings(topSymbols),
-      Promise.all(topSymbols.map(s=>getIntradayContext(s).then(intra=>({symbol:s,intraday:intra}))))
+      Promise.all(topSymbols.map(s=>getIntradayContext(s).then(intra=>({symbol:s,intraday:intra})))),
+      getSocialSentiment(topSymbols)
     ]);
     const newsMap={};
     if(newsR.status==="fulfilled")newsR.value.forEach(n=>{newsMap[n.symbol]=n.news;});
@@ -582,6 +682,7 @@ app.get("/api/analyze", async (req, res) => {
     const earningsMap=earningsR.status==="fulfilled"?earningsR.value:{};
     const intradayMap={};
     if(intradayR.status==="fulfilled")intradayR.value.forEach(i=>{intradayMap[i.symbol]=i.intraday;});
+    const socialMap = socialR.status==="fulfilled" ? socialR.value : {};
 
     // Best strategy for today
     const bestStrategy = selectBestStrategy(data, strategyMemory, marketRegime, spyChange);
@@ -613,6 +714,8 @@ app.get("/api/analyze", async (req, res) => {
       earningsWarning:earningsMap[sym]?.warning||null,
       isTrending:trending.includes(sym),
       affordableStrikes:(marketDataMap[sym]?.options?.affordableStrikes||[]).slice(0,5),
+      socialSentiment:socialMap[sym]||{sentimentScore:50,label:"NEUTRAL",buzz:"UNKNOWN"},
+      cryptoCorrelated:["MARA","RIOT","CLSK","WKHS"].includes(sym),
       intraday:intradayMap[sym]?{
         gapPct:intradayMap[sym].gapPct,
         gapType:intradayMap[sym].gapType,
@@ -683,7 +786,14 @@ Return ONLY valid JSON:
     "fearGreedScore":${fearGreed.score},"fearGreedRating":"${fearGreed.rating}",
     "trendingStocks":${JSON.stringify(trending.slice(0,5))},
     "preferredDirection":"${preferredDir}","marketRegime":"${marketRegime}",
-    "marketComment":"2 plain English sentences about today's market"
+    "isExtremelyVolatile":${isExtremelyVolatile},
+    "volatileWarning":"${volatileWarning||""}",
+    "pdtWarning":"${pdtWarning||""}",
+    "todayTradeCount":${todayTrades},
+    "vix":{"value":${vix.value},"level":"${vix.level}","advice":"${vix.tradingAdvice}","optionCost":"${vix.optionCost}"},
+    "crypto":{"btcChange":${crypto.btcChange},"mood":"${crypto.cryptoMood}","impact":"${crypto.impact}"},
+    "marketComment":"2 plain English sentences about today's market. If extremely volatile warn beginner traders strongly.",
+    "beginnerTip":"1 sentence of the most important thing a beginner should know about trading TODAY specifically"
   },
   "activeStrategy":{
     "name":"${bestStrategy.name}","key":"${bestStrategy.key}",
