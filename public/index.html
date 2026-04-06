@@ -1077,6 +1077,11 @@ function buildTradePanel(trade,idx){
     </div>
 
     <!-- Levels -->
+    <!-- Live price warning -->
+    <div style="background:rgba(255,214,0,0.06);border:1px solid rgba(255,214,0,0.3);padding:12px 14px;margin-bottom:10px;font-size:11px;color:var(--yellow);line-height:1.8;">
+      ⚠️ <strong>IMPORTANT:</strong> The estimated cost above is based on recent data. Always check the actual <strong>Ask Price</strong> column on Robinhood before buying. If the price is higher than your budget — scroll UP in the options chain to find a higher strike price with a cheaper premium. The Ask Price × 100 = total cost per contract.
+    </div>
+
     <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">TRADE LEVELS</div>
     <div class="trade-section">
       <div class="trade-row"><div><div class="trade-row-label">ENTRY</div><div class="trade-row-note">${trade.entryNote||""}</div></div><div class="trade-row-val entry">$${trade.entryPrice?.toFixed(2)||"—"}</div></div>
@@ -1147,6 +1152,20 @@ function buildTradePanel(trade,idx){
         </div>
       </div>
       <div class="analysis-text">${trade.budget?.robinhoodSteps||""}</div>
+
+      <!-- HOW TO CLOSE -->
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--red);letter-spacing:2px;margin-bottom:10px">📱 HOW TO CLOSE / SELL THIS TRADE ON ROBINHOOD:</div>
+        <div style="font-size:11px;color:var(--text);line-height:2.0;">
+          <div style="padding:6px 0;border-bottom:1px solid var(--border)">1️⃣ Tap the <strong style="color:var(--accent)">graph icon</strong> at the bottom of Robinhood (your Portfolio)</div>
+          <div style="padding:6px 0;border-bottom:1px solid var(--border)">2️⃣ Find your <strong style="color:var(--accent)">${trade.symbol}</strong> position and tap on it</div>
+          <div style="padding:6px 0;border-bottom:1px solid var(--border)">3️⃣ Tap the <strong style="color:var(--red)">orange "Sell to Close"</strong> button at the top</div>
+          <div style="padding:6px 0;border-bottom:1px solid var(--border)">4️⃣ Set quantity to <strong style="color:var(--accent)">1 contract</strong></div>
+          <div style="padding:6px 0;border-bottom:1px solid var(--border)">5️⃣ Change order type to <strong style="color:var(--accent)">Limit</strong> — set price to the current <strong>Bid price</strong> shown</div>
+          <div style="padding:6px 0;border-bottom:1px solid var(--border)">6️⃣ Tap <strong style="color:var(--accent)">Review Order</strong> then <strong style="color:var(--green)">Submit</strong></div>
+          <div style="padding:6px 0">7️⃣ When it shows <strong style="color:var(--green)">Filled</strong> — your trade is closed! Come back here and log it ✅</div>
+        </div>
+      </div>
     </div>
 
     <!-- Monitor -->
