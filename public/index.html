@@ -388,6 +388,19 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <span style="font-size:10px;color:var(--muted);letter-spacing:1px;white-space:nowrap">UPDATE BALANCE:</span>
       <input type="number" id="newBalanceInput" placeholder="Enter your Robinhood balance" step="0.01" min="0">
       <button class="small-btn accent" onclick="updateBalance()">UPDATE</button>
+      <button class="small-btn" style="color:var(--red);border-color:var(--red);white-space:nowrap" onclick="showResetModal()">🔄 RESET</button>
+    </div>
+
+    <!-- Reset Modal -->
+    <div id="resetModal" style="display:none;margin-top:12px;background:rgba(255,59,92,0.06);border:1px solid var(--red);padding:14px;">
+      <div style="font-size:11px;color:var(--red);margin-bottom:10px;line-height:1.7">⚠️ This will delete ALL your trades and start fresh. Are you sure?</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:10px;color:var(--muted);white-space:nowrap">START WITH ($):</span>
+        <input type="number" id="resetBalance" placeholder="e.g. 55" value="55" step="0.01" min="1" style="background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;outline:none;width:100px;">
+        <button class="small-btn" style="color:var(--red);border-color:var(--red)" onclick="resetJourney()">YES RESET</button>
+        <button class="small-btn accent" onclick="document.getElementById('resetModal').style.display='none'">CANCEL</button>
+      </div>
+      <div id="resetStatus" style="font-size:11px;margin-top:8px;display:none;"></div>
     </div>
   </div>
 
@@ -916,6 +929,35 @@ function renderAllTimeStats(trades){
   const alEl=document.getElementById("allTimeLosses");if(alEl)alEl.textContent=losses.length;
 }
 
+function showResetModal(){
+  const modal = document.getElementById("resetModal");
+  modal.style.display = modal.style.display === "none" ? "block" : "none";
+}
+
+async function resetJourney(){
+  const balance = parseFloat(document.getElementById("resetBalance").value) || 55;
+  const statusEl = document.getElementById("resetStatus");
+  try{
+    const r = await fetch("/api/reset", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({startingBalance:balance})});
+    const d = await r.json();
+    if(d.success){
+      statusEl.textContent = "✅ " + d.message;
+      statusEl.style.color = "var(--green)";
+      statusEl.style.display = "block";
+      setTimeout(()=>{
+        document.getElementById("resetModal").style.display = "none";
+        loadChallengeData();
+        loadPerformanceCoach();
+        loadStrategyPage();
+      }, 1500);
+    }
+  }catch(e){
+    statusEl.textContent = "Error: " + e.message;
+    statusEl.style.color = "var(--red)";
+    statusEl.style.display = "block";
+  }
+}
+
 async function updateBalance(){
   const val=parseFloat(document.getElementById("newBalanceInput").value);
   if(isNaN(val)||val<0){alert("Enter a valid balance.");return;}
@@ -1051,7 +1093,32 @@ function buildTradePanel(trade,idx){
     <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">AI ANALYSIS</div>
     <div class="analysis-box"><div class="analysis-text">${trade.analysis||""}</div></div>
 
-    <div class="rh-box"><div class="rh-title">📱 HOW TO PLACE THIS TRADE ON ROBINHOOD</div><div class="analysis-text">${trade.budget?.robinhoodSteps||""}</div></div>
+    <div class="rh-box">
+      <div class="rh-title">📱 HOW TO PLACE THIS TRADE ON ROBINHOOD</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+        <div style="background:rgba(0,229,255,0.08);border:1px solid var(--accent);padding:6px 14px;font-size:11px;color:var(--accent);letter-spacing:1px">STEP 1 — TAP THESE BUTTONS ON ROBINHOOD:</div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+        <div style="text-align:center">
+          <div style="background:${trade.signal==="BUY"?"#ff6d00":"transparent"};color:white;padding:8px 18px;border-radius:4px;font-size:13px;font-weight:600;border:2px solid #ff6d00">BUY</div>
+          <div style="font-size:9px;color:var(--green);margin-top:3px;letter-spacing:1px">✓ SELECT THIS</div>
+        </div>
+        <div style="font-size:10px;color:var(--muted)">AND</div>
+        <div style="text-align:center">
+          <div style="background:${trade.budget?.suggestedOptionType==="CALL"?"#ff6d00":"transparent"};color:${trade.budget?.suggestedOptionType==="CALL"?"white":"var(--muted)"};padding:8px 18px;border-radius:4px;font-size:13px;font-weight:600;border:2px solid #ff6d00">${trade.budget?.suggestedOptionType||"CALL"}</div>
+          <div style="font-size:9px;color:var(--green);margin-top:3px;letter-spacing:1px">✓ SELECT THIS</div>
+        </div>
+        <div style="text-align:center;opacity:0.4">
+          <div style="background:transparent;color:var(--muted);padding:8px 18px;border-radius:4px;font-size:13px;font-weight:600;border:1px solid var(--muted)">${trade.signal==="BUY"?"SELL":"BUY"}</div>
+          <div style="font-size:9px;color:var(--red);margin-top:3px;letter-spacing:1px">✗ NOT THIS</div>
+        </div>
+        <div style="text-align:center;opacity:0.4">
+          <div style="background:transparent;color:var(--muted);padding:8px 18px;border-radius:4px;font-size:13px;font-weight:600;border:1px solid var(--muted)">${trade.budget?.suggestedOptionType==="CALL"?"PUT":"CALL"}</div>
+          <div style="font-size:9px;color:var(--red);margin-top:3px;letter-spacing:1px">✗ NOT THIS</div>
+        </div>
+      </div>
+      <div class="analysis-text">${trade.budget?.robinhoodSteps||""}</div>
+    </div>
 
     <!-- Monitor -->
     <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin:12px 0 6px">🔔 SELL ALERTS</div>
