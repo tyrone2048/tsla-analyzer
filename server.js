@@ -369,8 +369,8 @@ async function getUpcomingEarnings(symbols) {
 // ─── Opening Range & VWAP (intraday context) ─────────────────────────────────
 async function getIntradayContext(symbol) {
   try {
-    // Fetch 5-minute intraday data for today
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=5m&range=1d`;
+    // Fetch 2-minute intraday data for more granular analysis
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=2m&range=1d`;
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
     const d = await r.json();
     const result = d.chart?.result?.[0];
@@ -739,7 +739,7 @@ Return ONLY valid JSON:
         "suggestedOptionType":"CALL" or "PUT","strikePrice":number,
         "expiration":string,"estimatedOptionCost":string,
         "amountToRisk":string,"maxLoss":string,"estimatedGain":string,
-        "robinhoodSteps":"6-8 numbered steps for a BEGINNER. Step 1 MUST say: Open Robinhood and search [SYMBOL]. Step 2 MUST say: Tap Trade then Trade Options. Step 3 MUST say: You will see 4 buttons at the top — tap BUY (not Sell) and tap CALL (not Put) [or PUT if signal is bearish — be explicit]. Step 4: Select expiration date [exact date]. Step 5: Scroll to find strike price $[exact strike] — look for premium under $[amount]. Step 6: Tap the + button then tap Review Order then Submit. Step 7: Your order may show Queued — this is normal, wait for it to fill. Step 8: Once filled, set a price alert at $[target] to know when to sell. Always specify exactly which buttons to tap including BUY vs SELL and CALL vs PUT with no ambiguity."
+        "robinhoodSteps":"10 numbered steps split into HOW TO OPEN and HOW TO CLOSE the trade. OPENING THE TRADE: Step 1: Open Robinhood and search [SYMBOL]. Step 2: Tap Trade then tap Trade Options. Step 3: You will see 4 buttons at the top — tap BUY (left side, should be orange) and tap CALL (right side, should be orange) — do NOT tap Sell or Put. Step 4: Select expiration date [exact date]. Step 5: IMPORTANT — check the actual Ask Price column. If the recommended strike $[X] costs more than your budget scroll UP to find a higher strike with a cheaper Ask Price. Ask Price times 100 equals total cost. Step 6: Tap the green + button next to your chosen strike. Step 7: Set quantity to 1 contract, change to Limit order, set limit price to the Ask price, tap Review then Submit. Step 8: If it shows Queued that is normal — wait for it to fill, do not cancel unless price moves far away. CLOSING THE TRADE (how to sell and take profit or cut loss): Step 9: To close go to your Portfolio — tap the graph icon at the bottom of Robinhood — find your [SYMBOL] position and tap it — tap Sell to Close — set quantity to 1 — change to Limit order — set limit price to the current Bid price — tap Review then Submit. Step 10: Your trade is closed when it shows Filled. Then come back to this app and log the result."
       },
       "indicators":[
         {"name":"RSI (14)","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
