@@ -513,11 +513,25 @@ async function fetchMarketData(symbol) {
   const chart=qd.chart.result[0],meta=chart.meta,q=chart.indicators.quote[0];
   const closes=q.close.filter(Boolean),highs=q.high.filter(Boolean),lows=q.low.filter(Boolean),volumes=q.volume.filter(Boolean);
   const price=parseFloat(meta.regularMarketPrice.toFixed(2)),prev=parseFloat(meta.chartPreviousClose.toFixed(2));
-  let iv=null,nearATM=[];
+  let iv=null,nearATM=[],affordableStrikes=[];
   if(od?.optionChain?.result?.[0]){
     const calls=od.optionChain.result[0].options?.[0]?.calls||[];
     nearATM=calls.filter(c=>Math.abs(c.strike-price)<price*0.1).slice(0,5).map(c=>({strike:c.strike,lastPrice:c.lastPrice,iv:c.impliedVolatility?parseFloat((c.impliedVolatility*100).toFixed(1)):null,exp:new Date(c.expiration*1000).toLocaleDateString(),volume:c.volume||0}));
     if(calls[0]?.impliedVolatility)iv=parseFloat((calls[0].impliedVolatility*100).toFixed(1));
+    // Find actually affordable strikes for different budget levels
+    affordableStrikes = calls
+      .filter(c => c.ask && c.ask > 0)
+      .map(c => ({
+        strike: c.strike,
+        askPerShare: parseFloat(c.ask.toFixed(2)),
+        totalCost: parseFloat((c.ask * 100).toFixed(2)),
+        breakeven: parseFloat((c.strike + c.ask).toFixed(2)),
+        volume: c.volume || 0,
+        exp: new Date(c.expiration*1000).toLocaleDateString()
+      }))
+      .filter(c => c.totalCost <= 100) // Only show options under $100
+      .sort((a,b) => a.totalCost - b.totalCost)
+      .slice(0, 8); // Top 8 most affordable
   }
   const vol=volAnalysis(volumes),sr=findSR(highs,lows,closes,price);
   return{symbol,price,priceData:{current:price,prev,change:parseFloat(((price-prev)/prev*100).toFixed(2)),high52:parseFloat(meta.fiftyTwoWeekHigh.toFixed(2)),low52:parseFloat(meta.fiftyTwoWeekLow.toFixed(2))},volume:vol,indicators:{rsi:calcRSI(closes),macd:calcMACD(closes),ema20:calcEMA(closes,20),ema50:calcEMA(closes,50),ema200:calcEMA(closes,200),bollinger:calcBoll(closes),atr:calcATR(highs,lows,closes),stochastic:calcStoch(highs,lows,closes),williamsR:calcWR(highs,lows,closes),obv:calcOBV(closes,volumes)},levels:sr,options:{iv,nearATM}};
@@ -598,6 +612,7 @@ app.get("/api/analyze", async (req, res) => {
       unusualActivity:unusualMap[sym]?{bigMoney:unusualMap[sym].bigMoneyDirection,pcRatio:unusualMap[sym].putCallRatio}:null,
       earningsWarning:earningsMap[sym]?.warning||null,
       isTrending:trending.includes(sym),
+      affordableStrikes:(marketDataMap[sym]?.options?.affordableStrikes||[]).slice(0,5),
       intraday:intradayMap[sym]?{
         gapPct:intradayMap[sym].gapPct,
         gapType:intradayMap[sym].gapType,
