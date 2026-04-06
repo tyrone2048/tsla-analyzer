@@ -446,7 +446,34 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <!-- Beginner tip -->
     <div id="beginnerTip" style="display:none" class="warning-box info"></div>
 
-    <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">▶ FIND MY BEST TRADE TODAY</button>
+    <!-- PRE-TRADE CHECKLIST -->
+  <div style="background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:12px;">
+    <div style="font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:12px">✅ BEFORE YOU TRADE — CHECK THESE 5 RULES:</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:11px;line-height:1.6">
+        <input type="checkbox" id="check1" style="margin-top:2px;accent-color:var(--green)">
+        <span>I will only risk <strong style="color:var(--accent)">$5-10 maximum</strong> on this trade — not my whole balance</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:11px;line-height:1.6">
+        <input type="checkbox" id="check2" style="margin-top:2px;accent-color:var(--green)">
+        <span>I will <strong style="color:var(--accent)">check the actual Ask Price</strong> on Robinhood before buying — not just trust the estimate</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:11px;line-height:1.6">
+        <input type="checkbox" id="check3" style="margin-top:2px;accent-color:var(--green)">
+        <span>I will <strong style="color:var(--accent)">sell at the profit target</strong> — not hold waiting for more</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:11px;line-height:1.6">
+        <input type="checkbox" id="check4" style="margin-top:2px;accent-color:var(--green)">
+        <span>I will <strong style="color:var(--accent)">cut the loss</strong> if it hits the stop loss — no hoping it comes back</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:11px;line-height:1.6">
+        <input type="checkbox" id="check5" style="margin-top:2px;accent-color:var(--green)">
+        <span>I will <strong style="color:var(--accent)">close everything by 3:30 PM ET</strong> — no holding overnight unless planned</span>
+      </label>
+    </div>
+  </div>
+
+  <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">▶ FIND MY BEST TRADE TODAY</button>
     <div class="error-box" id="errorBox"></div>
 
     <div class="loading" id="loading">
@@ -877,6 +904,9 @@ function buildTradePanel(trade,idx){
       <div class="sent-card"><div class="sent-icon">${trade.earningsRisk&&trade.earningsRisk!=="None"?"⚠️":"✅"}</div><div class="sent-label">EARNINGS RISK</div><div class="sent-val" style="font-size:10px;color:${trade.earningsRisk&&trade.earningsRisk!=="None"?"var(--red)":"var(--green)"}">${trade.earningsRisk||"No risk"}</div></div>
     </div>
 
+    <!-- Liquidity Warning -->
+    ${trade.volume==="Low"||trade.volume==="LOW"?`<div class="warning-box caution" style="margin-bottom:10px">⚠️ LOW VOLUME WARNING: ${trade.symbol} has low trading volume today. This means your order might take longer to fill or not fill at all. If your order stays "Queued" for more than 2 minutes — cancel it and try a different stock.</div>`:""}
+
     ${(trade.newsHeadlines||[]).length>0?`<div class="card" style="margin-bottom:10px"><div class="card-label">LATEST NEWS FOR ${trade.symbol}</div>${trade.newsHeadlines.map(h=>`<div style="font-size:10px;padding:5px 0;border-bottom:1px solid var(--border);line-height:1.5">• ${h}</div>`).join("")}</div>`:""}
 
     <!-- Strategy fit -->
@@ -912,7 +942,7 @@ function buildTradePanel(trade,idx){
       ${[
         ["OPTION TO BUY",trade.budget?.suggestedOptionType+" (betting it goes "+(trade.budget?.suggestedOptionType==="CALL"?"UP)":"DOWN)"),trade.budget?.suggestedOptionType==="CALL"?"var(--green)":"var(--red)"],
         ["STRIKE PRICE","$"+trade.budget?.strikePrice+" (this is the price level you're betting on)","var(--green)"],
-        ["EXPIRATION DATE",trade.budget?.expiration+" (this is when the option expires — sell before this!)","var(--green)"],
+        ["EXPIRATION DATE",trade.budget?.expiration+" ⚠️ You MUST sell before this date or lose everything. Sell the day before to be safe.","var(--green)"],
         ["ESTIMATED COST",trade.budget?.estimatedOptionCost+" per contract (1 contract = 100 shares × price)","var(--accent)"],
         ["AMOUNT TO RISK",trade.budget?.amountToRisk+" of your balance","var(--accent)"],
         ["MAX YOU CAN LOSE",trade.budget?.maxLoss+" (if stock goes completely wrong direction)","var(--red)"],
