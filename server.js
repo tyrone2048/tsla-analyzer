@@ -739,7 +739,7 @@ Return ONLY valid JSON:
         "suggestedOptionType":"CALL" or "PUT","strikePrice":number,
         "expiration":string,"estimatedOptionCost":string,
         "amountToRisk":string,"maxLoss":string,"estimatedGain":string,
-        "robinhoodSteps":"6-8 numbered steps to place this exact trade"
+        "robinhoodSteps":"6-8 numbered steps for a BEGINNER. Step 1 MUST say: Open Robinhood and search [SYMBOL]. Step 2 MUST say: Tap Trade then Trade Options. Step 3 MUST say: You will see 4 buttons at the top — tap BUY (not Sell) and tap CALL (not Put) [or PUT if signal is bearish — be explicit]. Step 4: Select expiration date [exact date]. Step 5: Scroll to find strike price $[exact strike] — look for premium under $[amount]. Step 6: Tap the + button then tap Review Order then Submit. Step 7: Your order may show Queued — this is normal, wait for it to fill. Step 8: Once filled, set a price alert at $[target] to know when to sell. Always specify exactly which buttons to tap including BUY vs SELL and CALL vs PUT with no ambiguity."
       },
       "indicators":[
         {"name":"RSI (14)","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
