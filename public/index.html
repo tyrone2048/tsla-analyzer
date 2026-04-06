@@ -981,6 +981,35 @@ function buildTradePanel(trade,idx){
 
   return`<div class="trade-panel ${idx===0?"active":""}" id="tradePanel${idx}">
 
+    <!-- ROBINHOOD BUTTON REMINDER - always shown first -->
+    <div style="background:rgba(0,229,255,0.06);border:1px solid var(--accent);padding:14px 16px;margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:10px">📱 ON ROBINHOOD — TAP THESE EXACT BUTTONS:</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+        <div style="text-align:center">
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">FIRST TAP</div>
+          <div style="background:#e65100;color:white;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600">BUY</div>
+          <div style="font-size:9px;color:var(--green);margin-top:3px">✓ TAP THIS</div>
+        </div>
+        <div style="font-size:18px;color:var(--muted)">+</div>
+        <div style="text-align:center">
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">THEN TAP</div>
+          <div style="background:${trade.budget?.suggestedOptionType==="CALL"?"#e65100":"#c62828"};color:white;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600">${trade.budget?.suggestedOptionType||"CALL"}</div>
+          <div style="font-size:9px;color:var(--green);margin-top:3px">✓ TAP THIS</div>
+        </div>
+        <div style="font-size:18px;color:var(--muted)">—</div>
+        <div style="text-align:center;opacity:0.35">
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">NOT THIS</div>
+          <div style="background:transparent;color:var(--muted);padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;border:1px solid var(--muted)">SELL</div>
+          <div style="font-size:9px;color:var(--red);margin-top:3px">✗ SKIP</div>
+        </div>
+        <div style="text-align:center;opacity:0.35">
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">NOT THIS</div>
+          <div style="background:transparent;color:var(--muted);padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;border:1px solid var(--muted)">${trade.budget?.suggestedOptionType==="CALL"?"PUT":"CALL"}</div>
+          <div style="font-size:9px;color:var(--red);margin-top:3px">✗ SKIP</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Strategy Fit -->
     ${trade.strategyFit?`<div style="background:rgba(180,79,255,0.05);border-left:3px solid var(--purple);padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--text);line-height:1.7"><strong style="color:var(--purple)">STRATEGY FIT:</strong> ${trade.strategyFit}</div>`:""}
 
