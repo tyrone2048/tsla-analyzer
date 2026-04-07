@@ -444,7 +444,7 @@ async function getUpcomingEarnings(symbols) {
 // ─── Opening Range & VWAP (intraday context) ─────────────────────────────────
 async function getIntradayContext(symbol) {
   try {
-    // Fetch 2-minute intraday data for more granular analysis
+    // Fetch 2-minute intraday data for real time trend analysis
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=2m&range=1d`;
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
     const d = await r.json();
@@ -509,31 +509,96 @@ async function getIntradayContext(symbol) {
     const morningVol = volumes.slice(0, orBars).filter(Boolean).reduce((a,b)=>a+b,0);
     const totalVol   = volumes.filter(Boolean).reduce((a,b)=>a+b,0);
 
+    // REAL TIME TREND ANALYSIS — what is the stock doing RIGHT NOW
+    const recentBars = Math.min(closes.length, 6); // Last 12 minutes (6 x 2min bars)
+    const recentCloses = closes.slice(-recentBars).filter(Boolean);
+    const recentHighs = highs.slice(-recentBars).filter(Boolean);
+    const recentLows = lows.slice(-recentBars).filter(Boolean);
+    
+    // Is price making higher highs and higher lows? (uptrend)
+    // Is price making lower highs and lower lows? (downtrend)
+    let higherHighs = 0, higherLows = 0, lowerHighs = 0, lowerLows = 0;
+    for (let i = 1; i < recentCloses.length; i++) {
+      if (recentHighs[i] > recentHighs[i-1]) higherHighs++;
+      else lowerHighs++;
+      if (recentLows[i] > recentLows[i-1]) higherLows++;
+      else lowerLows++;
+    }
+    
+    // Price velocity — how much is it moving per bar?
+    const priceVelocity = recentCloses.length >= 2 
+      ? parseFloat(Math.abs((recentCloses[recentCloses.length-1] - recentCloses[0]) / recentCloses.length).toFixed(3))
+      : 0;
+    
+    // Current price vs 30 min ago
+    const thirtyMinBars = Math.min(closes.length, 15);
+    const priceThirtyMinAgo = closes[closes.length - thirtyMinBars] || closes[0];
+    const moveInLast30Min = parseFloat(((currentPrice - priceThirtyMinAgo) / priceThirtyMinAgo * 100).toFixed(2));
+    
+    // Trend determination
+    let realtimeTrend = "SIDEWAYS";
+    let trendStrength = "WEAK";
+    let trendScore = 50;
+    
+    if (higherHighs >= recentCloses.length * 0.6 && higherLows >= recentCloses.length * 0.6) {
+      realtimeTrend = "UPTREND";
+      trendStrength = higherHighs >= recentCloses.length * 0.8 ? "STRONG" : "MODERATE";
+      trendScore = trendStrength === "STRONG" ? 80 : 65;
+    } else if (lowerHighs >= recentCloses.length * 0.6 && lowerLows >= recentCloses.length * 0.6) {
+      realtimeTrend = "DOWNTREND";
+      trendStrength = lowerHighs >= recentCloses.length * 0.8 ? "STRONG" : "MODERATE";
+      trendScore = trendStrength === "STRONG" ? 20 : 35;
+    } else {
+      realtimeTrend = "SIDEWAYS";
+      trendStrength = "WEAK";
+      trendScore = 50;
+    }
+
+    // Is it worth trading right now?
+    const isMoving = Math.abs(moveInLast30Min) > 0.3 || priceVelocity > 0.02;
+    const tradingRecommendation = realtimeTrend === "UPTREND" && isMoving 
+      ? "✅ MOVING UP — Good time to consider a CALL"
+      : realtimeTrend === "DOWNTREND" && isMoving
+      ? "✅ MOVING DOWN — Good time to consider a PUT"
+      : realtimeTrend === "SIDEWAYS" || !isMoving
+      ? "🚫 NOT MOVING — Stock is flat right now. Wait for movement before entering."
+      : "⏳ UNCLEAR — Watch for a few more minutes before deciding";
+
+    // Simple explanation for beginner
+    const plainEnglish = realtimeTrend === "UPTREND"
+      ? `Stock is making higher prices every few minutes — it's climbing. ${trendStrength === "STRONG" ? "Strong upward movement." : "Moderate upward movement."}`
+      : realtimeTrend === "DOWNTREND"  
+      ? `Stock is making lower prices every few minutes — it's falling. ${trendStrength === "STRONG" ? "Strong downward movement." : "Moderate downward movement."}`
+      : `Stock price is barely moving — going sideways. Options lose value when stock doesn't move. NOT a good time to trade.`;
+
     return {
-      openPrice,
-      prevClose,
-      gapPct,
-      gapType,
+      openPrice, prevClose, gapPct, gapType,
       openingRangeHigh: orHigh ? parseFloat(orHigh.toFixed(2)) : null,
       openingRangeLow:  orLow  ? parseFloat(orLow.toFixed(2))  : null,
-      orbSignal,
-      morningTrend,
-      vwap,
-      aboveVWAP,
-      morningVolume: morningVol,
-      totalVolumeSoFar: totalVol,
+      orbSignal, morningTrend, vwap, aboveVWAP,
+      morningVolume: morningVol, totalVolumeSoFar: totalVol,
+      // NEW REAL TIME TREND DATA
+      realtimeTrend,
+      trendStrength,
+      trendScore,
+      isMoving,
+      moveInLast30Min,
+      priceVelocity,
+      tradingRecommendation,
+      plainEnglish,
+      higherHighs, higherLows, lowerHighs, lowerLows,
       gapDescription: gapType === "GAP_UP"
-        ? `Gapped UP ${gapPct}% from yesterday — strong opening momentum`
+        ? `Gapped UP ${gapPct}% from yesterday`
         : gapType === "GAP_DOWN"
-        ? `Gapped DOWN ${Math.abs(gapPct)}% from yesterday — weak opening`
-        : `Opened flat near yesterday's close — no directional bias at open`,
+        ? `Gapped DOWN ${Math.abs(gapPct)}% from yesterday`
+        : `Opened flat near yesterday's close`,
       orbDescription: orbSignal === "BULLISH_BREAKOUT"
-        ? `Price BROKE ABOVE the opening range high ($${orHigh?.toFixed(2)}) — bullish momentum confirmed`
+        ? `Price broke ABOVE opening range high ($${orHigh?.toFixed(2)}) — bullish`
         : orbSignal === "BEARISH_BREAKDOWN"
-        ? `Price BROKE BELOW the opening range low ($${orLow?.toFixed(2)}) — bearish momentum confirmed`
-        : `Price still INSIDE the opening range ($${orLow?.toFixed(2)} - $${orHigh?.toFixed(2)}) — wait for breakout`,
+        ? `Price broke BELOW opening range low ($${orLow?.toFixed(2)}) — bearish`
+        : `Price still inside opening range — waiting for direction`,
       vwapDescription: vwap
-        ? `VWAP at $${vwap} — price is ${aboveVWAP ? "ABOVE (bullish)" : "BELOW (bearish)"} the day's average price`
+        ? `VWAP $${vwap} — price ${aboveVWAP ? "ABOVE (bullish)" : "BELOW (bearish)"}`
         : "VWAP unavailable",
     };
   } catch(e) {
@@ -643,7 +708,8 @@ app.get("/api/analyze", async (req, res) => {
     const preferredDir = spyChange<-1.5?"PUT":spyChange>1.5?"CALL":"EITHER";
     
     // Volatile market detection
-    const isExtremelyVolatile = Math.abs(spyChange) > 5;
+    const isExtremelyVolatile = Math.abs(spyChange) > 3;
+    const isMildlyVolatile = Math.abs(spyChange) > 1.5;
     const volatileWarning = isExtremelyVolatile 
       ? `⚠️ EXTREME VOLATILITY WARNING: Market is moving ${spyChange > 0 ? "UP" : "DOWN"} ${Math.abs(spyChange).toFixed(1)}% today. Option prices are inflated and unpredictable. Consider reducing position size by 50% or sitting out today.`
       : null;
@@ -684,6 +750,15 @@ app.get("/api/analyze", async (req, res) => {
     if(intradayR.status==="fulfilled")intradayR.value.forEach(i=>{intradayMap[i.symbol]=i.intraday;});
     const socialMap = socialR.status==="fulfilled" ? socialR.value : {};
 
+    // Track recently losing stocks to avoid recommending them again
+    const recentTrades = data.trades?.slice(0,10)||[];
+    const recentLosingStocks = recentTrades
+      .filter(t => t.result === "loss" && new Date(t.date) > new Date(Date.now() - 2*24*60*60*1000))
+      .map(t => t.symbol);
+    const yesterdayStocks = recentTrades
+      .filter(t => new Date(t.date).toDateString() === new Date(Date.now() - 24*60*60*1000).toDateString())
+      .map(t => t.symbol);
+
     // Best strategy for today
     const bestStrategy = selectBestStrategy(data, strategyMemory, marketRegime, spyChange);
     const shouldAdapt = shouldAdaptStrategy(data, strategyMemory);
@@ -716,6 +791,7 @@ app.get("/api/analyze", async (req, res) => {
       affordableStrikes:(marketDataMap[sym]?.options?.affordableStrikes||[]).slice(0,5),
       socialSentiment:socialMap[sym]||{sentimentScore:50,label:"NEUTRAL",buzz:"UNKNOWN"},
       cryptoCorrelated:["MARA","RIOT","CLSK","WKHS"].includes(sym),
+      momentum:marketDataMap[sym]?.momentum||{exhaustionLevel:"UNKNOWN",isTradeable:true,exhaustionWarning:"",moveRatio:0,remainingRoom:0},
       intraday:intradayMap[sym]?{
         gapPct:intradayMap[sym].gapPct,
         gapType:intradayMap[sym].gapType,
@@ -725,13 +801,35 @@ app.get("/api/analyze", async (req, res) => {
         vwap:intradayMap[sym].vwap,
         openingRangeHigh:intradayMap[sym].openingRangeHigh,
         openingRangeLow:intradayMap[sym].openingRangeLow,
+        realtimeTrend:intradayMap[sym].realtimeTrend,
+        trendStrength:intradayMap[sym].trendStrength,
+        trendScore:intradayMap[sym].trendScore,
+        isMoving:intradayMap[sym].isMoving,
+        moveInLast30Min:intradayMap[sym].moveInLast30Min,
+        tradingRecommendation:intradayMap[sym].tradingRecommendation,
+        plainEnglish:intradayMap[sym].plainEnglish,
       }:null
     }));
 
     const topScore=Math.max(...summaries.map(s=>{let sc=50;if(s.macdBullish)sc+=8;if(s.aboveEMA50)sc+=5;if(s.obvTrend==="RISING")sc+=8;if(s.unusualActivity?.bigMoney==="BULLISH")sc+=12;if(s.isTrending)sc+=5;return sc;}),0);
     const numTrades=getTradeCount(data.balance,marketTrend,topScore);
 
+    // Hard sit-out check
+    const allStocksUpBig = Object.values(marketDataMap).filter(s => Math.abs(s.priceData?.change||0) > 15).length;
+    const shouldSitOut = isExtremelyVolatile || allStocksUpBig > 3;
+    const marketComment2 = shouldSitOut ? "SIT OUT TODAY" : isMildlyVolatile ? "TRADE CAUTIOUSLY" : "GOOD DAY TO TRADE";
+
     const prompt=`You are an elite adaptive options trading AI. You have LIVE data fetched at ${new Date().toLocaleTimeString()} ET.
+    
+MARKET SAFETY CHECK:
+- Should sit out today: ${shouldSitOut}
+- Extreme volatility: ${isExtremelyVolatile} (SPY: ${spyChange}%)
+- Stocks up 20%+: ${allStocksUpBig}
+${shouldSitOut ? `
+⚠️ CRITICAL: Today is NOT safe to trade. SPY is up ${spyChange}% which is historically extreme.
+ALL your recommendations should be HOLD/SIT OUT.
+Tell the user clearly: "DO NOT TRADE TODAY. The market is moving ${Math.abs(spyChange).toFixed(1)}% which is extremely unusual. Options are overpriced and moves can reverse violently. Protect your $${data.balance} and come back tomorrow."
+Do not recommend any stock for trading today.` : ""}
 
 USER PROFILE:
 - Balance: $${data.balance} | Goal: $10,000
@@ -740,6 +838,14 @@ USER PROFILE:
 - Current Strategy: ${bestStrategy.name}
 - Should Adapt Strategy: ${shouldAdapt}
 - Consecutive Wins: ${data.consecutiveWins||0} | Consecutive Losses: ${data.consecutiveLosses||0}
+- Recently Lost On These Stocks (avoid recommending): ${recentLosingStocks.join(", ")||"None"}
+- Yesterday's Traded Stocks (deprioritize): ${yesterdayStocks.join(", ")||"None"}
+
+STOCK ROTATION RULES:
+- If a stock lost money in the last 2 days — rank it LAST. Do not recommend it as primary trade.
+- Rotate to fresh stocks the user hasn't traded recently
+- Never recommend the exact same stock 3 days in a row
+- If all stocks in watchlist have been traded recently — pick the one with the best current setup regardless
 
 MARKET CONDITIONS:
 - SPY: ${spyChange}% | QQQ: ${qqqChange}% | Regime: ${marketRegime}
