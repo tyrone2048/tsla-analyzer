@@ -1865,11 +1865,12 @@ app.get("/api/analyze", async (req, res) => {
     const batch = activeWatchlist.slice(0,8);
     const edLevel = getEducationLevel(data, strategyMemory);
 
-    const [spyR,qqqR,fgR,trendR,vixR,cryptoR,contextR,futuresR,breadthR,...stockR] = await Promise.allSettled([
+    const [spyR,qqqR,fgR,trendR,vixR,cryptoR,contextR,futuresR,breadthR,coinGeckoR,fredR,...stockR] = await Promise.allSettled([
       fetchMarketData("SPY"), fetchMarketData("QQQ"),
       getFearGreedIndex(), getTrendingTickers(),
       getVIX(), getCryptoCorrelation(), getMarketContext(),
       getSPYFutures(), getMarketBreadth(),
+      getCoinGeckoCrypto(), getFREDEconomicEvents(),
       ...batch.map(s=>fetchMarketData(s))
     ]);
 
@@ -1881,7 +1882,7 @@ app.get("/api/analyze", async (req, res) => {
     const crypto = cryptoR.status==="fulfilled"?cryptoR.value:{btcChange:0,cryptoMood:"NEUTRAL",impact:"Crypto data unavailable"};
     const marketContext = contextR.status==="fulfilled"?contextR.value:{weekTrend:"UNKNOWN",weekChange:0,catalyst:"UNKNOWN",headlines:[],moveAlreadyDone:false,contextRecommendation:"",plainEnglish:"Market context unavailable"};
     const coinGecko = coinGeckoR.status==="fulfilled"&&coinGeckoR.value?coinGeckoR.value:{btcPrice:0,btcChange24h:0,mood:"NEUTRAL",miningStockImpact:"Bitcoin data unavailable"};
-    const fredEvents = fredR.status==="fulfilled"?fredR.value:[];
+    const fredEvents = fredR.status==="fulfilled"&&fredR.value?fredR.value:[];
     const futures = futuresR.status==="fulfilled"?futuresR.value:{esChange:0,tomorrowBias:"UNKNOWN",tradingImplication:"Futures unavailable",plainEnglish:"Futures data unavailable"};
     const breadth = breadthR.status==="fulfilled"?breadthR.value:{breadthScore:50,breadthLabel:"UNKNOWN",plainEnglish:"Breadth unavailable",tomorrowImplication:"",sectorMoves:[]};
     const tomorrowEvents = getTomorrowEconomicEvents();
