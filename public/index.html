@@ -455,6 +455,15 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div style="font-size:11px;color:var(--yellow);padding:10px;background:rgba(255,214,0,0.04);border-left:2px solid var(--yellow);line-height:1.7" id="ctxRecommendation">—</div>
       <div style="margin-top:10px" id="ctxHeadlines"></div>
       <div id="ctxCorrelations" style="margin-top:10px"></div>
+
+      <!-- TOMORROW PREVIEW -->
+      <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:8px">🔮 WHAT TOMORROW LOOKS LIKE RIGHT NOW:</div>
+        <div id="ctxFutures" style="margin-bottom:8px"></div>
+        <div id="ctxBreadth" style="margin-bottom:8px"></div>
+        <div id="ctxAfterHours" style="margin-bottom:8px"></div>
+        <div id="ctxTomorrowEvents"></div>
+      </div>
     </div>
 
     <!-- Is today good to trade? -->
@@ -1020,6 +1029,37 @@ function buildTradePanel(trade,idx){
       <div class="pnl-step"><div class="pnl-icon">5️⃣</div><div><span style="color:var(--red)">RED number = You're losing money ❌ — sell if down 40%+</span></div></div>
     </div>
 
+    <!-- REAL TIME DECISION TREE -->
+    <div style="background:rgba(0,229,255,0.04);border:1px solid var(--accent);padding:14px;margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:2px;margin-bottom:10px">🚦 REAL TIME DECISION TREE — WHAT TO DO IN EACH SITUATION:</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="padding:8px 12px;background:rgba(0,255,136,0.06);border-left:3px solid var(--green);font-size:11px;line-height:1.7">
+          <strong style="color:var(--green)">✅ First 10 minutes — Option UP 20%+</strong><br>
+          Hold it. Trade is working. Watch for your 50% target. Set a mental stop at your entry price — don't let a winner turn into a loser.
+        </div>
+        <div style="padding:8px 12px;background:rgba(255,59,92,0.06);border-left:3px solid var(--red);font-size:11px;line-height:1.7">
+          <strong style="color:var(--red)">❌ First 10 minutes — Option DOWN 20%+</strong><br>
+          SELL IMMEDIATELY. The setup failed. Do not hope it comes back. A small loss now is better than a big loss later. This is the most important rule.
+        </div>
+        <div style="padding:8px 12px;background:rgba(255,214,0,0.06);border-left:3px solid var(--yellow);font-size:11px;line-height:1.7">
+          <strong style="color:var(--yellow)">⏳ Order showing QUEUED for 3+ minutes</strong><br>
+          Cancel the order. The price moved away from your limit. Go back and check the new ask price then resubmit with updated price.
+        </div>
+        <div style="padding:8px 12px;background:rgba(255,140,0,0.06);border-left:3px solid var(--orange);font-size:11px;line-height:1.7">
+          <strong style="color:var(--orange)">⚠️ Showing PARTIAL FILL</strong><br>
+          Cancel the remaining unfilled portion. Work with whatever contracts filled. Don't chase the rest.
+        </div>
+        <div style="padding:8px 12px;background:rgba(0,255,136,0.06);border-left:3px solid var(--green);font-size:11px;line-height:1.7">
+          <strong style="color:var(--green)">🎯 Option hits 50% profit</strong><br>
+          SELL HALF or ALL. Lock in gains. Don't get greedy. A 50% gain on $5 = $2.50 profit. That's real money. Take it.
+        </div>
+        <div style="padding:8px 12px;background:rgba(0,229,255,0.06);border-left:3px solid var(--accent);font-size:11px;line-height:1.7">
+          <strong style="color:var(--accent)">⏰ It's 3:30 PM ET</strong><br>
+          CLOSE EVERYTHING regardless of profit or loss. Never hold options overnight unless planned. Time decay accelerates massively in the last hour.
+        </div>
+      </div>
+    </div>
+
     <!-- Budget -->
     <div class="section-title">TRADE PLAN — WHAT TO BUY</div>
     <div class="budget-box">
@@ -1027,7 +1067,8 @@ function buildTradePanel(trade,idx){
       ${[
         ["OPTION TO BUY",trade.budget?.suggestedOptionType+" (betting it goes "+(trade.budget?.suggestedOptionType==="CALL"?"UP)":"DOWN)"),trade.budget?.suggestedOptionType==="CALL"?"var(--green)":"var(--red)"],
         ["STRIKE PRICE","$"+trade.budget?.strikePrice+" (this is the price level you're betting on)","var(--green)"],
-        ["EXPIRATION DATE",trade.budget?.expiration+" ⚠️ You MUST sell before this date or lose everything. Sell the day before to be safe.","var(--green)"],
+        ["EXPIRATION DATE",trade.budget?.expiration+" ⚠️ Sell the day BEFORE this date — never hold to expiration","var(--green)"],
+        ["HOW TO FIND ON ROBINHOOD","Search "+trade.symbol+" → Trade Options → look for $"+trade.budget?.strikePrice+" Call → expiring "+trade.budget?.expiration,"var(--accent)"],
         ["ESTIMATED COST",trade.budget?.estimatedOptionCost+" per contract (1 contract = 100 shares × price)","var(--accent)"],
         ["AMOUNT TO RISK",trade.budget?.amountToRisk+" of your balance","var(--accent)"],
         ["MAX YOU CAN LOSE",trade.budget?.maxLoss+" (if stock goes completely wrong direction)","var(--red)"],
@@ -1253,6 +1294,59 @@ async function runAnalysis(){
           document.getElementById("ctxHeadlines").innerHTML = `<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">MARKET NEWS RIGHT NOW:</div>` + 
             mc.headlines.map(h=>`<div style="font-size:10px;padding:4px 0;border-bottom:1px solid var(--border);line-height:1.5;color:var(--text)">• ${h}</div>`).join("");
         }
+
+      // Futures
+      const fut = ms.futures;
+      if(fut && document.getElementById("ctxFutures")){
+        const fc = (fut.esChange||0) >= 0 ? "var(--green)" : "var(--red)";
+        document.getElementById("ctxFutures").innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px;background:rgba(0,0,0,0.2);border-left:2px solid ${fc}">
+            <div style="font-size:9px;color:var(--muted)">SPY FUTURES</div>
+            <div style="font-size:14px;font-weight:600;color:${fc}">${(fut.esChange||0)>=0?"+":""}${(fut.esChange||0).toFixed(2)}%</div>
+            <div style="font-size:10px;color:var(--text);flex:1">${fut.tradingImplication||""}</div>
+          </div>`;
+      }
+
+      // Breadth
+      const br = ms.breadth;
+      if(br && document.getElementById("ctxBreadth")){
+        const bc = (br.score||50) >= 60 ? "var(--green)" : (br.score||50) <= 40 ? "var(--red)" : "var(--yellow)";
+        document.getElementById("ctxBreadth").innerHTML = `
+          <div style="padding:8px;background:rgba(0,0,0,0.2);border-left:2px solid ${bc}">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+              <div style="font-size:9px;color:var(--muted)">MARKET BREADTH</div>
+              <div style="font-size:13px;font-weight:600;color:${bc}">${br.label||"—"}</div>
+              <div style="font-size:11px;color:var(--muted)">${br.advancing||0} up · ${br.declining||0} down</div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);line-height:1.6">${br.tomorrowImplication||""}</div>
+            ${br.leadingSector?`<div style="font-size:10px;margin-top:4px;color:var(--green)">Leading: ${br.leadingSector}</div>`:""}
+          </div>`;
+      }
+
+      // After hours movers
+      const ah = ms.afterHoursMovers;
+      if(ah && ah.length > 0 && document.getElementById("ctxAfterHours")){
+        document.getElementById("ctxAfterHours").innerHTML = `
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">AFTER HOURS MOVERS (happening right now):</div>
+          ${ah.map(m=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;">
+            <span style="font-weight:600">${m.symbol}</span>
+            <span style="color:${m.postChange>=0?"var(--green)":"var(--red)"};font-weight:600">${m.postChange>=0?"+":""}${m.postChange?.toFixed(1)||0}% after hours</span>
+            <span style="font-size:9px;color:var(--muted)">${m.significance||""}</span>
+          </div>`).join("")}`;
+      } else if(document.getElementById("ctxAfterHours")){
+        document.getElementById("ctxAfterHours").innerHTML = `<div style="font-size:10px;color:var(--muted)">No significant after hours movers tonight</div>`;
+      }
+
+      // Tomorrow events
+      const te = ms.tomorrowEvents;
+      if(te && te.length > 0 && document.getElementById("ctxTomorrowEvents")){
+        document.getElementById("ctxTomorrowEvents").innerHTML = `
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">TOMORROW'S SCHEDULED EVENTS:</div>
+          ${te.map(e=>`<div style="padding:8px;margin-bottom:6px;border-left:3px solid ${e.impact==="VERY HIGH"?"var(--red)":e.impact==="HIGH"?"var(--orange)":"var(--yellow)"};background:rgba(0,0,0,0.15);font-size:11px;line-height:1.7">
+            <div style="font-weight:600;color:${e.impact==="VERY HIGH"?"var(--red)":e.impact==="HIGH"?"var(--orange)":"var(--yellow)"}">⏰ ${e.time} — ${e.event}</div>
+            <div style="color:var(--text);margin-top:4px">${e.warning}</div>
+          </div>`).join("")}`;
+      }
 
         if(mc.moveAlreadyDone){
           warnings.push({type:"caution",msg:"⏰ MOVE ALREADY HAPPENED: The big market move today started pre-market before 9:30 AM. By the time you trade most stocks have already priced it in. The app is looking for stocks that HAVEN'T moved yet — these are your best opportunities."});
