@@ -52,67 +52,233 @@ const STRATEGIES = {
     name: "Momentum Scalp",
     description: "Ride fast-moving stocks for quick 30-100% gains. Hold 30min-2hrs.",
     bestConditions: "High volume, strong trend, RSI 40-65, bullish MACD",
-    riskLevel: "MEDIUM",
-    holdTime: "30min - 2hrs",
-    winRateTarget: 45,
-    rrRatio: "1:1.5",
+    riskLevel: "MEDIUM", holdTime: "30min - 2hrs",
+    winRateTarget: 45, rrRatio: "1:1.5",
     indicators: ["RSI","MACD","Volume","OBV"],
-    educationLevel: 1
-  },
-  BREAKOUT: {
-    name: "Breakout Trading",
-    description: "Buy when price breaks above resistance with high volume. Targets 50-200% gains.",
-    bestConditions: "Price near resistance, high volume breakout, bullish market",
-    riskLevel: "MEDIUM-HIGH",
-    holdTime: "1-4hrs",
-    winRateTarget: 40,
-    rrRatio: "1:2",
-    indicators: ["Resistance levels","Volume","Bollinger Bands","ATR"],
-    educationLevel: 2
+    educationLevel: 1,
+    // Scoring weights — what conditions make this strategy work
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (dayType === "TRENDING") score += 30;
+      if (dayType === "CHOPPY") score -= 30; // Momentum doesn't work on flat days
+      if (dayType === "EXTREME_VOLATILE") score -= 50;
+      if (Math.abs(spyChange) > 0.5 && Math.abs(spyChange) < 2) score += 20;
+      if (s.intraday?.realtimeTrend === "UPTREND" && spyChange > 0) score += 25;
+      if (s.intraday?.realtimeTrend === "DOWNTREND" && spyChange < 0) score += 25;
+      if (s.volume === "HIGH") score += 15;
+      if (s.volume === "LOW") score -= 20;
+      if (s.rsi >= 40 && s.rsi <= 65) score += 15;
+      if (s.macdBullish && spyChange > 0) score += 10;
+      if (s.obvTrend === "RISING") score += 10;
+      if (s.momentum?.exhaustionLevel === "FRESH") score += 20;
+      if (s.momentum?.exhaustionLevel === "EXHAUSTED") score -= 40;
+      if (s.momentum?.exhaustionLevel === "EXTREMELY_EXHAUSTED") score -= 80;
+      return Math.max(0, Math.min(100, score + 30)); // Base of 30
+    }
   },
   OVERSOLD_BOUNCE: {
     name: "Oversold Bounce",
-    description: "Buy stocks that have crashed and are bouncing back. Lower risk, steady gains.",
-    bestConditions: "RSI below 30, Williams %R below -80, stock down 10%+ recently",
-    riskLevel: "MEDIUM",
-    holdTime: "1-3hrs",
-    winRateTarget: 55,
-    rrRatio: "1:1.5",
-    indicators: ["RSI","Williams %R","Stochastic","Support levels"],
-    educationLevel: 1
+    description: "Buy stocks that crashed and are bouncing back. Steady reliable gains.",
+    bestConditions: "RSI below 35, Williams %R below -70, stock down recently, support holding",
+    riskLevel: "MEDIUM", holdTime: "1-3hrs",
+    winRateTarget: 55, rrRatio: "1:1.5",
+    indicators: ["RSI","Williams %R","Stochastic","Support"],
+    educationLevel: 1,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (dayType === "CHOPPY") score += 25; // Great on flat days
+      if (dayType === "TRENDING" && spyChange < 0) score += 20; // Good on down days
+      if (s.rsi < 35) score += 35;
+      if (s.rsi < 25) score += 20; // Extra points for very oversold
+      if (s.williamsR < -70) score += 20;
+      if (s.stoch < 25) score += 15;
+      if (s.intraday?.realtimeTrend === "UPTREND") score += 20; // Bounce forming
+      if (s.change < -5) score += 15; // Stock dropped recently
+      if (s.change < -15) score -= 10; // Too much drop = still falling
+      if (s.divergence?.type === "BULLISH_DIVERGENCE") score += 25;
+      if (s.momentum?.exhaustionLevel === "EXTREMELY_EXHAUSTED" && s.change < 0) score += 15;
+      return Math.max(0, Math.min(100, score + 20));
+    }
   },
-  EARNINGS_PLAY: {
-    name: "Earnings Play",
-    description: "Trade around company earnings announcements for explosive moves.",
-    bestConditions: "Earnings in 1-3 days, high IV, strong analyst expectations",
-    riskLevel: "HIGH",
-    holdTime: "Same day as earnings",
-    winRateTarget: 35,
-    rrRatio: "1:3",
-    indicators: ["IV","Earnings date","Historical earnings moves","Options volume"],
-    educationLevel: 3
+  VWAP_RECLAIM: {
+    name: "VWAP Reclaim",
+    description: "Stock drops below VWAP then fights back above it. Strong reversal signal used by pro traders.",
+    bestConditions: "Stock recently below VWAP, now crossing back above, volume increasing",
+    riskLevel: "MEDIUM", holdTime: "1-2hrs",
+    winRateTarget: 52, rrRatio: "1:1.8",
+    indicators: ["VWAP","Volume","RSI","Real-time trend"],
+    educationLevel: 1,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (s.intraday?.aboveVWAP === true) score += 30; // Currently above VWAP
+      if (s.intraday?.orbSignal === "BULLISH_BREAKOUT") score += 25;
+      if (s.intraday?.morningTrend === "BULLISH") score += 20;
+      if (s.volume === "HIGH") score += 20;
+      if (dayType !== "EXTREME_VOLATILE") score += 10;
+      if (s.rsi > 40 && s.rsi < 60) score += 15; // RSI in healthy zone
+      if (s.momentum?.exhaustionLevel === "FRESH") score += 15;
+      return Math.max(0, Math.min(100, score + 15));
+    }
+  },
+  CONTINUATION: {
+    name: "Continuation Pattern",
+    description: "Stock in strong uptrend pulls back slightly then continues. One of the most profitable pro setups.",
+    bestConditions: "Stock in uptrend, small 3-5% pullback, volume drops on pullback, support holds",
+    riskLevel: "MEDIUM", holdTime: "2-4hrs",
+    winRateTarget: 58, rrRatio: "1:2",
+    indicators: ["EMA 20","Volume on pullback","RSI","Support"],
+    educationLevel: 2,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (dayType === "TRENDING") score += 30;
+      if (s.aboveEMA50) score += 20;
+      if (s.aboveEMA200) score += 15;
+      if (s.macdBullish) score += 15;
+      if (s.change > -3 && s.change < 0) score += 20; // Small pullback = good entry
+      if (s.change > -1 && s.change < 0) score += 10; // Very small pullback
+      if (s.intraday?.morningTrend === "BULLISH") score += 15;
+      if (s.obvTrend === "RISING") score += 15;
+      if (s.divergence?.type === "CONFIRMED_BULLISH") score += 20;
+      if (spyChange > 0) score += 10; // Market helping
+      return Math.max(0, Math.min(100, score + 10));
+    }
+  },
+  NEWS_CATALYST: {
+    name: "News Catalyst Play",
+    description: "Trade stocks with breaking specific news. Catalyst drives the move not market.",
+    bestConditions: "Specific positive/negative news today, volume spike, stock moving independently of SPY",
+    riskLevel: "MEDIUM-HIGH", holdTime: "30min - 2hrs",
+    winRateTarget: 48, rrRatio: "1:2.5",
+    indicators: ["News sentiment","Volume spike","Unusual options","Relative strength"],
+    educationLevel: 1,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (s.socialSentiment?.label === "BULLISH") score += 30;
+      if (s.socialSentiment?.buzz === "HIGH BUZZ") score += 25;
+      if (s.unusualActivity?.bigMoney === "BULLISH") score += 30;
+      if (s.unusualActivity?.bigMoney === "BEARISH") score -= 20;
+      if (s.isTrending) score += 20;
+      if (s.relativeStrength?.label === "OUTPERFORMING") score += 20; // Moving on own catalyst
+      if (s.relativeStrength?.label === "EXTREMELY_EXTENDED") score -= 30;
+      if (s.volume === "HIGH") score += 15;
+      if (s.intraday?.realtimeTrend !== "SIDEWAYS") score += 15;
+      return Math.max(0, Math.min(100, score + 10));
+    }
+  },
+  SUPPORT_BOUNCE: {
+    name: "Support Bounce",
+    description: "Stock hits a known support level and bounces. Low risk, clear stop loss.",
+    bestConditions: "Price at or near strong support, RSI oversold, volume declining on approach",
+    riskLevel: "LOW-MEDIUM", holdTime: "1-3hrs",
+    winRateTarget: 55, rrRatio: "1:1.5",
+    indicators: ["Support levels","RSI","Volume","Stochastic"],
+    educationLevel: 1,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (s.rsi < 40) score += 25;
+      if (s.stoch < 30) score += 20;
+      if (s.williamsR < -60) score += 15;
+      if (s.intraday?.realtimeTrend === "UPTREND") score += 25; // Bounce confirmed
+      if (s.divergence?.type === "BULLISH_DIVERGENCE") score += 30; // Strong reversal signal
+      if (s.momentum?.exhaustionLevel === "FRESH" && s.change < 0) score += 15;
+      if (dayType === "CHOPPY") score += 15; // Support bounces work on flat days
+      if (dayType !== "EXTREME_VOLATILE") score += 10;
+      return Math.max(0, Math.min(100, score + 15));
+    }
+  },
+  VOLUME_SPIKE: {
+    name: "Volume Spike Play",
+    description: "Unusual volume detected before or during a price move. Big money is moving in.",
+    bestConditions: "Volume 3x+ above average, price starting to move, unusual options activity",
+    riskLevel: "MEDIUM", holdTime: "30min - 1.5hrs",
+    winRateTarget: 50, rrRatio: "1:2",
+    indicators: ["Volume vs average","Unusual options","OBV","Price action"],
+    educationLevel: 1,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (s.volume === "HIGH") score += 40; // Volume is everything for this strategy
+      if (s.unusualActivity?.bigMoney === "BULLISH") score += 35;
+      if (s.unusualActivity?.putCallRatio < 0.5) score += 20; // Heavy call buying
+      if (s.obvTrend === "RISING") score += 20;
+      if (s.intraday?.realtimeTrend !== "SIDEWAYS") score += 15;
+      if (s.isTrending) score += 15;
+      if (s.momentum?.exhaustionLevel === "FRESH") score += 15;
+      if (s.volume === "LOW") score -= 50; // Can't use this strategy with low volume
+      return Math.max(0, Math.min(100, score + 5));
+    }
+  },
+  BREAKOUT: {
+    name: "Breakout Trading",
+    description: "Buy when price breaks above resistance with high volume.",
+    bestConditions: "Price near resistance, high volume breakout, bullish market",
+    riskLevel: "MEDIUM-HIGH", holdTime: "1-4hrs",
+    winRateTarget: 40, rrRatio: "1:2",
+    indicators: ["Resistance","Volume","Bollinger Bands","ATR"],
+    educationLevel: 2,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (s.intraday?.orbSignal === "BULLISH_BREAKOUT") score += 40;
+      if (s.volume === "HIGH") score += 20;
+      if (dayType === "TRENDING") score += 20;
+      if (s.macdBullish) score += 15;
+      if (s.aboveEMA50) score += 10;
+      if (s.momentum?.exhaustionLevel === "FRESH") score += 15;
+      if (s.momentum?.exhaustionLevel === "EXTREMELY_EXHAUSTED") score -= 50;
+      return Math.max(0, Math.min(100, score + 10));
+    }
   },
   GAP_FILL: {
     name: "Gap Fill",
-    description: "When a stock gaps up or down at open, it often fills back to previous close.",
+    description: "Stock gaps at open, often fills back toward previous close.",
     bestConditions: "Large gap at open (3%+), low overall market movement",
-    riskLevel: "MEDIUM",
-    holdTime: "1-2hrs after open",
-    winRateTarget: 50,
-    rrRatio: "1:1.5",
+    riskLevel: "MEDIUM", holdTime: "1-2hrs after open",
+    winRateTarget: 50, rrRatio: "1:1.5",
     indicators: ["Opening gap","Volume","Previous close","Support/Resistance"],
-    educationLevel: 2
+    educationLevel: 2,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (Math.abs(s.intraday?.gapPct || 0) > 3) score += 40;
+      if (dayType === "CHOPPY") score += 20; // Gap fills work on flat days
+      if (Math.abs(spyChange) < 1) score += 15; // Market not trending against fill
+      if (s.intraday?.gapType === "GAP_UP" && s.rsi > 65) score += 20;
+      if (s.intraday?.gapType === "GAP_DOWN" && s.rsi < 35) score += 20;
+      return Math.max(0, Math.min(100, score + 10));
+    }
   },
   TREND_FOLLOWING: {
     name: "Trend Following",
-    description: "Follow the dominant market trend. Buy dips in uptrends, sell rallies in downtrends.",
-    bestConditions: "Clear market direction, price above/below all EMAs, consistent volume",
-    riskLevel: "LOW-MEDIUM",
-    holdTime: "2-6hrs",
-    winRateTarget: 50,
-    rrRatio: "1:2",
-    indicators: ["EMA 20/50/200","MACD","Market trend (SPY)","OBV"],
-    educationLevel: 2
+    description: "Follow the dominant market trend all day.",
+    bestConditions: "Clear market direction, price above all EMAs, consistent volume",
+    riskLevel: "LOW-MEDIUM", holdTime: "2-6hrs",
+    winRateTarget: 50, rrRatio: "1:2",
+    indicators: ["EMA 20/50/200","MACD","SPY direction","OBV"],
+    educationLevel: 2,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (dayType === "TRENDING") score += 35;
+      if (s.aboveEMA50 && spyChange > 0) score += 20;
+      if (s.aboveEMA200 && spyChange > 0) score += 15;
+      if (s.macdBullish && spyChange > 0) score += 15;
+      if (s.obvTrend === "RISING") score += 10;
+      if (Math.abs(spyChange) > 0.5) score += 10;
+      return Math.max(0, Math.min(100, score + 15));
+    }
+  },
+  EARNINGS_PLAY: {
+    name: "Earnings Play",
+    description: "Trade around company earnings for explosive moves.",
+    bestConditions: "Earnings in 1-3 days, high IV, strong expectations",
+    riskLevel: "HIGH", holdTime: "Same day",
+    winRateTarget: 35, rrRatio: "1:3",
+    indicators: ["IV","Earnings date","Options volume"],
+    educationLevel: 3,
+    scoreConditions: (s, spyChange, dayType) => {
+      let score = 0;
+      if (s.earningsWarning && s.earningsWarning.includes("EARNINGS IN")) score += 50;
+      if (s.iv > 80) score += 20;
+      if (s.unusualActivity?.bigMoney === "BULLISH") score += 20;
+      return Math.max(0, Math.min(100, score));
+    }
   }
 };
 
@@ -133,44 +299,149 @@ const EDUCATION_TOPICS = {
   4: ["Advanced spreads","Iron condors","Straddles","Portfolio hedging","Correlation trading","Sector rotation","Macro analysis"]
 };
 
-// ─── Market Regime Detection ──────────────────────────────────────────────────
+// ─── Market Day Classifier ────────────────────────────────────────────────────
+function classifyMarketDay(spyChange, vixValue, spyIntradayData) {
+  const absChange = Math.abs(spyChange);
+  
+  // Step 1: Check volatility level
+  if (absChange > 3) {
+    return {
+      dayType: "EXTREME_VOLATILE",
+      regime: spyChange > 0 ? "STRONG_BULL" : "STRONG_BEAR",
+      bestStrategy: "SIT_OUT",
+      description: "Market moving 3%+ — extreme volatility day",
+      plainEnglish: "The market is moving too much today. Options are overpriced and moves can reverse violently. Professional traders sit out days like this.",
+      tradingAdvice: "DO NOT TRADE. Wait for a normal day. Your money is safer sitting still.",
+      confidence: "HIGH"
+    };
+  }
+  
+  // Step 2: News/event driven day
+  if (absChange > 1.5 && vixValue > 25) {
+    return {
+      dayType: "NEWS_DRIVEN",
+      regime: spyChange > 0 ? "BULL" : "BEAR",
+      bestStrategy: spyChange > 0 ? "MOMENTUM_SCALP" : "MOMENTUM_SCALP",
+      description: "Strong directional move with elevated fear — news is driving market",
+      plainEnglish: "Market is making a big move today because of specific news. The direction is clear but options are more expensive than usual.",
+      tradingAdvice: "Trade in the direction of the move but reduce position size by 50%. Wait until 10:30 AM for the initial volatility to settle.",
+      confidence: "MEDIUM"
+    };
+  }
+  
+  // Step 3: Clean trending day
+  if (absChange > 0.5 && absChange <= 1.5) {
+    return {
+      dayType: "TRENDING",
+      regime: spyChange > 0 ? "BULL" : "BEAR",
+      bestStrategy: spyChange > 0 ? "TREND_FOLLOWING" : "MOMENTUM_SCALP",
+      description: "Clean directional trend — market moving steadily in one direction",
+      plainEnglish: "Today is a clear trending day. Market is moving steadily " + (spyChange > 0 ? "UP" : "DOWN") + " without big reversals. This is the best type of day to trade momentum.",
+      tradingAdvice: "Follow the trend. Buy calls on stocks moving with the market (up day) or puts on the weakest stocks (down day). Best entry window is 10:00-11:00 AM.",
+      confidence: "HIGH"
+    };
+  }
+  
+  // Step 4: Choppy/flat day
+  if (absChange <= 0.5) {
+    return {
+      dayType: "CHOPPY",
+      regime: "NEUTRAL",
+      bestStrategy: "OVERSOLD_BOUNCE",
+      description: "Flat/choppy market — no clear direction",
+      plainEnglish: "The market is going sideways today with no clear direction. Momentum strategies will NOT work on a day like this because there is no momentum. This is actually a good day for Oversold Bounce — finding stocks that dropped and are recovering.",
+      tradingAdvice: "AVOID Momentum Scalp today — it needs momentum that doesn't exist. Look for individual stocks with their OWN catalyst instead of market-driven moves. Or sit out and wait for a trending day.",
+      confidence: "HIGH"
+    };
+  }
+  
+  return {
+    dayType: "UNCLEAR",
+    regime: "NEUTRAL",
+    bestStrategy: "MOMENTUM_SCALP",
+    description: "Market direction unclear",
+    plainEnglish: "Market direction is not clear yet. Wait until 10:30 AM for more data before trading.",
+    tradingAdvice: "Wait for clearer direction before entering any trade.",
+    confidence: "LOW"
+  };
+}
+
 function detectMarketRegime(spyChange, spyVolume, vixLevel) {
   if (Math.abs(spyChange) > 2) return spyChange > 0 ? "STRONG_BULL" : "STRONG_BEAR";
   if (Math.abs(spyChange) > 0.75) return spyChange > 0 ? "BULL" : "BEAR";
   return "CHOPPY";
 }
 
-// ─── Adaptive Strategy Selection ─────────────────────────────────────────────
-function selectBestStrategy(data, strategyMemory, marketRegime, spyChange) {
+// ─── Full Strategy Scoring Engine ────────────────────────────────────────────
+// Runs ALL strategies against current conditions and picks the best one
+function selectBestStrategy(data, strategyMemory, marketRegime, spyChange, summaries, dayType) {
   const sm = strategyMemory;
   const perf = sm.strategyPerformance || {};
   const trades = data.trades || [];
   const edLevel = getEducationLevel(data, sm);
+  const dayT = dayType || "UNCLEAR";
 
-  // Filter strategies by education level
-  const availableStrategies = Object.entries(STRATEGIES)
+  // Run ALL available strategies through the scoring engine
+  const scoredStrategies = Object.entries(STRATEGIES)
     .filter(([,s]) => s.educationLevel <= edLevel)
     .map(([key, s]) => {
+      // Historical performance weight (20% of score)
       const p = perf[key] || { wins:0, losses:0, totalPnl:0 };
-      const winRate = (p.wins+p.losses) > 0 ? p.wins/(p.wins+p.losses) : 0.5;
-      let score = winRate * 60;
+      const totalTrades = p.wins + p.losses;
+      const historicalWR = totalTrades > 0 ? p.wins/totalTrades : 0.5;
+      const historicalScore = historicalWR * 20;
 
-      // Bonus for strategy matching market regime
-      if (marketRegime.includes("BULL") && ["MOMENTUM_SCALP","BREAKOUT","TREND_FOLLOWING"].includes(key)) score += 20;
-      if (marketRegime.includes("BEAR") && key === "OVERSOLD_BOUNCE") score += 15;
-      if (marketRegime === "CHOPPY" && key === "GAP_FILL") score += 15;
-      if (Math.abs(spyChange) > 1.5 && key === "MOMENTUM_SCALP") score += 10;
+      // Day type compatibility score (40% of score) — using strategy's own scoring function
+      // We use average across top stocks since we may not have summaries yet
+      let conditionScore = 0;
+      if (summaries && summaries.length > 0) {
+        const topStocks = summaries.slice(0, 3);
+        const avgScore = topStocks.reduce((sum, stock) => {
+          return sum + (s.scoreConditions ? s.scoreConditions(stock, spyChange, dayT) : 50);
+        }, 0) / topStocks.length;
+        conditionScore = avgScore * 0.4;
+      } else {
+        // Fallback scoring without stock data
+        if (dayT === "TRENDING" && ["MOMENTUM_SCALP","TREND_FOLLOWING","CONTINUATION"].includes(key)) conditionScore = 40;
+        else if (dayT === "CHOPPY" && ["OVERSOLD_BOUNCE","SUPPORT_BOUNCE","GAP_FILL"].includes(key)) conditionScore = 40;
+        else if (dayT === "NEWS_DRIVEN" && ["NEWS_CATALYST","VOLUME_SPIKE","MOMENTUM_SCALP"].includes(key)) conditionScore = 35;
+        else conditionScore = 20;
+      }
 
-      // Penalize strategies with poor recent performance
+      // Recent performance penalty (20% of score)
       const recentTrades = trades.slice(0,10).filter(t => t.strategy === key);
       const recentWins = recentTrades.filter(t => t.result === "win").length;
-      if (recentTrades.length >= 3 && recentWins/recentTrades.length < 0.3) score -= 20;
+      let recentScore = 20; // Default
+      if (recentTrades.length >= 3) {
+        recentScore = (recentWins / recentTrades.length) * 20;
+      }
 
-      return { key, ...s, score: Math.round(score), performance: p };
+      // Win rate target bonus (20% of score)
+      const targetScore = (s.winRateTarget / 100) * 20;
+
+      const totalScore = Math.round(historicalScore + conditionScore + recentScore + targetScore);
+
+      return { 
+        key, 
+        ...s, 
+        score: totalScore,
+        scoreBreakdown: {
+          historical: Math.round(historicalScore),
+          conditions: Math.round(conditionScore),
+          recent: Math.round(recentScore),
+          target: Math.round(targetScore)
+        },
+        performance: p 
+      };
     })
     .sort((a,b) => b.score - a.score);
 
-  return availableStrategies[0] || { key:"MOMENTUM_SCALP", ...STRATEGIES.MOMENTUM_SCALP };
+  const winner = scoredStrategies[0] || { key:"MOMENTUM_SCALP", ...STRATEGIES.MOMENTUM_SCALP };
+  winner.allStrategiesScored = scoredStrategies.map(s => ({
+    key: s.key, name: s.name, score: s.score, breakdown: s.scoreBreakdown
+  }));
+  
+  return winner;
 }
 
 // ─── Performance Coach Analysis ───────────────────────────────────────────────
@@ -264,6 +535,117 @@ function shouldAdaptStrategy(data, strategyMemory) {
 const CHEAP_WATCHLIST = ["SOUN","SOFI","MARA","RIOT","PLTR","HOOD","AAL","VALE","CLSK","GRAB","TELL","NKLA","WKHS","SPCE","CRON","SAVE","NIO","XPEV","PLUG","BBAI","CLOV","OPEN","EXPR","FUBO","HIMS"];
 const MID_WATCHLIST   = ["TSLA","AMD","NVDA","AAPL","AMZN","META","SPY","QQQ","COIN","RBLX"];
 const HIGH_WATCHLIST  = ["TSLA","NVDA","AAPL","AMZN","META","MSFT","GOOGL","SPY","QQQ","GS"];
+
+// ─── Correlation Groups ───────────────────────────────────────────────────────
+// When A moves, B and C tend to follow
+const CORRELATION_GROUPS = {
+  CRYPTO_MINING: {
+    name: "Crypto Mining",
+    leader: "BTC-USD",
+    stocks: ["MARA","RIOT","CLSK","BITF","HUT"],
+    description: "All mine Bitcoin — when BTC goes up they ALL go up",
+    emoji: "₿",
+    trigger: "Bitcoin price change"
+  },
+  EV_CHINA: {
+    name: "Chinese EVs",
+    leader: "NIO",
+    stocks: ["NIO","XPEV","LI"],
+    description: "Chinese electric vehicles — move together on China news",
+    emoji: "🚗",
+    trigger: "China policy or EV sector news"
+  },
+  AIRLINES: {
+    name: "Airlines",
+    leader: "AAL",
+    stocks: ["AAL","DAL","UAL","SAVE","JBLU"],
+    description: "All airlines move together on fuel prices and travel demand",
+    emoji: "✈️",
+    trigger: "Oil prices or travel demand news"
+  },
+  SEMICONDUCTORS: {
+    name: "Semiconductors",
+    leader: "NVDA",
+    stocks: ["NVDA","AMD","INTC","QCOM","MU"],
+    description: "Chip makers — NVDA leads, AMD follows",
+    emoji: "💻",
+    trigger: "AI demand or chip supply news"
+  },
+  GREEN_ENERGY: {
+    name: "Green Energy",
+    leader: "PLUG",
+    stocks: ["PLUG","FCEL","ENPH","SPWR","RUN"],
+    description: "Alternative energy stocks move on government policy",
+    emoji: "🌱",
+    trigger: "Energy policy or climate news"
+  },
+  MEME_STOCKS: {
+    name: "High Volatility",
+    leader: "SOUN",
+    stocks: ["SOUN","BBAI","CLOV","FUBO","SPCE"],
+    description: "High retail interest stocks — move on social sentiment",
+    emoji: "🚀",
+    trigger: "Social media buzz or short squeeze"
+  },
+  FINTECH: {
+    name: "Fintech",
+    leader: "SOFI",
+    stocks: ["SOFI","HOOD","AFRM","UPST"],
+    description: "Financial technology — move on interest rates and fintech news",
+    emoji: "💳",
+    trigger: "Fed rate decisions or banking news"
+  },
+  MINING_METALS: {
+    name: "Mining & Metals",
+    leader: "VALE",
+    stocks: ["VALE","FCX","NEM","GOLD"],
+    description: "Metal miners move on commodity prices and global demand",
+    emoji: "⛏️",
+    trigger: "Commodity prices or global economic data"
+  }
+};
+
+// Find which group a stock belongs to
+function getStockCorrelation(symbol) {
+  for (const [groupKey, group] of Object.entries(CORRELATION_GROUPS)) {
+    if (group.stocks.includes(symbol)) {
+      return { groupKey, ...group };
+    }
+  }
+  return null;
+}
+
+// Find correlated laggards — stocks in same group that haven't moved yet
+function findCorrelatedLaggards(symbol, marketDataMap, spyChange) {
+  const group = getStockCorrelation(symbol);
+  if (!group) return [];
+  
+  const leadingStock = marketDataMap[symbol];
+  if (!leadingStock) return [];
+  
+  const leadChange = leadingStock.priceData?.change || 0;
+  
+  // Find stocks in same group that moved LESS than the leader
+  return group.stocks
+    .filter(s => s !== symbol && marketDataMap[s])
+    .map(s => {
+      const stock = marketDataMap[s];
+      const stockChange = stock.priceData?.change || 0;
+      const lag = leadChange - stockChange;
+      return {
+        symbol: s,
+        change: stockChange,
+        leadChange,
+        lag: parseFloat(lag.toFixed(2)),
+        isLaggard: lag > 5, // Lagging by more than 5%
+        description: lag > 5 
+          ? `${s} is up ${stockChange.toFixed(1)}% while ${symbol} is up ${leadChange.toFixed(1)}% — ${s} is lagging by ${lag.toFixed(1)}% and may catch up`
+          : `${s} is moving similarly to ${symbol}`
+      };
+    })
+    .filter(s => s.isLaggard)
+    .sort((a,b) => b.lag - a.lag);
+}
 
 function getWatchlist(balance) {
   if (balance < 100)  return CHEAP_WATCHLIST;
@@ -397,6 +779,113 @@ async function getSocialSentiment(symbols) {
     } catch(e) { sentiment[sym] = { sentimentScore: 50, label: "NEUTRAL", buzz: "UNKNOWN", headlines: [] }; }
   }
   return sentiment;
+}
+
+// ─── Market Context Engine — WHY is the market moving? ──────────────────────
+async function getMarketContext() {
+  try {
+    // Get SPY 5-day data to understand the bigger trend
+    const [spyWeek, spyIntraday, marketNews] = await Promise.allSettled([
+      fetch("https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1d&range=5d", {headers:{"User-Agent":"Mozilla/5.0"}}),
+      fetch("https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=5m&range=2d", {headers:{"User-Agent":"Mozilla/5.0"}}),
+      fetch("https://query1.finance.yahoo.com/v1/finance/search?q=stock+market+today&newsCount=8", {headers:{"User-Agent":"Mozilla/5.0"}})
+    ]);
+
+    // 5-day trend analysis
+    let weekTrend = "UNKNOWN", weekChange = 0, dayChanges = [];
+    if (spyWeek.status === "fulfilled") {
+      const d = await spyWeek.value.json();
+      const closes = d.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(Boolean)||[];
+      if (closes.length >= 2) {
+        weekChange = parseFloat(((closes[closes.length-1]-closes[0])/closes[0]*100).toFixed(2));
+        // Calculate each day's change
+        for (let i=1; i<closes.length; i++) {
+          dayChanges.push(parseFloat(((closes[i]-closes[i-1])/closes[i-1]*100).toFixed(2)));
+        }
+        weekTrend = weekChange > 5 ? "STRONG_BULL" : weekChange > 1 ? "BULL" : weekChange < -5 ? "STRONG_BEAR" : weekChange < -1 ? "BEAR" : "NEUTRAL";
+      }
+    }
+
+    // Pre-market vs regular session analysis
+    let preMarketMove = 0, regularSessionMove = 0;
+    if (spyIntraday.status === "fulfilled") {
+      const d = await spyIntraday.value.json();
+      const timestamps = d.chart?.result?.[0]?.timestamp||[];
+      const closes = d.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
+      // Find pre-market (before 9:30 AM ET = 14:30 UTC) vs regular session
+      const marketOpen = timestamps.findIndex(t => {
+        const h = new Date(t*1000).getUTCHours();
+        return h >= 14; // 14:30 UTC = 9:30 AM ET (roughly)
+      });
+      if (marketOpen > 0 && closes[0] && closes[marketOpen]) {
+        preMarketMove = parseFloat(((closes[marketOpen]-closes[0])/closes[0]*100).toFixed(2));
+      }
+    }
+
+    // Market news headlines
+    let headlines = [], catalyst = "UNKNOWN";
+    if (marketNews.status === "fulfilled") {
+      const d = await marketNews.value.json();
+      headlines = (d.news||[]).slice(0,5).map(n=>n.title);
+      
+      // Simple catalyst detection from headlines
+      const text = headlines.join(" ").toLowerCase();
+      if (text.includes("tariff") || text.includes("trade war") || text.includes("trade deal")) catalyst = "TARIFF_NEWS";
+      else if (text.includes("fed") || text.includes("interest rate") || text.includes("powell")) catalyst = "FED_NEWS";
+      else if (text.includes("inflation") || text.includes("cpi") || text.includes("pce")) catalyst = "INFLATION_DATA";
+      else if (text.includes("jobs") || text.includes("unemployment") || text.includes("payroll")) catalyst = "JOBS_DATA";
+      else if (text.includes("earnings") || text.includes("revenue") || text.includes("profit")) catalyst = "EARNINGS";
+      else if (text.includes("recession") || text.includes("gdp")) catalyst = "ECONOMIC_DATA";
+      else if (text.includes("rally") || text.includes("surge") || text.includes("jump")) catalyst = "MOMENTUM";
+      else if (text.includes("crash") || text.includes("plunge") || text.includes("drop")) catalyst = "SELLOFF";
+      else catalyst = "GENERAL_MOVEMENT";
+    }
+
+    // Determine if move is fresh or exhausted based on when it started
+    const moveAlreadyDone = Math.abs(preMarketMove) > 5; // If big pre-market move, already done
+
+    // Plain English explanation
+    const catalystExplanation = {
+      "TARIFF_NEWS": "Trade/tariff news is driving the market. These moves are often sharp and fast — most of the move happens in the first hour.",
+      "FED_NEWS": "Federal Reserve news is moving the market. Interest rate decisions affect all stocks. Wait for the announcement to pass before trading.",
+      "INFLATION_DATA": "Inflation data just came out. Market is reacting to economic data — very unpredictable in the short term.",
+      "JOBS_DATA": "Jobs/employment data is moving the market. Economic data moves are usually one-directional for the day.",
+      "EARNINGS": "Company earnings are driving individual stocks. Focus on specific stocks with earnings beats.",
+      "ECONOMIC_DATA": "Economic data is the catalyst. Market will decide direction in the first 30-60 minutes.",
+      "MOMENTUM": "Market is rallying on momentum — no specific catalyst. Can continue or reverse quickly.",
+      "SELLOFF": "Market is selling off — negative sentiment is driving prices down. PUTs may be better than CALLs today.",
+      "GENERAL_MOVEMENT": "General market movement with no specific catalyst identified.",
+      "UNKNOWN": "Market movement reason unclear. Be extra cautious today."
+    }[catalyst] || "Market is moving for unclear reasons.";
+
+    // Trading recommendation based on context
+    let contextRecommendation;
+    if (moveAlreadyDone && Math.abs(weekChange) > 10) {
+      contextRecommendation = "CAUTION: Market made a big move pre-market. By the time you trade at 10 AM most of that move is already priced in. Look for stocks that HAVEN'T moved yet — these laggards may catch up.";
+    } else if (weekTrend === "STRONG_BULL") {
+      contextRecommendation = "BULLISH WEEK: Market has been going up strongly. CALLs are favored. Look for pullbacks as entry points.";
+    } else if (weekTrend === "STRONG_BEAR") {
+      contextRecommendation = "BEARISH WEEK: Market has been going down strongly. PUTs are favored. Look for bounces as entry points.";
+    } else {
+      contextRecommendation = "NORMAL CONDITIONS: Market is moving normally. Follow the individual stock setups.";
+    }
+
+    return {
+      weekTrend,
+      weekChange,
+      dayChanges,
+      preMarketMove,
+      catalyst,
+      catalystExplanation,
+      headlines,
+      moveAlreadyDone,
+      contextRecommendation,
+      plainEnglish: `This week the market is ${weekChange >= 0 ? "UP" : "DOWN"} ${Math.abs(weekChange).toFixed(1)}% overall. ${catalystExplanation} ${contextRecommendation}`
+    };
+  } catch(e) {
+    console.error("Market context error:", e.message);
+    return { weekTrend:"UNKNOWN", weekChange:0, catalyst:"UNKNOWN", headlines:[], moveAlreadyDone:false, contextRecommendation:"Unable to fetch market context.", plainEnglish:"Market context unavailable." };
+  }
 }
 
 async function getTrendingTickers() {
@@ -638,6 +1127,111 @@ function getTodayEconomicEvents() {
 
 // ─── Technical Indicators ─────────────────────────────────────────────────────
 function calcRSI(c,p=14){if(c.length<p+1)return null;let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l+=Math.abs(d);}let ag=g/p,al=l/p;for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];ag=(ag*(p-1)+(d>0?d:0))/p;al=(al*(p-1)+(d<0?Math.abs(d):0))/p;}return al===0?100:parseFloat((100-100/(1+ag/al)).toFixed(2));}
+
+// ─── Divergence Detection ─────────────────────────────────────────────────────
+// Compares price highs/lows to RSI highs/lows to find hidden signals
+function detectDivergence(closes, highs, lows) {
+  if (closes.length < 20) return null;
+  
+  const recentCloses = closes.slice(-20);
+  const recentHighs = highs.slice(-20);
+  const recentLows = lows.slice(-20);
+  
+  // Calculate RSI for recent periods
+  const rsiValues = [];
+  for (let i = 10; i < recentCloses.length; i++) {
+    const rsi = calcRSI(recentCloses.slice(0, i+1));
+    if (rsi) rsiValues.push(rsi);
+  }
+  
+  if (rsiValues.length < 5) return null;
+  
+  const priceNow = recentCloses[recentCloses.length-1];
+  const pricePrev = recentCloses[recentCloses.length-6];
+  const rsiNow = rsiValues[rsiValues.length-1];
+  const rsiPrev = rsiValues[rsiValues.length-6];
+  
+  const priceHigher = priceNow > pricePrev;
+  const rsiHigher = rsiNow > rsiPrev;
+  
+  // Bearish divergence: price making higher high but RSI making lower high
+  // Means momentum is weakening even though price looks strong
+  if (priceHigher && !rsiHigher && rsiNow > 50) {
+    return {
+      type: "BEARISH_DIVERGENCE",
+      signal: "BEARISH",
+      strength: Math.abs(rsiNow - rsiPrev) > 10 ? "STRONG" : "MILD",
+      plainEnglish: `⚠️ BEARISH DIVERGENCE: Price went up but momentum is weakening. This often means a reversal is coming. Be careful buying CALLs right now.`,
+      tradingImplication: "Price is rising but RSI is falling — buyers are losing strength. Avoid calls, consider puts or wait."
+    };
+  }
+  
+  // Bullish divergence: price making lower low but RSI making higher low
+  // Means selling momentum is weakening — bounce coming
+  if (!priceHigher && rsiHigher && rsiNow < 50) {
+    return {
+      type: "BULLISH_DIVERGENCE", 
+      signal: "BULLISH",
+      strength: Math.abs(rsiNow - rsiPrev) > 10 ? "STRONG" : "MILD",
+      plainEnglish: `✅ BULLISH DIVERGENCE: Price went down but momentum is recovering. This often means a bounce is coming. Good setup for a CALL option.`,
+      tradingImplication: "Price is falling but RSI is rising — sellers are losing strength. Good call option opportunity."
+    };
+  }
+  
+  // Hidden bullish: price higher low, RSI lower low = trend continuation up
+  if (priceHigher && rsiHigher) {
+    return {
+      type: "CONFIRMED_BULLISH",
+      signal: "BULLISH",
+      strength: "CONFIRMED",
+      plainEnglish: `✅ CONFIRMED UPTREND: Both price AND momentum are moving up together. Strong signal for CALL options.`,
+      tradingImplication: "Price and RSI both agree — strong bullish signal."
+    };
+  }
+  
+  // Both down = confirmed bearish
+  if (!priceHigher && !rsiHigher) {
+    return {
+      type: "CONFIRMED_BEARISH",
+      signal: "BEARISH", 
+      strength: "CONFIRMED",
+      plainEnglish: `⚠️ CONFIRMED DOWNTREND: Both price AND momentum are falling together. Strong signal for PUT options or avoid calls.`,
+      tradingImplication: "Price and RSI both agree — strong bearish signal."
+    };
+  }
+  
+  return null;
+}
+
+// ─── Theta Decay Estimator ────────────────────────────────────────────────────
+// Estimates how much the option loses per day just from time passing
+function estimateThetaDecay(optionPrice, daysToExpiry, stockPrice, strikePrice) {
+  if (!optionPrice || !daysToExpiry || daysToExpiry <= 0) return null;
+  
+  // Simplified theta estimate — options lose value faster as expiry approaches
+  // Near expiry (1-3 days): loses ~15-25% of value per day
+  // Medium term (4-7 days): loses ~8-12% per day
+  // Longer term (8-14 days): loses ~3-6% per day
+  const dailyDecayPct = daysToExpiry <= 2 ? 0.20 : daysToExpiry <= 5 ? 0.10 : 0.05;
+  const dailyDollarLoss = parseFloat((optionPrice * 100 * dailyDecayPct).toFixed(2));
+  const hourlyLoss = parseFloat((dailyDollarLoss / 6.5).toFixed(2)); // 6.5 trading hours per day
+  
+  const warning = daysToExpiry <= 2 
+    ? `🚨 EXPIRING SOON: Option loses ~$${dailyDollarLoss} per day just from time. Stock must move FAST.`
+    : daysToExpiry <= 4
+    ? `⚠️ TIME DECAY: Option loses ~$${dailyDollarLoss} per day. Stock needs to move within ${daysToExpiry} days.`
+    : `✅ TIME OK: Option loses ~$${dailyDollarLoss} per day. You have ${daysToExpiry} days for the stock to move.`;
+    
+  return {
+    daysToExpiry,
+    dailyDecayPct: Math.round(dailyDecayPct * 100),
+    dailyDollarLoss,
+    hourlyLoss,
+    warning,
+    isUrgent: daysToExpiry <= 2,
+    plainEnglish: `This option loses about $${dailyDollarLoss} every single day even if the stock doesn't move. That's $${hourlyLoss} per hour the market is open.`
+  };
+}
 function calcEMA(c,p){if(c.length<p)return null;const k=2/(p+1);let e=c.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<c.length;i++)e=c[i]*k+e*(1-k);return parseFloat(e.toFixed(2));}
 function calcMACD(c){const e12=calcEMA(c,12),e26=calcEMA(c,26);if(!e12||!e26)return null;return{macdLine:parseFloat((e12-e26).toFixed(2)),bullish:e12>e26};}
 function calcBoll(c,p=20){if(c.length<p)return null;const s=c.slice(-p),m=s.reduce((a,b)=>a+b,0)/p,std=Math.sqrt(s.reduce((sum,v)=>sum+Math.pow(v-m,2),0)/p);return{upper:parseFloat((m+2*std).toFixed(2)),middle:parseFloat(m.toFixed(2)),lower:parseFloat((m-2*std).toFixed(2))};}
@@ -690,10 +1284,10 @@ app.get("/api/analyze", async (req, res) => {
     const batch = activeWatchlist.slice(0,8);
     const edLevel = getEducationLevel(data, strategyMemory);
 
-    const [spyR,qqqR,fgR,trendR,vixR,cryptoR,...stockR] = await Promise.allSettled([
+    const [spyR,qqqR,fgR,trendR,vixR,cryptoR,contextR,...stockR] = await Promise.allSettled([
       fetchMarketData("SPY"), fetchMarketData("QQQ"),
       getFearGreedIndex(), getTrendingTickers(),
-      getVIX(), getCryptoCorrelation(),
+      getVIX(), getCryptoCorrelation(), getMarketContext(),
       ...batch.map(s=>fetchMarketData(s))
     ]);
 
@@ -703,7 +1297,9 @@ app.get("/api/analyze", async (req, res) => {
     const trending  = trendR.status==="fulfilled"?trendR.value:[];
     const vix = vixR.status==="fulfilled"?vixR.value:{value:20,level:"NORMAL",tradingAdvice:"Trade normally",optionCost:"Options normally priced"};
     const crypto = cryptoR.status==="fulfilled"?cryptoR.value:{btcChange:0,cryptoMood:"NEUTRAL",impact:"Crypto data unavailable"};
+    const marketContext = contextR.status==="fulfilled"?contextR.value:{weekTrend:"UNKNOWN",weekChange:0,catalyst:"UNKNOWN",headlines:[],moveAlreadyDone:false,contextRecommendation:"",plainEnglish:"Market context unavailable"};
     const marketRegime = detectMarketRegime(spyChange, 0, 0);
+    const dayClassification = classifyMarketDay(spyChange, fearGreed.score, null);
     const marketTrend = spyChange<-2?"STRONGLY BEARISH":spyChange<-0.75?"BEARISH":spyChange>2?"STRONGLY BULLISH":spyChange>0.75?"BULLISH":"NEUTRAL";
     const preferredDir = spyChange<-1.5?"PUT":spyChange>1.5?"CALL":"EITHER";
     
@@ -720,6 +1316,28 @@ app.get("/api/analyze", async (req, res) => {
     const pdtWarning = todayTrades >= 2 
       ? `⚠️ PDT WARNING: You have made ${todayTrades} day trades today. If you make ${3 - todayTrades} more you risk hitting the 3-day-trade limit. Consider switching to a Cash Account to avoid restrictions.`
       : null;
+
+    // MINIMUM BALANCE PROTECTION
+    const MIN_TRADING_BALANCE = 20;
+    const balanceTooLow = data.balance < MIN_TRADING_BALANCE;
+    const balanceWarning = balanceTooLow 
+      ? `🛑 PROTECT MODE: Your balance ($${data.balance}) is too low to risk any more right now. Stop trading until you add more funds or your balance recovers above $${MIN_TRADING_BALANCE}. Every dollar counts at this stage.`
+      : null;
+
+    // WEEKLY LOSS LIMIT (max 20% loss per week)
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1));
+    weekStart.setHours(0,0,0,0);
+    const weekTrades = data.trades.filter(t => new Date(t.date) >= weekStart && t.result !== "skip");
+    const weekPnl = weekTrades.reduce((s,t) => s+(t.pnl||0), 0);
+    const weekLossLimit = data.startingBalance * 0.20;
+    const hitWeeklyLimit = weekPnl < -weekLossLimit;
+    const weeklyLimitWarning = hitWeeklyLimit
+      ? `🛑 WEEKLY LOSS LIMIT HIT: You've lost $${Math.abs(weekPnl).toFixed(2)} this week which is more than 20% of your starting balance. Stop trading for the rest of this week. Come back fresh on Monday. Protecting your capital is more important than making it back today.`
+      : null;
+
+    const shouldStopTrading = balanceTooLow || hitWeeklyLimit || shouldSitOut;
     
     // Already up big warning  
     const bigMoverWarning = (stock) => {
@@ -759,10 +1377,31 @@ app.get("/api/analyze", async (req, res) => {
       .filter(t => new Date(t.date).toDateString() === new Date(Date.now() - 24*60*60*1000).toDateString())
       .map(t => t.symbol);
 
-    // Best strategy for today
-    const bestStrategy = selectBestStrategy(data, strategyMemory, marketRegime, spyChange);
+    // Build preliminary summaries for strategy scoring
+    const prelimSummaries = Object.entries(marketDataMap).map(([sym,d]) => ({
+      symbol:sym, change:d.priceData?.change||0,
+      rsi:d.indicators?.rsi||50, macdBullish:d.indicators?.macd?.bullish||false,
+      volume:d.volume?.trend||"AVERAGE", obvTrend:d.indicators?.obv?.trend||"FLAT",
+      aboveEMA50:d.priceData?.current>d.indicators?.ema50, aboveEMA200:d.priceData?.current>d.indicators?.ema200,
+      stoch:d.indicators?.stochastic||50, williamsR:d.indicators?.williamsR||-50,
+      isTrending:trending.includes(sym),
+      momentum:{exhaustionLevel:"UNKNOWN",isTradeable:true},
+      intraday:null, socialSentiment:{label:"NEUTRAL",buzz:"UNKNOWN"},
+      unusualActivity:null, earningsWarning:null
+    }));
+
+    // Run the full strategy scoring engine
+    let bestStrategy = selectBestStrategy(data, strategyMemory, marketRegime, spyChange, prelimSummaries, dayClassification.dayType);
+    
+    // If extreme volatile day, recommend sitting out
+    if (dayClassification.dayType === "EXTREME_VOLATILE") {
+      bestStrategy = { ...bestStrategy, sitOut: true, sitOutReason: dayClassification.tradingAdvice };
+    }
     const shouldAdapt = shouldAdaptStrategy(data, strategyMemory);
     const perfAnalysis = analyzePerformance(data, strategyMemory);
+
+    // Add all strategy scores to context
+    const allStrategyScores = bestStrategy.allStrategiesScored || [];
 
     // Pattern matching — find similar past setups
     const patterns = strategyMemory.patterns || [];
@@ -791,7 +1430,33 @@ app.get("/api/analyze", async (req, res) => {
       affordableStrikes:(marketDataMap[sym]?.options?.affordableStrikes||[]).slice(0,5),
       socialSentiment:socialMap[sym]||{sentimentScore:50,label:"NEUTRAL",buzz:"UNKNOWN"},
       cryptoCorrelated:["MARA","RIOT","CLSK","WKHS"].includes(sym),
+      correlationGroup: getStockCorrelation(sym),
+      correlatedLaggards: findCorrelatedLaggards(sym, marketDataMap, spyChange),
+      divergence: marketDataMap[sym]?.divergence || null,
       momentum:marketDataMap[sym]?.momentum||{exhaustionLevel:"UNKNOWN",isTradeable:true,exhaustionWarning:"",moveRatio:0,remainingRoom:0},
+      relativeStrength: (() => {
+        const stockChange = marketDataMap[sym]?.priceData?.change || 0;
+        const spyChg = spyChange || 0;
+        if (Math.abs(spyChg) < 0.5) return { score: 50, label: "NEUTRAL", description: "Market flat — no relative strength comparison" };
+        const rs = spyChg !== 0 ? parseFloat((stockChange / spyChg).toFixed(2)) : 1;
+        // rs > 1.5 = outperforming (has own strength)
+        // rs 0.5-1.5 = moving with market (normal)  
+        // rs < 0.3 = lagging (hasn't moved yet - opportunity)
+        // rs > 3 = extremely extended (dangerous)
+        const label = rs > 3 ? "EXTREMELY_EXTENDED" : rs > 1.5 ? "OUTPERFORMING" : rs < 0.3 ? "LAGGING" : rs < 0 ? "DIVERGING" : "WITH_MARKET";
+        const isLaggard = rs < 0.3 && Math.abs(spyChg) > 2;
+        const isExtended = rs > 3;
+        const description = label === "EXTREMELY_EXTENDED" 
+          ? `Moved ${rs}x more than SPY — extremely extended, option has no room left`
+          : label === "OUTPERFORMING"
+          ? `Moving ${rs}x stronger than SPY — has its own catalyst, good sign`
+          : label === "LAGGING"
+          ? `Only moved ${stockChange.toFixed(1)}% while SPY moved ${spyChg.toFixed(1)}% — LAGGARD, may catch up later`
+          : label === "DIVERGING"
+          ? `Moving OPPOSITE to SPY — strong independent movement`
+          : `Moving in line with the overall market`;
+        return { score: rs, label, description, isLaggard, isExtended, stockChange, spyChange: spyChg };
+      })(),
       intraday:intradayMap[sym]?{
         gapPct:intradayMap[sym].gapPct,
         gapType:intradayMap[sym].gapType,
@@ -852,11 +1517,38 @@ MARKET CONDITIONS:
 - Fear & Greed: ${fearGreed.score}/100 — ${fearGreed.rating}
 - Preferred Direction: ${preferredDir}
 
+TODAY'S MARKET DAY TYPE: ${dayClassification.dayType}
+Day Description: ${dayClassification.description}
+Plain English: ${dayClassification.plainEnglish}
+Trading Advice: ${dayClassification.tradingAdvice}
+Best Strategy For This Day Type: ${dayClassification.bestStrategy}
+Confidence: ${dayClassification.confidence}
+
+DAY TYPE RULES:
+- CHOPPY day (SPY < 0.5%): DO NOT use Momentum Scalp. Use Oversold Bounce. Find stocks with their OWN catalyst.
+- TRENDING day (SPY 0.5-1.5%): Momentum Scalp and Trend Following work well. Follow the direction.
+- NEWS_DRIVEN day (SPY 1.5-3%): Trade carefully, reduce size, wait for 10:30 AM.
+- EXTREME_VOLATILE day (SPY 3%+): Recommend sitting out entirely.
+
+STRATEGY SCORING ENGINE RESULTS — ALL STRATEGIES RANKED:
+${JSON.stringify(allStrategyScores, null, 2)}
+
+WINNER: ${bestStrategy.name} (Score: ${bestStrategy.score}/100)
+Score Breakdown: Historical performance: ${bestStrategy.scoreBreakdown?.historical||0} | Market conditions: ${bestStrategy.scoreBreakdown?.conditions||0} | Recent trades: ${bestStrategy.scoreBreakdown?.recent||0} | Win rate target: ${bestStrategy.scoreBreakdown?.target||0}
+
 ACTIVE STRATEGY: ${bestStrategy.name}
 Strategy Description: ${bestStrategy.description}
 Best Conditions: ${bestStrategy.bestConditions}
 Risk Level: ${bestStrategy.riskLevel}
 Target Hold Time: ${bestStrategy.holdTime}
+${bestStrategy.sitOut ? "⚠️ RECOMMEND SITTING OUT TODAY: " + bestStrategy.sitOutReason : ""}
+
+STRATEGY SELECTION RULES:
+- The scoring engine ran ALL strategies against today's conditions
+- The winning strategy scored highest across: day type match, stock conditions, historical performance, win rate
+- ALWAYS explain in plain English why this strategy won and what conditions it needs to work
+- Show the user which strategies scored second and third so they understand the decision
+- If top strategy scored below 40 — warn the user conditions are not ideal today
 
 MATCHING PAST WINNING PATTERNS:
 ${matchingPatterns.length>0?JSON.stringify(matchingPatterns):("No matching patterns yet — building pattern library as you trade.")}
@@ -892,22 +1584,43 @@ Return ONLY valid JSON:
     "fearGreedScore":${fearGreed.score},"fearGreedRating":"${fearGreed.rating}",
     "trendingStocks":${JSON.stringify(trending.slice(0,5))},
     "preferredDirection":"${preferredDir}","marketRegime":"${marketRegime}",
+    "dayType":"${dayClassification.dayType}",
+    "dayPlainEnglish":"${dayClassification.plainEnglish}",
+    "dayTradingAdvice":"${dayClassification.tradingAdvice}",
+    "dayBestStrategy":"${dayClassification.bestStrategy}",
     "isExtremelyVolatile":${isExtremelyVolatile},
     "volatileWarning":"${volatileWarning||""}",
     "pdtWarning":"${pdtWarning||""}",
+    "balanceWarning":"${balanceWarning||""}",
+    "weeklyLimitWarning":"${weeklyLimitWarning||""}",
+    "shouldStopTrading":${shouldStopTrading},
+    "weekPnl":${weekPnl.toFixed(2)},
     "todayTradeCount":${todayTrades},
     "vix":{"value":${vix.value},"level":"${vix.level}","advice":"${vix.tradingAdvice}","optionCost":"${vix.optionCost}"},
     "crypto":{"btcChange":${crypto.btcChange},"mood":"${crypto.cryptoMood}","impact":"${crypto.impact}"},
+    "marketContext":{
+      "weekTrend":"${marketContext.weekTrend}",
+      "weekChange":${marketContext.weekChange},
+      "catalyst":"${marketContext.catalyst}",
+      "catalystExplanation":"${marketContext.catalystExplanation}",
+      "moveAlreadyDone":${marketContext.moveAlreadyDone},
+      "contextRecommendation":"${marketContext.contextRecommendation}",
+      "headlines":${JSON.stringify(marketContext.headlines.slice(0,3))},
+      "plainEnglish":"${marketContext.plainEnglish}"
+    },
     "marketComment":"2 plain English sentences about today's market. If extremely volatile warn beginner traders strongly.",
     "beginnerTip":"1 sentence of the most important thing a beginner should know about trading TODAY specifically"
   },
   "activeStrategy":{
     "name":"${bestStrategy.name}","key":"${bestStrategy.key}",
+    "score":${bestStrategy.score||0},
     "description":"${bestStrategy.description}",
-    "whyToday":"1-2 sentences why this strategy fits today's conditions",
+    "whyToday":"2-3 sentences explaining WHY this strategy won the scoring engine today — what specific conditions made it the best choice",
+    "whyNotOthers":"1 sentence explaining why the second and third ranked strategies lost",
     "shouldAdapt":${shouldAdapt},
-    "adaptationAdvice":"${shouldAdapt?"Specific advice on whether to switch strategies and what to switch to":"No adaptation needed"}",
-    "strategyEducation":"Plain English explanation of this strategy for education level ${edLevel}"
+    "adaptationAdvice":"${shouldAdapt?"Specific advice on whether to switch strategies":"No adaptation needed"}",
+    "strategyEducation":"Plain English explanation of this strategy for a beginner — what does it mean and how does it work today",
+    "allStrategiesRanked":${JSON.stringify(allStrategyScores.slice(0,4))}
   },
   "patternMatch":{
     "found":${matchingPatterns.length>0},
@@ -931,7 +1644,12 @@ Return ONLY valid JSON:
       "newsHeadlines":[string,string],
       "unusualActivity":string,
       "earningsRisk":"None" or warning,
+      "divergence":"Explain any divergence detected in plain English — is price and momentum agreeing or disagreeing?",
+      "thetaWarning":"Plain English warning about time decay — how much is this option losing per day just from time passing?",
       "strategyFit":"How this specific stock fits the ${bestStrategy.name} strategy today",
+      "correlationGroup":"What sector/group this stock belongs to and how connected stocks are moving",
+      "correlatedLaggards":"List any stocks in the same group that haven't moved yet — laggard opportunities",
+      "correlationInsight":"Plain English explanation of how this stock connects to others and what that means for the trade",
       "signal":"BUY" or "SELL" or "HOLD",
       "confidence":"LOW" or "MEDIUM" or "HIGH",
       "accuracyScore":number,
