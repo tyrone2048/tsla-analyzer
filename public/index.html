@@ -632,6 +632,37 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
   <!-- ═══ PAGE: JOURNAL ═══ -->
   <div class="page" id="page-journal">
+
+    <!-- BACKUP & RESTORE -->
+    <div class="section-title">💾 BACKUP & RESTORE YOUR DATA</div>
+    <div style="background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.8">Your trade history is stored on Railway. Download a backup regularly so you never lose your data. If your data gets wiped — upload your backup to restore everything.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <button class="btn accent" onclick="downloadBackup()">⬇️ DOWNLOAD BACKUP</button>
+        <button class="btn green" onclick="document.getElementById('importFile').click()">⬆️ RESTORE FROM BACKUP</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importBackup(this)">
+      </div>
+      <div id="backupStatus" style="display:none;font-size:11px;padding:8px;line-height:1.6;"></div>
+    </div>
+
+    <!-- MANUAL TRADE ENTRY -->
+    <div class="section-title">✏️ LOG PAST TRADES MANUALLY</div>
+    <div style="background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.8">Lost your history? Enter your past trades here to rebuild your pattern library. This does NOT change your current balance — it just logs the trade history.</div>
+      <div class="log-form">
+        <div class="log-field"><label>DATE OF TRADE</label><input type="date" id="manualDate" value="${new Date().toISOString().split('T')[0]}"></div>
+        <div class="log-field"><label>STOCK SYMBOL</label><input type="text" id="manualSymbol" placeholder="e.g. RIOT, VALE"></div>
+        <div class="log-field"><label>CALL OR PUT</label><select id="manualOptionType"><option value="CALL">CALL</option><option value="PUT">PUT</option></select></div>
+        <div class="log-field"><label>RESULT</label><select id="manualResult"><option value="loss">LOSS</option><option value="win">WIN</option></select></div>
+        <div class="log-field"><label>AMOUNT PUT IN ($)</label><input type="number" id="manualAmount" step="0.01" placeholder="e.g. 9.00"></div>
+        <div class="log-field"><label>AMOUNT GOT BACK ($)</label><input type="number" id="manualExit" step="0.01" placeholder="e.g. 7.00 or 0"></div>
+        <div class="log-field"><label>STRATEGY</label><select id="manualStrategy"><option value="MOMENTUM_SCALP">Momentum Scalp</option><option value="OVERSOLD_BOUNCE">Oversold Bounce</option><option value="BREAKOUT">Breakout</option><option value="TREND_FOLLOWING">Trend Following</option></select></div>
+        <div class="log-field full"><label>NOTES</label><input type="text" id="manualNotes" placeholder="What happened with this trade?"></div>
+        <button class="log-btn" onclick="addManualTrade()">✏️ ADD THIS TRADE TO HISTORY</button>
+        <div class="log-status" id="manualStatus"></div>
+      </div>
+    </div>
+
     <div class="section-title">📅 THIS WEEK AT A GLANCE</div>
     <div class="week-cards" id="weekCards">
       <div class="card"><div class="card-label">THIS WEEK P&L</div><div class="card-val" id="weekPnl">$0</div><div class="card-sub" id="weekVsLast">—</div></div>
@@ -1620,6 +1651,110 @@ async function logPending(){
 }
 
 // ─── Milestone ────────────────────────────────────────────────────────────────
+// ─── Backup & Restore ────────────────────────────────────────────────────────
+async function downloadBackup(){
+  try{
+    const r = await fetch("/api/export");
+    const data = await r.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "trading-backup-" + new Date().toISOString().split("T")[0] + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+    const el = document.getElementById("backupStatus");
+    el.textContent = "✅ Backup downloaded! Save this file somewhere safe.";
+    el.style.color = "var(--green)";
+    el.style.background = "rgba(0,255,136,0.06)";
+    el.style.display = "block";
+  }catch(e){
+    const el = document.getElementById("backupStatus");
+    el.textContent = "Error: " + e.message;
+    el.style.color = "var(--red)";
+    el.style.display = "block";
+  }
+}
+
+async function importBackup(input){
+  const file = input.files[0];
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    const r = await fetch("/api/import", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        challenge: backup.challenge,
+        strategyMemory: backup.strategyMemory
+      })
+    });
+    const d = await r.json();
+    const el = document.getElementById("backupStatus");
+    if(d.success){
+      el.textContent = "✅ Data restored successfully! Refreshing...";
+      el.style.color = "var(--green)";
+      el.style.background = "rgba(0,255,136,0.06)";
+      el.style.display = "block";
+      setTimeout(()=>{ loadChallengeData(); loadJournal(); }, 1500);
+    } else {
+      el.textContent = "Error: " + d.error;
+      el.style.color = "var(--red)";
+      el.style.display = "block";
+    }
+  }catch(e){
+    const el = document.getElementById("backupStatus");
+    el.textContent = "Error reading file: " + e.message;
+    el.style.color = "var(--red)";
+    el.style.display = "block";
+  }
+  input.value = "";
+}
+
+async function addManualTrade(){
+  const symbol = document.getElementById("manualSymbol").value.trim().toUpperCase();
+  const optionType = document.getElementById("manualOptionType").value;
+  const result = document.getElementById("manualResult").value;
+  const amount = parseFloat(document.getElementById("manualAmount").value);
+  const exitValue = parseFloat(document.getElementById("manualExit").value);
+  const strategy = document.getElementById("manualStrategy").value;
+  const notes = document.getElementById("manualNotes").value.trim();
+  const dateVal = document.getElementById("manualDate").value;
+  
+  if(!symbol){showManualStatus("Enter the stock symbol.","error");return;}
+  if(isNaN(amount)||amount<=0){showManualStatus("Enter the amount you put in.","error");return;}
+  if(isNaN(exitValue)){showManualStatus("Enter the amount you got back (0 if lost all).","error");return;}
+  
+  try{
+    const r = await fetch("/api/trade/manual", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        symbol, optionType, amount,
+        exitValue, result,
+        date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
+        notes, strategy
+      })
+    });
+    const d = await r.json();
+    if(d.success){
+      const pnl = d.trade.pnl;
+      showManualStatus(`✅ Trade logged! ${symbol} ${result==="win"?"WIN":"LOSS"}: ${pnl>=0?"+":""}$${pnl.toFixed(2)}`,"success");
+      ["manualSymbol","manualAmount","manualExit","manualNotes"].forEach(id=>{
+        const el=document.getElementById(id);if(el)el.value="";
+      });
+      loadChallengeData();
+      loadJournal();
+    } else throw new Error(d.error);
+  }catch(e){showManualStatus("Error: "+e.message,"error");}
+}
+
+function showManualStatus(msg,type){
+  const el=document.getElementById("manualStatus");
+  if(el){el.textContent=msg;el.className="log-status "+type;}
+}
+
 function showMilestone(amount){
   const emojis={25:"🌱",50:"💵",100:"💯",250:"🚀",500:"⭐",1000:"🔥",2500:"💎",5000:"👑",10000:"🏆"};
   document.getElementById("milestoneEmoji").textContent=emojis[amount]||"🏆";
