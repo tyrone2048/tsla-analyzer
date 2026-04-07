@@ -2361,11 +2361,41 @@ Return ONLY valid JSON:
   }
 }`;
 
-    const ai = await anthropic.messages.create({ model:"claude-opus-4-5", max_tokens:5000, messages:[{role:"user",content:prompt}] });
+    const ai = await anthropic.messages.create({ model:"claude-sonnet-4-5", max_tokens:8000, messages:[{role:"user",content:prompt}] });
     const raw = ai.content[0].text;
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("AI parse failed");
-    const analysis = JSON.parse(match[0]);
+    
+    // Robust JSON extraction with truncation recovery
+    let analysis;
+    try {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No JSON in response");
+      analysis = JSON.parse(match[0]);
+    } catch(parseErr) {
+      // JSON was truncated — attempt repair by closing open brackets
+      console.error("JSON truncated, attempting repair...");
+      let partial = raw;
+      // Find last complete field by trimming from last complete comma+quote
+      const lastGood = partial.lastIndexOf('","');
+      if (lastGood > 0) partial = partial.substring(0, lastGood + 1) + '"truncated":true}]}]}';
+      try {
+        // Try a minimal fallback parse
+        const match2 = partial.match(/\{[\s\S]*/);
+        if (match2) {
+          // Count open brackets and close them
+          let opens = (match2[0].match(/\{/g)||[]).length;
+          let closes = (match2[0].match(/\}/g)||[]).length;
+          let arrOpens = (match2[0].match(/\[/g)||[]).length;
+          let arrCloses = (match2[0].match(/\]/g)||[]).length;
+          let repaired = match2[0];
+          for(let i=0;i<arrOpens-arrCloses;i++) repaired += ']';
+          for(let i=0;i<opens-closes;i++) repaired += '}';
+          analysis = JSON.parse(repaired);
+          analysis._truncated = true;
+        }
+      } catch(e2) {
+        throw new Error("AI response was too long and could not be parsed. Try again.");
+      }
+    }
 
     // Update strategy memory
     if (shouldAdapt) {
