@@ -434,6 +434,21 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div class="mkt-card"><div class="mkt-label">TRENDING NOW</div><div class="mkt-sub" id="mktTrending" style="font-size:10px;color:var(--text);line-height:1.6">—</div></div>
     </div>
 
+    <!-- LIVE CATALYST ALERTS -->
+    <div id="liveAlerts" style="display:none;margin-bottom:12px;"></div>
+
+    <!-- Scanner subscription -->
+    <div id="scannerBox" style="background:rgba(180,79,255,0.05);border:1px solid rgba(180,79,255,0.3);padding:14px;margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--purple);letter-spacing:2px;margin-bottom:8px">🔍 BACKGROUND SCANNER — ALERTS YOU WHEN TO TRADE</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.7">The app scans your watchlist every 90 seconds during market hours. Enter your email to get instant alerts when a catalyst is detected — breakouts, VWAP reclaims, Bitcoin moves, rapid price changes.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="email" id="scannerEmail" placeholder="yourname@gmail.com" style="background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;outline:none;flex:1;min-width:180px;">
+        <button class="btn" style="color:var(--purple);border-color:var(--purple)" onclick="subscribeScan()">🔔 SUBSCRIBE TO ALERTS</button>
+        <button class="btn" style="color:var(--muted);border-color:var(--muted)" onclick="unsubscribeScan()">UNSUBSCRIBE</button>
+      </div>
+      <div id="scannerStatus" style="font-size:11px;margin-top:8px;display:none;padding:6px;"></div>
+    </div>
+
     <!-- Warnings -->
     <div id="criticalWarnings"></div>
 
@@ -464,6 +479,12 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         <div id="ctxAfterHours" style="margin-bottom:8px"></div>
         <div id="ctxTomorrowEvents"></div>
       </div>
+    </div>
+
+    <!-- TIME WINDOW -->
+    <div id="timeWindowBox" style="display:none;padding:14px 16px;margin-bottom:10px;border-left:4px solid;text-align:center;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px" id="timeWindowTitle">--</div>
+      <div style="font-size:11px;margin-top:4px;line-height:1.7" id="timeWindowMsg">--</div>
     </div>
 
     <!-- Is today good to trade? -->
@@ -733,6 +754,67 @@ function getProbColor(p){return p>=55?"var(--green)":p>=40?"var(--yellow)":p>=25
 async function updateLivePrice(){
   try{const r=await fetch("/api/price/"+currentSymbol);const d=await r.json();if(d.success)document.getElementById("livePriceBadge").textContent=currentSymbol+": $"+d.price.toFixed(2);}catch(e){}
 }
+
+// ─── Scanner subscription ─────────────────────────────────────────────────────
+async function subscribeScan(){
+  const email=document.getElementById("scannerEmail").value.trim();
+  if(!email||!email.includes("@")){showScannerStatus("Please enter a valid email.","error");return;}
+  try{
+    const r=await fetch("/api/scanner/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+    const d=await r.json();
+    if(d.success){showScannerStatus("✅ Subscribed! You'll get email alerts when catalysts are detected during market hours.","success");}
+  }catch(e){showScannerStatus("Error: "+e.message,"error");}
+}
+
+async function unsubscribeScan(){
+  const email=document.getElementById("scannerEmail").value.trim();
+  if(!email){showScannerStatus("Enter your email to unsubscribe.","error");return;}
+  try{
+    await fetch("/api/scanner/unsubscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+    showScannerStatus("Unsubscribed from alerts.","success");
+  }catch(e){showScannerStatus("Error: "+e.message,"error");}
+}
+
+function showScannerStatus(msg,type){
+  const el=document.getElementById("scannerStatus");
+  el.textContent=msg;
+  el.style.color=type==="success"?"var(--green)":"var(--red)";
+  el.style.background=type==="success"?"rgba(0,255,136,0.06)":"rgba(255,59,92,0.06)";
+  el.style.display="block";
+}
+
+// ─── Poll for live alerts every 60 seconds ────────────────────────────────────
+async function checkLiveAlerts(){
+  try{
+    const r=await fetch("/api/alerts/latest");
+    const d=await r.json();
+    const alertsEl=document.getElementById("liveAlerts");
+    if(!alertsEl)return;
+    if(d.alerts&&d.alerts.length>0){
+      alertsEl.style.display="block";
+      alertsEl.innerHTML=`
+        <div style="font-size:10px;color:var(--purple);letter-spacing:2px;margin-bottom:8px">🚨 LIVE ALERTS — ${new Date(d.timestamp).toLocaleTimeString()}</div>
+        ${d.alerts.map(a=>`
+          <div style="padding:12px;margin-bottom:8px;background:${a.urgency==="HIGH"?"rgba(255,59,92,0.08)":"rgba(0,229,255,0.06)"};border-left:3px solid ${a.urgency==="HIGH"?"var(--red)":"var(--accent)"};font-size:11px;line-height:1.8;">
+            <strong style="color:${a.urgency==="HIGH"?"var(--red)":"var(--accent)"}">${a.type}: ${a.symbol}</strong><br>
+            ${a.message}<br>
+            <span style="color:var(--yellow)">→ ${a.action}</span>
+          </div>
+        `).join("")}
+        <div style="font-size:10px;color:var(--muted);text-align:right">Click "Find My Best Trade" for full analysis on any alerted stock</div>`;
+      // Browser notification
+      if("Notification"in window&&Notification.permission==="granted"){
+        new Notification("🚨 Trading Alert",{body:d.alerts[0].message,icon:"/favicon.ico"});
+      }
+    } else {
+      alertsEl.style.display="none";
+    }
+  }catch(e){}
+}
+
+// Start polling for alerts every 60 seconds
+setInterval(checkLiveAlerts,60000);
+checkLiveAlerts(); // Check immediately on load
 
 // ─── Challenge data ───────────────────────────────────────────────────────────
 async function loadChallengeData(){
@@ -1027,6 +1109,39 @@ function buildTradePanel(trade,idx){
     <!-- Strategy fit -->
     ${trade.strategyFit?`<div style="background:rgba(180,79,255,0.05);border-left:3px solid var(--purple);padding:10px 12px;margin-bottom:10px;font-size:11px;line-height:1.7"><strong style="color:var(--purple)">WHY THIS STOCK:</strong> ${trade.strategyFit}</div>`:""}
 
+    <!-- TOO LATE / RR BLOCK warnings -->
+    ${trade.tooLate?`<div style="background:rgba(255,59,92,0.1);border:2px solid var(--red);padding:16px;margin-bottom:12px;text-align:center;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--red);letter-spacing:3px">❌ TOO LATE — SKIP THIS TRADE</div>
+      <div style="font-size:12px;color:var(--text);margin-top:6px;line-height:1.7">${trade.tooLateReason||"The move already happened. Entering now means buying at the top."}</div>
+    </div>`:""}
+    
+    ${trade.rewardRiskBlocked?`<div style="background:rgba(255,140,0,0.08);border:2px solid var(--orange);padding:14px;margin-bottom:12px;text-align:center;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--orange);letter-spacing:2px">⚠️ POOR RISK/REWARD — BLOCKED</div>
+      <div style="font-size:12px;color:var(--text);margin-top:6px;line-height:1.7">Risk/Reward ratio is ${trade.rewardRiskRatio?.toFixed(2)||"unknown"} — minimum required is 1.5. The potential profit doesn't justify the risk. Skip this trade.</div>
+    </div>`:""}
+
+    <!-- ENTRY STATE — MOST IMPORTANT -->
+    ${trade.entryState?`<div style="background:${trade.entryState.includes("ENTER NOW")?"rgba(0,255,136,0.08)":trade.entryState.includes("READY")?"rgba(255,214,0,0.06)":"rgba(0,229,255,0.06)"};border:2px solid ${trade.entryState.includes("ENTER NOW")?"var(--green)":trade.entryState.includes("READY")?"var(--yellow)":"var(--accent)"};padding:16px;margin-bottom:12px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;color:${trade.entryState.includes("ENTER NOW")?"var(--green)":trade.entryState.includes("READY")?"var(--yellow)":"var(--accent)"}">
+        ${trade.entryState.includes("ENTER NOW")?"✅ ENTER NOW":trade.entryState.includes("READY")?"🟡 READY — WAIT FOR TRIGGER":"⏳ WAIT — NOT READY YET"}
+      </div>
+      <div style="font-size:12px;color:var(--text);margin-top:8px;line-height:1.8">${trade.entryState}</div>
+      ${trade.entryTrigger?`<div style="font-size:11px;color:var(--yellow);margin-top:8px;padding:8px;background:rgba(0,0,0,0.2);border-left:2px solid var(--yellow);line-height:1.7">
+        <strong>Exact trigger:</strong> ${trade.entryTrigger}
+      </div>`:""}
+      
+      ${trade.entryState&&trade.entryState.includes("WAIT")?`
+      <div style="margin-top:12px;padding:12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px">🤖 LET THE SCANNER WATCH FOR YOU:</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6">Enter your email — the background scanner checks every 90 seconds and emails you the MOMENT the trigger fires. You don't need to watch the screen.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input type="email" id="watchEmail${idx}" placeholder="yourname@gmail.com" style="background:#0a1520;border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 9px;outline:none;flex:1;min-width:160px;">
+          <button onclick="watchSetup(${idx},'${trade.symbol}','${trade.signal==="BUY"?"CALL":"PUT"}',${trade.entryPrice||0},${trade.stopLoss||0},${trade.profitTarget||0},${trade.intraday?.vwap||0})" style="padding:7px 14px;background:transparent;border:1px solid var(--green);color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;white-space:nowrap;">👁️ WATCH THIS SETUP</button>
+        </div>
+        <div id="watchStatus${idx}" style="font-size:11px;margin-top:6px;display:none;padding:6px;line-height:1.6;"></div>
+      </div>`:""}
+    </div>`:""}
+
     <!-- Signal — BIG AND CLEAR -->
     <div class="signal-box ${trade.signal.toLowerCase()}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
@@ -1097,6 +1212,7 @@ function buildTradePanel(trade,idx){
       <div class="budget-warning">⚠️ <strong>IMPORTANT:</strong> Always check the actual <strong>Ask Price</strong> on Robinhood before buying. It must be less than your available balance. If it costs more — scroll UP to find a cheaper strike price.</div>
       ${[
         ["OPTION TO BUY",trade.budget?.suggestedOptionType+" (betting it goes "+(trade.budget?.suggestedOptionType==="CALL"?"UP)":"DOWN)"),trade.budget?.suggestedOptionType==="CALL"?"var(--green)":"var(--red)"],
+        ["SPREAD QUALITY",trade.spreadPercent?"Spread is "+trade.spreadPercent.toFixed(1)+"% of option price "+(trade.spreadPercent<15?"✅ GOOD":"❌ TOO WIDE — find better contract"):"Check Robinhood bid/ask",trade.spreadPercent&&trade.spreadPercent<15?"var(--green)":"var(--yellow)"],
         ["STRIKE PRICE","$"+trade.budget?.strikePrice+" (this is the price level you're betting on)","var(--green)"],
         ["EXPIRATION DATE",trade.budget?.expiration+" ⚠️ Sell the day BEFORE this date — never hold to expiration","var(--green)"],
         ["HOW TO FIND ON ROBINHOOD","Search "+trade.symbol+" → Trade Options → look for $"+trade.budget?.strikePrice+" Call → expiring "+trade.budget?.expiration,"var(--accent)"],
@@ -1286,6 +1402,37 @@ async function runAnalysis(){
           "UNCLEAR":"var(--muted)"
         };
         trendEl.style.color = dayColors[ms.dayType] || "var(--text)";
+      }
+
+      // Time window display
+      if(ms.timeWindow){
+        const tw = ms.timeWindow;
+        const twBox = document.getElementById("timeWindowBox");
+        const twTitle = document.getElementById("timeWindowTitle");
+        const twMsg = document.getElementById("timeWindowMsg");
+        if(twBox && twTitle && twMsg){
+          twBox.style.display = "block";
+          const twColors = {false:"var(--red)", true:"var(--green)"};
+          const twBorderColors = {false:"var(--red)", true:"var(--green)"};
+          twBox.style.borderColor = tw.canTrade ? "var(--green)" : "var(--red)";
+          twBox.style.background = tw.canTrade ? "rgba(0,255,136,0.05)" : "rgba(255,59,92,0.05)";
+          twTitle.textContent = tw.window.replace(/_/g," ");
+          twTitle.style.color = tw.canTrade ? "var(--green)" : "var(--red)";
+          twMsg.textContent = tw.message;
+          twMsg.style.color = "var(--text)";
+          
+          // If can't trade, show big warning
+          if(!tw.canTrade){
+            warnings.push({type:"danger", msg:"⏰ TIME BLOCK: " + tw.message});
+          }
+        }
+      }
+
+      // Trend strength display
+      if(ms.trendStrength){
+        const ts = ms.trendStrength;
+        const tsColor = ts.score >= 70 ? "var(--green)" : ts.score >= 50 ? "var(--yellow)" : "var(--red)";
+        document.getElementById("mktTrend").innerHTML += `<div style="font-size:9px;color:${tsColor};margin-top:2px">Strength: ${ts.label} (${ts.score}/100)</div>`;
       }
 
       // Is it safe to trade today?
@@ -1501,19 +1648,21 @@ async function runAnalysis(){
     document.getElementById("tradeSectionTitle").textContent=`TODAY'S ${trades.length} TRADE${trades.length>1?"S":""} — ${d.activeStrategy?.name||""}`;
 
     // Rankings
-    document.getElementById("rankingsGrid").innerHTML=(d.stockRankings||[]).map(r=>{
-      const sc=r.score>=65?"var(--green)":r.score>=45?"var(--yellow)":"var(--red)";
-      return`<div class="rank-card" style="border-color:${sc}22">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div class="rank-sym">${r.symbol}</div>
-          <div class="rank-score" style="color:${sc}">${r.score}</div>
+    // Show clear TOP PICK label
+    const rankings = d.stockRankings || [];
+    if(rankings.length > 0){
+      document.getElementById("rankingsGrid").innerHTML = `
+        <div style="grid-column:1/-1;background:rgba(0,255,136,0.06);border:2px solid var(--green);padding:12px;margin-bottom:8px;">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">🏆 TODAY'S TOP PICK — FOCUS ON THIS ONE ONLY</div>
+          <div style="font-size:18px;font-weight:600;color:var(--green)">${rankings[0]?.symbol} — Score: ${rankings[0]?.score}/100</div>
+          <div style="font-size:11px;color:var(--text);margin-top:4px">${rankings[0]?.reason}</div>
         </div>
-        <div class="rank-reason">${r.reason}</div>
-        <div style="font-size:9px;margin-top:4px;color:${r.newsSentiment==="BULLISH"?"var(--green)":r.newsSentiment==="BEARISH"?"var(--red)":"var(--yellow)"}">News: ${r.newsSentiment||"—"}</div>
-        <div style="font-size:9px;margin-top:3px;color:${r.unusualActivity&&r.unusualActivity!=="—"?"var(--purple)":"var(--muted)"}">Big $: ${r.unusualActivity||"—"}</div>
-        ${r.relativeStrength?`<div style="font-size:9px;margin-top:3px;color:${r.relativeStrength.isLaggard?"var(--accent)":r.relativeStrength.isExtended?"var(--red)":"var(--muted)"}">vs SPY: ${r.relativeStrength.label?.replace(/_/g," ")||"—"}</div>`:""}
-      </div>`;
-    }).join("");
+        ${rankings.slice(1).map(r=>`<div class="rank-card" style="opacity:0.5"><div style="font-size:9px;color:var(--muted);margin-bottom:4px">Secondary</div><div style="font-size:12px;font-weight:600">${r.symbol}</div><div style="font-size:10px;color:var(--muted)">${r.score}/100</div></div>`).join("")}
+      `;
+    }
+    document.getElementById("rankingsGrid").querySelectorAll && document.getElementById("rankingsGrid").innerHTML && (()=>{})();
+    // Keep old render as fallback
+
 
     // Pre-fill log
     if(trades[0]){
@@ -1753,6 +1902,42 @@ async function addManualTrade(){
 function showManualStatus(msg,type){
   const el=document.getElementById("manualStatus");
   if(el){el.textContent=msg;el.className="log-status "+type;}
+}
+
+// ─── Watch Setup ─────────────────────────────────────────────────────────────
+async function watchSetup(idx, symbol, direction, triggerPrice, stopLoss, profitTarget, vwap) {
+  const email = document.getElementById(`watchEmail${idx}`)?.value?.trim();
+  if (!email || !email.includes("@")) {
+    showWatchStatus(idx, "Enter a valid email first.", "error");
+    return;
+  }
+  try {
+    const r = await fetch("/api/setup/save", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ symbol, direction, triggerPrice, triggerType: direction==="CALL"?"Break above $"+triggerPrice:"Break below $"+triggerPrice, stopLoss, profitTarget, strategy: currentStrategy, email, vwap })
+    });
+    const d = await r.json();
+    if (d.success) {
+      showWatchStatus(idx, `✅ Scanner is now watching ${symbol} every 90 seconds. You'll get an email the moment the trigger fires or if the setup is cancelled.`, "success");
+      // Also request browser notification
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(`👁️ Watching ${symbol}`, { body: `Scanner will alert you when ${symbol} hits the entry trigger.` });
+      }
+    } else throw new Error(d.error);
+  } catch(e) {
+    showWatchStatus(idx, "Error: " + e.message, "error");
+  }
+}
+
+function showWatchStatus(idx, msg, type) {
+  const el = document.getElementById(`watchStatus${idx}`);
+  if (el) {
+    el.textContent = msg;
+    el.style.color = type === "success" ? "var(--green)" : "var(--red)";
+    el.style.background = type === "success" ? "rgba(0,255,136,0.06)" : "rgba(255,59,92,0.06)";
+    el.style.display = "block";
+  }
 }
 
 function showMilestone(amount){
