@@ -299,6 +299,35 @@ const EDUCATION_TOPICS = {
   4: ["Advanced spreads","Iron condors","Straddles","Portfolio hedging","Correlation trading","Sector rotation","Macro analysis"]
 };
 
+// ─── Trend Strength Scorer ────────────────────────────────────────────────────
+function scoreTrendStrength(spyChange, vixValue, spyData) {
+  const absChange = Math.abs(spyChange);
+  let strength = 0;
+  
+  // SPY move size contributes to strength
+  if (absChange > 2) strength += 30;
+  else if (absChange > 1) strength += 20;
+  else if (absChange > 0.5) strength += 10;
+  else strength -= 10; // Flat = weak
+  
+  // VIX contribution — moderate VIX = healthy trend
+  if (vixValue < 20) strength += 20; // Low fear = stable trend
+  else if (vixValue < 25) strength += 10;
+  else if (vixValue > 30) strength -= 20; // High fear = unstable
+  
+  // Consistency bonus — big move with low VIX = strong trend
+  if (absChange > 1 && vixValue < 20) strength += 20;
+  
+  const score = Math.max(0, Math.min(100, strength + 40)); // Base of 40
+  const label = score >= 70 ? "STRONG" : score >= 50 ? "MODERATE" : score >= 30 ? "WEAK" : "VERY_WEAK";
+  
+  return {
+    score,
+    label,
+    plainEnglish: label === "STRONG" ? "Market trend is strong and consistent — momentum strategies work well today" : label === "MODERATE" ? "Moderate trend — be selective with entries" : label === "WEAK" ? "Weak trend — momentum strategies may fail, consider bounce strategies" : "Very weak trend — high chance of whipsaws, consider sitting out"
+  };
+}
+
 // ─── Market Day Classifier ────────────────────────────────────────────────────
 function classifyMarketDay(spyChange, vixValue, spyIntradayData) {
   const absChange = Math.abs(spyChange);
@@ -781,6 +810,166 @@ async function getSocialSentiment(symbols) {
   return sentiment;
 }
 
+// ─── Finnhub — Better News & Insider Data ────────────────────────────────────
+async function getFinnhubNews(symbol) {
+  try {
+    const FINNHUB_KEY = process.env.FINNHUB_API_KEY || "demo";
+    const to = new Date().toISOString().split("T")[0];
+    const from = new Date(Date.now() - 7*24*60*60*1000).toISOString().split("T")[0];
+    const r = await fetch(`https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${from}&to=${to}&token=${FINNHUB_KEY}`, 
+      { headers: {"User-Agent":"Mozilla/5.0"} });
+    const d = await r.json();
+    if (!Array.isArray(d)) return null;
+    const articles = d.slice(0,5).map(a => ({
+      headline: a.headline,
+      sentiment: a.sentiment || 0,
+      source: a.source,
+      time: new Date(a.datetime*1000).toLocaleString()
+    }));
+    const avgSentiment = articles.length > 0 ? articles.reduce((s,a)=>s+(a.sentiment||0),0)/articles.length : 0;
+    return {
+      articles,
+      sentimentScore: parseFloat(avgSentiment.toFixed(3)),
+      sentimentLabel: avgSentiment > 0.3 ? "BULLISH" : avgSentiment < -0.3 ? "BEARISH" : "NEUTRAL",
+      source: "Finnhub"
+    };
+  } catch(e) { return null; }
+}
+
+async function getFinnhubInsider(symbol) {
+  try {
+    const FINNHUB_KEY = process.env.FINNHUB_API_KEY || "demo";
+    const r = await fetch(`https://finnhub.io/api/v1/stock/insider-transactions?symbol=${symbol}&token=${FINNHUB_KEY}`,
+      { headers: {"User-Agent":"Mozilla/5.0"} });
+    const d = await r.json();
+    const transactions = (d.data||[]).slice(0,5);
+    const recentBuys = transactions.filter(t => t.transactionType === "Buy" || t.transactionType === "P-Purchase");
+    const recentSells = transactions.filter(t => t.transactionType === "Sell" || t.transactionType === "S-Sale");
+    if (transactions.length === 0) return null;
+    return {
+      recentBuys: recentBuys.length,
+      recentSells: recentSells.length,
+      signal: recentBuys.length > recentSells.length ? "BULLISH_INSIDER" : recentSells.length > recentBuys.length ? "BEARISH_INSIDER" : "NEUTRAL",
+      plainEnglish: recentBuys.length > 0 ? `${recentBuys.length} company insiders bought their own stock recently — bullish signal` : recentSells.length > 0 ? `${recentSells.length} insiders sold recently — bearish signal` : "No recent insider activity"
+    };
+  } catch(e) { return null; }
+}
+
+// ─── FRED — Economic Calendar ─────────────────────────────────────────────────
+async function getFREDEconomicEvents() {
+  try {
+    // FRED provides series data — we check key indicators
+    const r = await fetch("https://api.stlouisfed.org/fred/releases/dates?api_key=demo&file_type=json&limit=10",
+      { headers: {"User-Agent":"Mozilla/5.0"} });
+    // Fallback to manual economic calendar since FRED requires API key
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=Sun, 6=Sat
+    const hour = today.getHours();
+    
+    const events = [];
+    // First Friday of month = Jobs Report (8:30 AM ET)
+    const isFirstFriday = dayOfWeek === 5 && today.getDate() <= 7;
+    if (isFirstFriday) events.push({ name:"JOBS REPORT", time:"8:30 AM ET", impact:"EXTREME", warning:"🚨 Jobs report today — market will make a big move at 8:30 AM. Do not trade options before 10 AM today." });
+    // Third Wednesday = Fed Meeting possibility  
+    const isWed = dayOfWeek === 3;
+    if (isWed && today.getDate() >= 15 && today.getDate() <= 21) events.push({ name:"POTENTIAL FED MEETING", time:"2:00 PM ET", impact:"HIGH", warning:"⚠️ Possible Fed announcement at 2 PM. Market could swing hard. Close all positions by 1:45 PM." });
+    // General time warnings
+    if (hour >= 8 && hour < 10) events.push({ name:"PRE-MARKET", time:"Now", impact:"MEDIUM", warning:"⏰ Market opens in less than 2 hours. Big gaps possible. Wait until 10 AM to trade." });
+    if (hour >= 15) events.push({ name:"POWER HOUR", time:"3:00-4:00 PM ET", impact:"HIGH", warning:"⚡ Last hour of trading — very volatile. Close positions before 3:45 PM." });
+    
+    return events;
+  } catch(e) { return []; }
+}
+
+// ─── CoinGecko — Better Bitcoin Data ─────────────────────────────────────────
+async function getCoinGeckoCrypto() {
+  try {
+    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true",
+      { headers: {"User-Agent":"Mozilla/5.0", "Accept":"application/json"} });
+    const d = await r.json();
+    const btc = d.bitcoin;
+    const eth = d.ethereum;
+    if (!btc) return null;
+    
+    const btcChange = parseFloat((btc.usd_24h_change||0).toFixed(2));
+    const ethChange = parseFloat((eth?.usd_24h_change||0).toFixed(2));
+    const btcVol = btc.usd_24h_vol || 0;
+    
+    // High volume + price change = strong signal
+    const volStrength = btcVol > 50000000000 ? "HIGH" : btcVol > 20000000000 ? "MEDIUM" : "LOW";
+    const mood = btcChange > 3 ? "STRONGLY_BULLISH" : btcChange > 1 ? "BULLISH" : btcChange < -3 ? "STRONGLY_BEARISH" : btcChange < -1 ? "BEARISH" : "NEUTRAL";
+    
+    return {
+      btcPrice: parseFloat(btc.usd.toFixed(2)),
+      btcChange24h: btcChange,
+      ethChange24h: ethChange,
+      btcVolume: btcVol,
+      volumeStrength: volStrength,
+      mood,
+      miningStockImpact: btcChange > 2 ? `Bitcoin up ${btcChange}% — MARA and RIOT calls likely profitable right now` : btcChange < -2 ? `Bitcoin down ${Math.abs(btcChange)}% — avoid MARA and RIOT calls` : `Bitcoin flat — neutral impact on mining stocks`,
+      source: "CoinGecko"
+    };
+  } catch(e) { return null; }
+}
+
+// ─── Alpha Vantage — Better Options Data ─────────────────────────────────────
+async function getAlphaVantageOptions(symbol) {
+  try {
+    const AV_KEY = process.env.ALPHA_VANTAGE_KEY || "demo";
+    const r = await fetch(`https://www.alphavantage.co/query?function=HISTORICAL_OPTIONS&symbol=${symbol}&apikey=${AV_KEY}`,
+      { headers: {"User-Agent":"Mozilla/5.0"} });
+    const d = await r.json();
+    if (!d.data || !Array.isArray(d.data)) return null;
+    
+    // Find affordable calls with good liquidity
+    const calls = d.data
+      .filter(o => o.type === "call" && parseFloat(o.ask) > 0 && parseFloat(o.ask) < 1.0)
+      .map(o => ({
+        strike: parseFloat(o.strike),
+        ask: parseFloat(o.ask),
+        bid: parseFloat(o.bid),
+        spread: parseFloat((o.ask - o.bid).toFixed(3)),
+        spreadPct: parseFloat(((o.ask-o.bid)/o.ask*100).toFixed(1)),
+        openInterest: parseInt(o.open_interest)||0,
+        volume: parseInt(o.volume)||0,
+        delta: parseFloat(o.delta||0).toFixed(3),
+        theta: parseFloat(o.theta||0).toFixed(3),
+        impliedVol: parseFloat(o.implied_volatility||0).toFixed(3),
+        expiration: o.expiration,
+        totalCost: parseFloat((parseFloat(o.ask)*100).toFixed(2)),
+        isLiquid: parseInt(o.open_interest||0) >= 50 && parseFloat(o.ask-o.bid) <= 0.06,
+        grade: parseInt(o.open_interest||0) >= 100 && parseFloat(o.ask-o.bid) <= 0.04 ? "A" : parseInt(o.open_interest||0) >= 50 && parseFloat(o.ask-o.bid) <= 0.06 ? "B" : "C"
+      }))
+      .filter(o => o.openInterest >= 20)
+      .sort((a,b) => b.openInterest - a.openInterest)
+      .slice(0, 10);
+    
+    return { calls, source: "AlphaVantage" };
+  } catch(e) { return null; }
+}
+
+// ─── Contract Quality Filter ──────────────────────────────────────────────────
+function filterContractQuality(contracts, balance) {
+  if (!contracts || contracts.length === 0) return [];
+  const maxCost = balance * 0.20; // Never more than 20% of balance
+  const maxDollarSpread = 0.06; // Max $6 per contract spread
+  const minOI = 50; // Minimum open interest
+  
+  return contracts
+    .filter(c => {
+      const cost = c.ask * 100;
+      const spread = c.ask - c.bid;
+      return cost <= maxCost && spread <= maxDollarSpread && c.openInterest >= minOI;
+    })
+    .map(c => ({
+      ...c,
+      qualityGrade: c.openInterest >= 100 && (c.ask-c.bid) <= 0.03 ? "A — EXCELLENT" : c.openInterest >= 50 && (c.ask-c.bid) <= 0.06 ? "B — GOOD" : "C — ACCEPTABLE",
+      whyGood: `OI: ${c.openInterest} contracts | Spread: $${((c.ask-c.bid)*100).toFixed(2)} per contract | Cost: $${(c.ask*100).toFixed(2)}`
+    }))
+    .sort((a,b) => b.openInterest - a.openInterest);
+}
+
+// ─── Market Context Engine — WHY is the market moving? ──────────────────────
 // ─── Market Context Engine — WHY is the market moving? ──────────────────────
 async function getMarketContext() {
   try {
@@ -1301,6 +1490,27 @@ async function getIntradayContext(symbol) {
   }
 }
 
+// ─── Trading Time Window ─────────────────────────────────────────────────────
+function getTradingTimeWindow() {
+  const now = new Date();
+  const etOffset = -5; // ET is UTC-5 (adjust for DST if needed)
+  const etHour = (now.getUTCHours() + 24 + etOffset) % 24;
+  const etMinute = now.getUTCMinutes();
+  const etTime = etHour + etMinute/60;
+  
+  // Define trading windows
+  if (etTime < 9.5) return { window: "PRE_MARKET", canTrade: false, message: "Market not open yet. Opens at 9:30 AM ET. Options are not available pre-market.", color: "red" };
+  if (etTime < 9.75) return { window: "OPENING_VOLATILITY", canTrade: false, message: "Too early — first 15 minutes are extremely volatile. HARD BLOCK: Wait until 9:45 AM ET minimum.", color: "red" };
+  if (etTime < 10.0) return { window: "CAUTION_ZONE", canTrade: false, message: "Still risky — best to wait until 10:00 AM for cleaner signals.", color: "yellow" };
+  if (etTime < 11.5) return { window: "BEST_WINDOW", canTrade: true, message: "✅ BEST TRADING WINDOW: 10:00-11:30 AM ET. Opening range is set, volume is good, momentum is clear.", color: "green" };
+  if (etTime < 12.0) return { window: "GOOD_WINDOW", canTrade: true, message: "Good trading window. Market has found its direction. Enter on fresh setups only.", color: "green" };
+  if (etTime < 13.0) return { window: "LUNCH_DEAD_ZONE", canTrade: false, message: "⚠️ LUNCH DEAD ZONE: 12:00-1:00 PM ET. Volume dries up. Options stop moving. High chance of getting stuck. Wait it out.", color: "yellow" };
+  if (etTime < 14.5) return { window: "AFTERNOON_WINDOW", canTrade: true, message: "Afternoon trading window. Only take HIGH confidence setups. Keep size small.", color: "yellow" };
+  if (etTime < 15.5) return { window: "POWER_HOUR", canTrade: true, message: "Power hour — fast moves in final hour. Only enter if you can watch closely. Exit by 3:45 PM.", color: "yellow" };
+  if (etTime < 15.75) return { window: "HARD_STOP", canTrade: false, message: "🛑 HARD STOP: 3:30 PM ET — no new trades. Close existing positions if still open.", color: "red" };
+  return { window: "MARKET_CLOSED", canTrade: false, message: "Market is closed. Come back tomorrow at 10:00 AM ET.", color: "red" };
+}
+
 // ─── Economic Calendar (major scheduled events) ──────────────────────────────
 function getTodayEconomicEvents() {
   const now = new Date();
@@ -1670,6 +1880,8 @@ app.get("/api/analyze", async (req, res) => {
     const vix = vixR.status==="fulfilled"?vixR.value:{value:20,level:"NORMAL",tradingAdvice:"Trade normally",optionCost:"Options normally priced"};
     const crypto = cryptoR.status==="fulfilled"?cryptoR.value:{btcChange:0,cryptoMood:"NEUTRAL",impact:"Crypto data unavailable"};
     const marketContext = contextR.status==="fulfilled"?contextR.value:{weekTrend:"UNKNOWN",weekChange:0,catalyst:"UNKNOWN",headlines:[],moveAlreadyDone:false,contextRecommendation:"",plainEnglish:"Market context unavailable"};
+    const coinGecko = coinGeckoR.status==="fulfilled"&&coinGeckoR.value?coinGeckoR.value:{btcPrice:0,btcChange24h:0,mood:"NEUTRAL",miningStockImpact:"Bitcoin data unavailable"};
+    const fredEvents = fredR.status==="fulfilled"?fredR.value:[];
     const futures = futuresR.status==="fulfilled"?futuresR.value:{esChange:0,tomorrowBias:"UNKNOWN",tradingImplication:"Futures unavailable",plainEnglish:"Futures data unavailable"};
     const breadth = breadthR.status==="fulfilled"?breadthR.value:{breadthScore:50,breadthLabel:"UNKNOWN",plainEnglish:"Breadth unavailable",tomorrowImplication:"",sectorMoves:[]};
     const tomorrowEvents = getTomorrowEconomicEvents();
@@ -1745,6 +1957,11 @@ app.get("/api/analyze", async (req, res) => {
     const intradayMap={};
     if(intradayR.status==="fulfilled")intradayR.value.forEach(i=>{intradayMap[i.symbol]=i.intraday;});
     const socialMap = socialR.status==="fulfilled" ? socialR.value : {};
+    const finnhubMap = {};
+    if(finnhubR.status==="fulfilled") finnhubR.value.forEach(f=>{ if(f.finnhub) finnhubMap[f.symbol]=f.finnhub; });
+    
+    // Use CoinGecko for better Bitcoin data on crypto stocks
+    const btcChange = coinGecko.btcChange24h || crypto.btcChange || 0;
     const afterHoursMovers = afterHoursR.status==="fulfilled" ? afterHoursR.value : [];
 
     // Track recently losing stocks to avoid recommending them again
@@ -1814,6 +2031,9 @@ app.get("/api/analyze", async (req, res) => {
       divergence: marketDataMap[sym]?.divergence || null,
       chartPatterns: marketDataMap[sym]?.chartPatterns || null,
       primaryPattern: marketDataMap[sym]?.chartPatterns?.[0] || null,
+      finnhubSentiment: finnhubMap[sym] || null,
+      btcCorrelationSignal: ["MARA","RIOT","CLSK"].includes(sym) ? coinGecko.miningStockImpact : null,
+      econEvents: economicEvents.length > 0 ? economicEvents : null,
       momentum:marketDataMap[sym]?.momentum||{exhaustionLevel:"UNKNOWN",isTradeable:true,exhaustionWarning:"",moveRatio:0,remainingRoom:0},
       relativeStrength: (() => {
         const stockChange = marketDataMap[sym]?.priceData?.change || 0;
@@ -1864,6 +2084,12 @@ app.get("/api/analyze", async (req, res) => {
     const allStocksUpBig = Object.values(marketDataMap).filter(s => Math.abs(s.priceData?.change||0) > 15).length;
     const shouldSitOut = isExtremelyVolatile || allStocksUpBig > 3;
     const marketComment2 = shouldSitOut ? "SIT OUT TODAY" : isMildlyVolatile ? "TRADE CAUTIOUSLY" : "GOOD DAY TO TRADE";
+    
+    // Trend strength
+    const trendStrength = scoreTrendStrength(spyChange, fearGreed.score, null);
+    
+    // Trading time window
+    const timeWindow = getTradingTimeWindow();
 
     const prompt=`You are an elite adaptive options trading AI. You have LIVE data fetched at ${new Date().toLocaleTimeString()} ET.
     
@@ -1970,6 +2196,8 @@ Return ONLY valid JSON:
     "dayTradingAdvice":"${dayClassification.tradingAdvice}",
     "dayBestStrategy":"${dayClassification.bestStrategy}",
     "isExtremelyVolatile":${isExtremelyVolatile},
+    "trendStrength":{"score":${trendStrength.score},"label":"${trendStrength.label}","plainEnglish":"${trendStrength.plainEnglish}"},
+    "timeWindow":{"window":"${timeWindow.window}","canTrade":${timeWindow.canTrade},"message":"${timeWindow.message}"},
     "volatileWarning":"${volatileWarning||""}",
     "pdtWarning":"${pdtWarning||""}",
     "balanceWarning":"${balanceWarning||""}",
@@ -2052,7 +2280,14 @@ Return ONLY valid JSON:
       "correlatedLaggards":"List any stocks in the same group that haven't moved yet — laggard opportunities",
       "correlationInsight":"Plain English explanation of how this stock connects to others and what that means for the trade",
       "signal":"BUY" or "SELL" or "HOLD",
+      "entryState":"WAIT — Setup building, watch for [trigger]" or "READY — Enter when [specific condition]" or "ENTER NOW — All conditions met",
+      "entryTrigger":"The EXACT thing that needs to happen before entering. Example: Price must close above $13.50 with volume above 500k. Or: Price holds above VWAP for 2 consecutive minutes.",
       "confidence":"LOW" or "MEDIUM" or "HIGH",
+      "tooLate":true or false,
+      "tooLateReason":"Why it is too late if applicable",
+      "rewardRiskRatio":number,
+      "rewardRiskBlocked":true or false,
+      "spreadPercent":number,
       "accuracyScore":number,
       "indicatorConsensus":{"bullish":number,"bearish":number,"neutral":number},
       "signalExplanation":string,
@@ -2381,5 +2616,388 @@ app.post("/api/monitor/stop",(req,res)=>{
 });
 
 app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
+
+// ─── Background Market Scanner ────────────────────────────────────────────────
+const alertHistory = {}; // Track sent alerts to avoid duplicates
+const subscribedEmails = new Set(); // Track subscribed users
+
+// ─── Pending Setup Storage ────────────────────────────────────────────────────
+const PENDING_FILE = path.join(__dirname, "pending_setups.json");
+
+function loadPendingSetups() {
+  if (!fs.existsSync(PENDING_FILE)) return [];
+  try { return JSON.parse(fs.readFileSync(PENDING_FILE, "utf8")); }
+  catch(e) { return []; }
+}
+
+function savePendingSetups(setups) {
+  fs.writeFileSync(PENDING_FILE, JSON.stringify(setups, null, 2));
+}
+
+// Save a pending setup when app says WAIT
+app.post("/api/setup/save", (req, res) => {
+  const { symbol, direction, triggerPrice, triggerType, stopLoss, profitTarget, strategy, email, vwap, orbHigh } = req.body;
+  const setups = loadPendingSetups();
+  
+  // Remove any existing setup for this symbol
+  const filtered = setups.filter(s => s.symbol !== symbol);
+  
+  const newSetup = {
+    id: Date.now(),
+    symbol, direction, triggerPrice, triggerType,
+    stopLoss, profitTarget, strategy,
+    email, vwap, orbHigh,
+    createdAt: new Date().toISOString(),
+    status: "WAITING",
+    expiresAt: new Date(Date.now() + 4*60*60*1000).toISOString() // Expires in 4 hours
+  };
+  
+  filtered.push(newSetup);
+  savePendingSetups(filtered);
+  
+  // Send confirmation email
+  if (email && email.includes("@")) {
+    sendAlertEmail(email, `⏳ Watching ${symbol} for Entry Trigger`,
+      `<div style="font-family:monospace;background:#060a0f;color:#c8dff0;padding:24px;">
+        <h2 style="color:#ffd600">⏳ WATCHING FOR ENTRY — ${symbol}</h2>
+        <p>The background scanner is now watching <strong>${symbol}</strong> every 90 seconds.</p>
+        <p><strong style="color:#00e5ff">Trigger:</strong> ${triggerType} at $${triggerPrice}</p>
+        <p><strong style="color:#ff3b5c">Stop Loss:</strong> $${stopLoss}</p>
+        <p><strong style="color:#00ff88">Target:</strong> $${profitTarget}</p>
+        <p style="color:#4a6b85;margin-top:12px;font-size:12px">You'll get an alert the moment the trigger fires or if the setup is cancelled.</p>
+      </div>`
+    ).catch(()=>{});
+  }
+  
+  res.json({ success: true, setup: newSetup });
+});
+
+app.get("/api/setup/pending", (req, res) => {
+  const setups = loadPendingSetups().filter(s => s.status === "WAITING");
+  res.json({ success: true, setups });
+});
+
+app.delete("/api/setup/cancel/:id", (req, res) => {
+  const setups = loadPendingSetups().filter(s => s.id !== parseInt(req.params.id));
+  savePendingSetups(setups);
+  res.json({ success: true });
+});
+
+app.post("/api/scanner/subscribe", (req, res) => {
+  const { email } = req.body;
+  if (email && email.includes("@")) {
+    subscribedEmails.add(email);
+    res.json({ success:true, message:`Subscribed ${email} to live alerts` });
+  } else {
+    res.status(400).json({ success:false, error:"Invalid email" });
+  }
+});
+
+app.post("/api/scanner/unsubscribe", (req, res) => {
+  const { email } = req.body;
+  subscribedEmails.delete(email);
+  res.json({ success:true });
+});
+
+app.get("/api/scanner/status", (req, res) => {
+  res.json({ 
+    success:true, 
+    running: true,
+    subscribedCount: subscribedEmails.size,
+    lastAlerts: Object.entries(alertHistory).slice(-5).map(([k,v]) => ({symbol:k.split("_")[0], trigger:k.split("_")[1], time:v}))
+  });
+});
+
+// Catalyst detection function
+async function detectCatalysts() {
+  try {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    
+    // Only scan during market hours ET (14:30-21:00 UTC = 9:30 AM - 4:00 PM ET roughly)
+    const utcHour = now.getUTCHours();
+    if (utcHour < 14 || utcHour >= 21) return; // Market closed
+    if (now.getDay() === 0 || now.getDay() === 6) return; // Weekend
+    
+    const watchlist = ["SOUN","SOFI","MARA","RIOT","VALE","AAL","NIO","PLTR"];
+    const alerts = [];
+    
+    // Check Bitcoin first (affects MARA/RIOT)
+    const crypto = await getCoinGeckoCrypto().catch(()=>null);
+    if (crypto && Math.abs(crypto.btcChange24h) > 3) {
+      const alertKey = `BTC_bigmove_${now.toDateString()}`;
+      if (!alertHistory[alertKey]) {
+        alertHistory[alertKey] = now.toISOString();
+        alerts.push({
+          type: "CRYPTO_CATALYST",
+          symbol: crypto.btcChange24h > 0 ? "MARA" : "RIOT",
+          message: `₿ BITCOIN ALERT: BTC ${crypto.btcChange24h > 0 ? "UP" : "DOWN"} ${Math.abs(crypto.btcChange24h).toFixed(1)}% — ${crypto.miningStockImpact}`,
+          urgency: "HIGH",
+          action: crypto.btcChange24h > 0 ? "Consider MARA or RIOT CALL options" : "Avoid MARA/RIOT calls today"
+        });
+      }
+    }
+    
+    // Check each stock for catalysts
+    for (const symbol of watchlist.slice(0,4)) { // Limit to avoid rate limiting
+      try {
+        const [quote, intraday] = await Promise.allSettled([
+          fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=5m&range=1d`, {headers:{"User-Agent":"Mozilla/5.0"}}).then(r=>r.json()),
+          getIntradayContext(symbol)
+        ]);
+        
+        if (quote.status !== "fulfilled") continue;
+        const meta = quote.value?.chart?.result?.[0]?.meta;
+        if (!meta) continue;
+        
+        const currentPrice = meta.regularMarketPrice;
+        const prevClose = meta.chartPreviousClose;
+        const todayChange = ((currentPrice-prevClose)/prevClose*100);
+        
+        // Catalyst 1: Opening Range Breakout
+        if (intraday.status === "fulfilled" && intraday.value) {
+          const intra = intraday.value;
+          if (intra.orbSignal === "BULLISH_BREAKOUT" && intra.isMoving) {
+            const alertKey = `${symbol}_ORB_${now.toDateString()}`;
+            if (!alertHistory[alertKey]) {
+              alertHistory[alertKey] = now.toISOString();
+              alerts.push({
+                type: "ORB_BREAKOUT",
+                symbol,
+                message: `🚀 ${symbol} BREAKOUT: Price broke above opening range high at $${intra.openingRangeHigh} with momentum. Real time trend: UPTREND. VWAP: ${intra.aboveVWAP?"ABOVE ✅":"BELOW ❌"}`,
+                urgency: "HIGH",
+                action: `Consider ${symbol} CALL options — breakout confirmed`
+              });
+            }
+          }
+          
+          // Catalyst 2: VWAP Reclaim
+          if (intra.aboveVWAP && intra.realtimeTrend === "UPTREND" && intra.isMoving) {
+            const alertKey = `${symbol}_VWAP_${now.toDateString()}_${hour}`;
+            if (!alertHistory[alertKey]) {
+              alertHistory[alertKey] = now.toISOString();
+              alerts.push({
+                type: "VWAP_RECLAIM",
+                symbol,
+                message: `📊 ${symbol} VWAP RECLAIM: Price above VWAP at $${intra.vwap} and trending UP. Strong intraday signal.`,
+                urgency: "MEDIUM",
+                action: `${symbol} showing bullish momentum — watch for entry opportunity`
+              });
+            }
+          }
+        }
+        
+        // Catalyst 3: Unusual price move in last period
+        const quotes2 = quote.value?.chart?.result?.[0]?.indicators?.quote?.[0];
+        const closes = quotes2?.close?.filter(Boolean) || [];
+        if (closes.length >= 3) {
+          const recentMove = Math.abs((closes[closes.length-1]-closes[closes.length-3])/closes[closes.length-3]*100);
+          if (recentMove > 2) { // 2%+ move in last 10 minutes
+            const alertKey = `${symbol}_MOVE_${now.toDateString()}_${hour}_${Math.floor(minute/15)}`;
+            if (!alertHistory[alertKey]) {
+              alertHistory[alertKey] = now.toISOString();
+              const direction = closes[closes.length-1] > closes[closes.length-3] ? "UP" : "DOWN";
+              alerts.push({
+                type: "RAPID_MOVE",
+                symbol,
+                message: `⚡ ${symbol} RAPID MOVE: ${direction} ${recentMove.toFixed(1)}% in last 10 minutes. Momentum building.`,
+                urgency: "MEDIUM",
+                action: direction === "UP" ? `Watch ${symbol} for CALL opportunity` : `Watch ${symbol} for PUT opportunity`
+              });
+            }
+          }
+        }
+        
+        await new Promise(r=>setTimeout(r,500)); // Rate limit between stocks
+      } catch(e) { continue; }
+    }
+    
+    // Send alerts to subscribed emails
+    if (alerts.length > 0 && subscribedEmails.size > 0) {
+      const alertHtml = `
+        <div style="font-family:monospace;background:#060a0f;color:#c8dff0;padding:24px;">
+          <h2 style="color:#00e5ff">🚨 TRADING ALERT — ${new Date().toLocaleTimeString()} ET</h2>
+          ${alerts.map(a => `
+            <div style="margin:12px 0;padding:12px;background:rgba(${a.urgency==="HIGH"?"255,59,92":"0,229,255"},0.1);border-left:3px solid ${a.urgency==="HIGH"?"#ff3b5c":"#00e5ff"};">
+              <strong style="color:${a.urgency==="HIGH"?"#ff3b5c":"#00e5ff"}">${a.type}: ${a.symbol}</strong><br>
+              ${a.message}<br>
+              <em style="color:#ffd600">Action: ${a.action}</em>
+            </div>
+          `).join("")}
+          <p style="color:#4a6b85;margin-top:16px;font-size:12px">Open your trading app and click "Find My Best Trade" for full analysis.</p>
+        </div>`;
+      
+      for (const email of subscribedEmails) {
+        await sendAlertEmail(email, `🚨 ${alerts.length} Trading Alert${alerts.length>1?"s":""} — ${alerts.map(a=>a.symbol).join(", ")}`, alertHtml).catch(()=>{});
+      }
+      
+      console.log(`[Scanner] Sent ${alerts.length} alerts to ${subscribedEmails.size} subscribers`);
+    }
+    
+    // CHECK PENDING SETUPS — entry confirmation system
+    const pendingSetups = loadPendingSetups().filter(s => s.status === "WAITING");
+    const now2 = new Date();
+    
+    for (const setup of pendingSetups) {
+      // Check if expired
+      if (new Date(setup.expiresAt) < now2) {
+        setup.status = "EXPIRED";
+        if (setup.email) {
+          await sendAlertEmail(setup.email, `⏰ Setup Expired — ${setup.symbol}`,
+            `<div style="font-family:monospace;background:#060a0f;color:#c8dff0;padding:24px;">
+              <h2 style="color:#4a6b85">⏰ SETUP EXPIRED — ${setup.symbol}</h2>
+              <p>The entry trigger for ${setup.symbol} at $${setup.triggerPrice} was not reached in time.</p>
+              <p style="color:#4a6b85">Run a new analysis tomorrow for fresh setups.</p>
+            </div>`
+          ).catch(()=>{});
+        }
+        continue;
+      }
+      
+      try {
+        // Fetch current price and intraday data
+        const [priceR, intradayR] = await Promise.allSettled([
+          fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${setup.symbol}?interval=2m&range=1d`, {headers:{"User-Agent":"Mozilla/5.0"}}).then(r=>r.json()),
+          getIntradayContext(setup.symbol)
+        ]);
+        
+        if (priceR.status !== "fulfilled") continue;
+        const currentPrice = priceR.value?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        const intraday = intradayR.status === "fulfilled" ? intradayR.value : null;
+        
+        if (!currentPrice) continue;
+        
+        // Check trigger conditions
+        let triggered = false;
+        let triggerMessage = "";
+        let cancelled = false;
+        let cancelMessage = "";
+        
+        // Entry trigger check
+        if (setup.direction === "CALL") {
+          // For calls, price needs to break ABOVE trigger
+          if (currentPrice >= setup.triggerPrice) {
+            // Also check volume confirmation if we have intraday data
+            const volumeOk = !intraday || intraday.isMoving;
+            const trendOk = !intraday || intraday.realtimeTrend === "UPTREND";
+            if (volumeOk && trendOk) {
+              triggered = true;
+              triggerMessage = `${setup.symbol} broke above $${setup.triggerPrice} at current price $${currentPrice.toFixed(2)}. Real time trend: UPTREND confirmed. ENTER NOW.`;
+            }
+          }
+          // Cancel if drops below stop loss
+          if (currentPrice <= setup.stopLoss) {
+            cancelled = true;
+            cancelMessage = `${setup.symbol} dropped to $${currentPrice.toFixed(2)}, below stop loss of $${setup.stopLoss}. Setup cancelled.`;
+          }
+          // Cancel if drops below VWAP significantly
+          if (intraday && !intraday.aboveVWAP && setup.vwap && currentPrice < setup.vwap * 0.99) {
+            cancelled = true;
+            cancelMessage = `${setup.symbol} dropped below VWAP ($${setup.vwap}). Bullish setup invalidated. Do not trade.`;
+          }
+        } else {
+          // For puts, price needs to break BELOW trigger
+          if (currentPrice <= setup.triggerPrice) {
+            const trendOk = !intraday || intraday.realtimeTrend === "DOWNTREND";
+            if (trendOk) {
+              triggered = true;
+              triggerMessage = `${setup.symbol} broke below $${setup.triggerPrice} at $${currentPrice.toFixed(2)}. Downtrend confirmed. ENTER NOW with PUT.`;
+            }
+          }
+          if (currentPrice >= setup.stopLoss) {
+            cancelled = true;
+            cancelMessage = `${setup.symbol} rallied above $${setup.stopLoss}. Put setup cancelled.`;
+          }
+        }
+        
+        if (triggered) {
+          setup.status = "TRIGGERED";
+          alerts.push({
+            type: "ENTRY_CONFIRMED",
+            symbol: setup.symbol,
+            message: `🟢 ENTER NOW — ${triggerMessage}`,
+            urgency: "HIGH",
+            action: `Open Robinhood → search ${setup.symbol} → Trade Options → BUY ${setup.direction} → Target: $${setup.profitTarget} | Stop: $${setup.stopLoss}`
+          });
+          
+          if (setup.email) {
+            await sendAlertEmail(setup.email, `🟢 ENTER NOW — ${setup.symbol} Trigger Hit!`,
+              `<div style="font-family:monospace;background:#060a0f;color:#c8dff0;padding:24px;">
+                <h2 style="color:#00ff88;font-size:28px">🟢 ENTER NOW — ${setup.symbol}</h2>
+                <p style="font-size:16px">${triggerMessage}</p>
+                <div style="background:rgba(0,255,136,0.1);padding:16px;margin:12px 0;border-left:4px solid #00ff88;">
+                  <p><strong>Action:</strong> Open Robinhood NOW</p>
+                  <p><strong>Trade:</strong> BUY ${setup.direction} on ${setup.symbol}</p>
+                  <p><strong style="color:#ff3b5c">Stop Loss:</strong> $${setup.stopLoss}</p>
+                  <p><strong style="color:#00ff88">Target:</strong> $${setup.profitTarget}</p>
+                </div>
+                <p style="color:#ffd600;font-size:12px">⚡ Act quickly — the window is open now but may close fast.</p>
+              </div>`
+            ).catch(()=>{});
+          }
+        } else if (cancelled) {
+          setup.status = "CANCELLED";
+          alerts.push({
+            type: "SETUP_CANCELLED",
+            symbol: setup.symbol,
+            message: `❌ SETUP CANCELLED — ${cancelMessage}`,
+            urgency: "MEDIUM",
+            action: "Do not trade ${setup.symbol} today. Run new analysis tomorrow."
+          });
+          
+          if (setup.email) {
+            await sendAlertEmail(setup.email, `❌ Setup Cancelled — ${setup.symbol}`,
+              `<div style="font-family:monospace;background:#060a0f;color:#c8dff0;padding:24px;">
+                <h2 style="color:#ff3b5c">❌ SETUP CANCELLED — ${setup.symbol}</h2>
+                <p>${cancelMessage}</p>
+                <p style="color:#4a6b85;margin-top:12px">The market conditions changed. Do not force this trade. Run a fresh analysis tomorrow.</p>
+              </div>`
+            ).catch(()=>{});
+          }
+        }
+        
+        await new Promise(r=>setTimeout(r,500));
+      } catch(e) { continue; }
+    }
+    
+    // Save updated pending setups
+    const allSetups = loadPendingSetups();
+    const updatedSetups = allSetups.map(s => {
+      const updated = pendingSetups.find(p => p.id === s.id);
+      return updated || s;
+    });
+    savePendingSetups(updatedSetups);
+
+    // Store latest alerts for frontend polling
+    if (alerts.length > 0) {
+      const alertFile = path.join(__dirname, "latest_alerts.json");
+      fs.writeFileSync(alertFile, JSON.stringify({ alerts, timestamp: new Date().toISOString() }, null, 2));
+    }
+    
+  } catch(e) { console.error("[Scanner] Error:", e.message); }
+}
+
+// Get latest alerts for frontend
+app.get("/api/alerts/latest", (req, res) => {
+  try {
+    const alertFile = path.join(__dirname, "latest_alerts.json");
+    if (fs.existsSync(alertFile)) {
+      const data = JSON.parse(fs.readFileSync(alertFile, "utf8"));
+      // Only return alerts from last 30 minutes
+      const thirtyMinAgo = new Date(Date.now() - 30*60*1000);
+      if (new Date(data.timestamp) > thirtyMinAgo) {
+        return res.json({ success:true, ...data });
+      }
+    }
+    res.json({ success:true, alerts:[], timestamp: new Date().toISOString() });
+  } catch(e) { res.json({ success:true, alerts:[] }); }
+});
+
+// Start background scanner — runs every 90 seconds during market hours
+const SCAN_INTERVAL = 90 * 1000; // 90 seconds
+setInterval(detectCatalysts, SCAN_INTERVAL);
+console.log("[Scanner] Background scanner started — checking every 90 seconds during market hours");
+
 const PORT=process.env.PORT||3000;
 app.listen(PORT,()=>console.log(`Challenge AI v3 on port ${PORT}`));
