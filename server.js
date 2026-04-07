@@ -888,6 +888,211 @@ async function getMarketContext() {
   }
 }
 
+// ─── SPY Futures (predict tomorrow's open) ───────────────────────────────────
+async function getSPYFutures() {
+  try {
+    // ES=F is S&P 500 futures, YM=F is Dow futures
+    const [esR, nqR] = await Promise.allSettled([
+      fetch("https://query1.finance.yahoo.com/v8/finance/chart/ES%3DF?interval=5m&range=1d", {headers:{"User-Agent":"Mozilla/5.0"}}),
+      fetch("https://query1.finance.yahoo.com/v8/finance/chart/NQ%3DF?interval=5m&range=1d", {headers:{"User-Agent":"Mozilla/5.0"}})
+    ]);
+
+    let esPrice = 0, esChange = 0, nqChange = 0;
+    if (esR.status === "fulfilled") {
+      const d = await esR.value.json();
+      const meta = d.chart?.result?.[0]?.meta;
+      esPrice = parseFloat(meta?.regularMarketPrice?.toFixed(2) || 0);
+      const prev = parseFloat(meta?.chartPreviousClose?.toFixed(2) || esPrice);
+      esChange = parseFloat(((esPrice - prev) / prev * 100).toFixed(2));
+    }
+    if (nqR.status === "fulfilled") {
+      const d = await nqR.value.json();
+      const meta = d.chart?.result?.[0]?.meta;
+      const nqPrice = parseFloat(meta?.regularMarketPrice || 0);
+      const prev = parseFloat(meta?.chartPreviousClose || nqPrice);
+      nqChange = parseFloat(((nqPrice - prev) / prev * 100).toFixed(2));
+    }
+
+    const tomorrowBias = esChange > 1 ? "STRONGLY BULLISH" : esChange > 0.3 ? "BULLISH" : esChange < -1 ? "STRONGLY BEARISH" : esChange < -0.3 ? "BEARISH" : "NEUTRAL";
+    const tradingImplication = esChange > 0.5 
+      ? `Futures up ${esChange}% — market likely opens UP tomorrow. Prepare for CALL options on strong stocks.`
+      : esChange < -0.5 
+      ? `Futures down ${Math.abs(esChange)}% — market likely opens DOWN tomorrow. Consider PUT options or sitting out.`
+      : `Futures flat — tomorrow's direction unclear. Wait for 10 AM to see which way market breaks.`;
+
+    return {
+      esPrice, esChange, nqChange,
+      tomorrowBias,
+      tradingImplication,
+      plainEnglish: `S&P futures are ${esChange >= 0 ? "UP" : "DOWN"} ${Math.abs(esChange).toFixed(2)}% right now. This means tomorrow's market will likely open ${esChange >= 0 ? "higher" : "lower"} than today's close.`
+    };
+  } catch(e) {
+    return { esChange: 0, tomorrowBias: "UNKNOWN", tradingImplication: "Futures data unavailable", plainEnglish: "Unable to fetch futures data" };
+  }
+}
+
+// ─── After Hours Movers ────────────────────────────────────────────────────────
+async function getAfterHoursMovers(symbols) {
+  const movers = [];
+  for (const sym of symbols.slice(0, 8)) {
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=5m&range=1d`, {headers:{"User-Agent":"Mozilla/5.0"}});
+      const d = await r.json();
+      const meta = d.chart?.result?.[0]?.meta;
+      if (!meta) continue;
+      const regularPrice = parseFloat(meta.regularMarketPrice?.toFixed(2) || 0);
+      const postPrice = parseFloat(meta.postMarketPrice?.toFixed(2) || regularPrice);
+      const postChange = regularPrice > 0 ? parseFloat(((postPrice - regularPrice) / regularPrice * 100).toFixed(2)) : 0;
+      if (Math.abs(postChange) > 1) {
+        movers.push({
+          symbol: sym,
+          regularPrice,
+          postPrice,
+          postChange,
+          direction: postChange > 0 ? "UP" : "DOWN",
+          significance: Math.abs(postChange) > 5 ? "MAJOR" : Math.abs(postChange) > 3 ? "SIGNIFICANT" : "MINOR",
+          plainEnglish: `${sym} is ${postChange >= 0 ? "UP" : "DOWN"} ${Math.abs(postChange).toFixed(1)}% after hours at $${postPrice}. ${Math.abs(postChange) > 3 ? "This is a significant move that will likely carry into tomorrow morning." : "Small after hours move."}`
+        });
+      }
+    } catch(e) {}
+  }
+  return movers.sort((a,b) => Math.abs(b.postChange) - Math.abs(a.postChange));
+}
+
+// ─── Economic Calendar ────────────────────────────────────────────────────────
+function getTomorrowEconomicEvents() {
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const tomorrowDay = tomorrow.getDay(); // 0=Sun, 6=Sat
+
+  const events = [];
+
+  // Major recurring events by day of week
+  // These are approximate — real calendar would need paid API
+  // But we can flag known high-impact weekly patterns
+
+  const hour = now.getHours();
+  const isAfterHours = hour >= 16;
+
+  // Check for major scheduled events
+  // Fed meetings happen 8x per year on Tuesdays/Wednesdays
+  // Jobs report first Friday of each month at 8:30 AM ET
+  // CPI usually mid-month Tuesday at 8:30 AM ET
+
+  const dayOfMonth = tomorrow.getDate();
+  const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][tomorrowDay];
+
+  // Jobs report — first Friday of month
+  if (tomorrowDay === 5 && dayOfMonth <= 7) {
+    events.push({
+      time: "8:30 AM ET",
+      event: "JOBS REPORT (Non-Farm Payrolls)",
+      impact: "VERY HIGH",
+      warning: "🚨 JOBS REPORT TOMORROW at 8:30 AM — Market will make a HUGE move at open. Wait until 10:30 AM before trading. Do not enter any trade before this number is released.",
+      tradingAdvice: "Wait until 10:30 AM to see market reaction before placing any trade."
+    });
+  }
+
+  // Options expiration Friday
+  if (tomorrowDay === 5) {
+    events.push({
+      time: "Market close",
+      event: "Weekly Options Expiration",
+      impact: "HIGH",
+      warning: "⚠️ OPTIONS EXPIRATION FRIDAY tomorrow — options lose value much faster. Take profits earlier than usual. Exit by 3:00 PM not 3:30 PM.",
+      tradingAdvice: "Close all positions by 3:00 PM ET. Options decay accelerates dramatically near expiration."
+    });
+  }
+
+  // Monday — fresh week
+  if (tomorrowDay === 1) {
+    events.push({
+      time: "All day",
+      event: "Monday — New Trading Week",
+      impact: "MEDIUM",
+      warning: "📅 New trading week tomorrow. Market often gaps based on weekend news. Check futures tonight for direction.",
+      tradingAdvice: "Wait until 10:15 AM to let opening volatility settle before entering any trade."
+    });
+  }
+
+  // Wednesday — Fed tends to meet
+  if (tomorrowDay === 3 && dayOfMonth >= 10 && dayOfMonth <= 25) {
+    events.push({
+      time: "2:00 PM ET (possible)",
+      event: "Possible Fed Activity Day",
+      impact: "MEDIUM",
+      warning: "🏦 Wednesdays mid-month can have Fed announcements. Check news tonight for any scheduled Fed speeches or meetings.",
+      tradingAdvice: "If Fed is speaking tomorrow — close all positions by 1:45 PM to avoid the volatility."
+    });
+  }
+
+  if (events.length === 0) {
+    events.push({
+      time: "All day",
+      event: "No major scheduled events",
+      impact: "LOW",
+      warning: "✅ No major economic events scheduled tomorrow. Cleaner trading conditions expected.",
+      tradingAdvice: "Good conditions for trading. Focus on individual stock setups."
+    });
+  }
+
+  return events;
+}
+
+// ─── Market Breadth (how many stocks actually went up today) ──────────────────
+async function getMarketBreadth() {
+  try {
+    // Check advance/decline using sector ETFs as proxy
+    const sectors = ["XLK","XLF","XLE","XLV","XLI","XLC","XLY","XLP","XLB","XLRE","XLU"];
+    const results = await Promise.allSettled(
+      sectors.map(s => fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1d`, {headers:{"User-Agent":"Mozilla/5.0"}}))
+    );
+
+    let advancing = 0, declining = 0, unchanged = 0;
+    const sectorMoves = [];
+
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].status === "fulfilled") {
+        const d = await results[i].value.json();
+        const meta = d.chart?.result?.[0]?.meta;
+        const price = meta?.regularMarketPrice || 0;
+        const prev = meta?.chartPreviousClose || price;
+        const change = prev > 0 ? (price - prev) / prev * 100 : 0;
+        if (change > 0.2) advancing++;
+        else if (change < -0.2) declining++;
+        else unchanged++;
+        sectorMoves.push({ sector: sectors[i], change: parseFloat(change.toFixed(2)) });
+      }
+    }
+
+    const total = advancing + declining + unchanged;
+    const breadthScore = total > 0 ? Math.round((advancing / total) * 100) : 50;
+    const breadthLabel = breadthScore >= 70 ? "BROAD STRENGTH" : breadthScore >= 55 ? "MODERATE STRENGTH" : breadthScore <= 30 ? "BROAD WEAKNESS" : breadthScore <= 45 ? "MODERATE WEAKNESS" : "MIXED";
+    const tomorrowImplication = breadthScore >= 70 
+      ? "Strong broad market today suggests continued strength tomorrow. Good conditions for CALL options."
+      : breadthScore <= 30 
+      ? "Weak broad market today suggests continued weakness tomorrow. Consider PUT options or sitting out."
+      : "Mixed market today — tomorrow's direction unclear. Wait for confirmation at 10 AM.";
+
+    const leadingSector = sectorMoves.sort((a,b) => b.change - a.change)[0];
+    const laggingSector = sectorMoves.sort((a,b) => a.change - b.change)[0];
+
+    return {
+      advancing, declining, unchanged, total,
+      breadthScore,
+      breadthLabel,
+      tomorrowImplication,
+      leadingSector,
+      laggingSector,
+      sectorMoves: sectorMoves.sort((a,b) => b.change - a.change),
+      plainEnglish: `Today ${advancing} of ${total} market sectors went UP and ${declining} went DOWN. ${breadthScore >= 60 ? "This is genuine broad strength — most stocks participated in today's move." : breadthScore <= 40 ? "This is concerning — most stocks didn't participate in today's move." : "Market was mixed today — no clear direction."} ${tomorrowImplication}`
+    };
+  } catch(e) {
+    return { breadthScore: 50, breadthLabel: "UNKNOWN", plainEnglish: "Market breadth data unavailable", tomorrowImplication: "Check market conditions tomorrow morning." };
+  }
+}
+
 async function getTrendingTickers() {
   try {
     const r = await fetch("https://query1.finance.yahoo.com/v1/finance/trending/US?count=10", { headers:{"User-Agent":"Mozilla/5.0"} });
@@ -1128,6 +1333,172 @@ function getTodayEconomicEvents() {
 // ─── Technical Indicators ─────────────────────────────────────────────────────
 function calcRSI(c,p=14){if(c.length<p+1)return null;let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l+=Math.abs(d);}let ag=g/p,al=l/p;for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];ag=(ag*(p-1)+(d>0?d:0))/p;al=(al*(p-1)+(d<0?Math.abs(d):0))/p;}return al===0?100:parseFloat((100-100/(1+ag/al)).toFixed(2));}
 
+// ─── Chart Pattern Detection ─────────────────────────────────────────────────
+// Detects the same patterns a trader would see on TradingView
+function detectChartPatterns(closes, highs, lows, volumes) {
+  if (closes.length < 20) return null;
+  
+  const patterns = [];
+  const recent = 20; // Look at last 20 bars
+  const rc = closes.slice(-recent);
+  const rh = highs.slice(-recent);
+  const rl = lows.slice(-recent);
+  const rv = volumes.slice(-recent);
+  
+  const currentPrice = rc[rc.length-1];
+  const avgVol = rv.reduce((a,b)=>a+b,0)/rv.length;
+
+  // ── 1. Trend Channel Detection ──────────────────────────────────────────────
+  // Find swing highs and lows
+  const swingHighs = [], swingLows = [];
+  for (let i=2; i<rh.length-2; i++) {
+    if (rh[i]>rh[i-1]&&rh[i]>rh[i-2]&&rh[i]>rh[i+1]&&rh[i]>rh[i+2]) swingHighs.push({idx:i,price:rh[i]});
+    if (rl[i]<rl[i-1]&&rl[i]<rl[i-2]&&rl[i]<rl[i+1]&&rl[i]<rl[i+2]) swingLows.push({idx:i,price:rl[i]});
+  }
+  
+  // Higher highs AND higher lows = uptrend channel
+  if (swingHighs.length>=2 && swingLows.length>=2) {
+    const hhh = swingHighs[swingHighs.length-1].price > swingHighs[swingHighs.length-2].price;
+    const hhl = swingLows[swingLows.length-1].price > swingLows[swingLows.length-2].price;
+    const lhh = swingHighs[swingHighs.length-1].price < swingHighs[swingHighs.length-2].price;
+    const lhl = swingLows[swingLows.length-1].price < swingLows[swingLows.length-2].price;
+    
+    if (hhh && hhl) patterns.push({
+      name: "UPTREND CHANNEL",
+      signal: "BULLISH",
+      confidence: "HIGH",
+      emoji: "📈",
+      plain: "Stock is making higher highs AND higher lows — this is a confirmed uptrend. Like stairs going up. Each peak is higher than the last. Each dip is higher than the last. Strong buy signal for CALL options.",
+      action: "BUY CALLS on the next dip toward support"
+    });
+    
+    if (lhh && lhl) patterns.push({
+      name: "DOWNTREND CHANNEL", 
+      signal: "BEARISH",
+      confidence: "HIGH",
+      emoji: "📉",
+      plain: "Stock is making lower highs AND lower lows — confirmed downtrend. Like stairs going down. Each rally fails lower than the last. Strong signal for PUT options.",
+      action: "BUY PUTS on the next rally toward resistance"
+    });
+  }
+
+  // ── 2. Double Bottom Detection ───────────────────────────────────────────────
+  // Two lows at approximately the same price level = strong support
+  if (swingLows.length >= 2) {
+    const low1 = swingLows[swingLows.length-2].price;
+    const low2 = swingLows[swingLows.length-1].price;
+    const diff = Math.abs(low1-low2)/low1;
+    if (diff < 0.02 && currentPrice > low2*1.02) { // Within 2% and price bounced
+      patterns.push({
+        name: "DOUBLE BOTTOM",
+        signal: "BULLISH",
+        confidence: "HIGH",
+        emoji: "W",
+        plain: `Stock hit the same low price around $${low2.toFixed(2)} TWICE and bounced both times. This creates a strong floor. Think of it like the letter W — price goes down, bounces, goes down to same level again, bounces again. Very reliable bullish pattern.`,
+        action: "BUY CALLS — target is the height between the bottom and the middle peak"
+      });
+    }
+  }
+
+  // ── 3. Double Top Detection ───────────────────────────────────────────────────
+  // Two highs at approximately the same price = strong resistance
+  if (swingHighs.length >= 2) {
+    const high1 = swingHighs[swingHighs.length-2].price;
+    const high2 = swingHighs[swingHighs.length-1].price;
+    const diff = Math.abs(high1-high2)/high1;
+    if (diff < 0.02 && currentPrice < high2*0.98) { // Within 2% and price rejected
+      patterns.push({
+        name: "DOUBLE TOP",
+        signal: "BEARISH",
+        confidence: "HIGH",
+        emoji: "M",
+        plain: `Stock hit the same HIGH price around $${high2.toFixed(2)} TWICE and got rejected both times. This creates a strong ceiling. Think of it like the letter M — price goes up, fails, goes up to same level again, fails again. Reliable bearish pattern.`,
+        action: "AVOID CALLS — stock is struggling at resistance. Consider PUTS."
+      });
+    }
+  }
+
+  // ── 4. Bull Flag Detection ───────────────────────────────────────────────────
+  // Strong up move then tight sideways consolidation = about to break up
+  const firstHalf = rc.slice(0, Math.floor(rc.length/2));
+  const secondHalf = rc.slice(Math.floor(rc.length/2));
+  const firstMove = (firstHalf[firstHalf.length-1]-firstHalf[0])/firstHalf[0]*100;
+  const secondRange = (Math.max(...secondHalf)-Math.min(...secondHalf))/Math.max(...secondHalf)*100;
+  
+  if (firstMove > 3 && secondRange < 2) { // Strong move then tight consolidation
+    patterns.push({
+      name: "BULL FLAG",
+      signal: "BULLISH",
+      confidence: "MEDIUM",
+      emoji: "🚩",
+      plain: `Stock made a strong ${firstMove.toFixed(1)}% move up then started moving sideways in a tight range. This is called a bull flag. The strong move is the flagpole. The sideways movement is the flag. After flags the stock usually continues UP in the same direction as the original move.`,
+      action: "BUY CALLS when price breaks above the top of the flag range"
+    });
+  }
+  
+  // Bear flag — strong down move then tight consolidation
+  if (firstMove < -3 && secondRange < 2) {
+    patterns.push({
+      name: "BEAR FLAG",
+      signal: "BEARISH",
+      confidence: "MEDIUM",
+      emoji: "🚩",
+      plain: `Stock dropped ${Math.abs(firstMove).toFixed(1)}% then moved sideways. This is a bear flag — usually the stock continues DOWN after this pause. Avoid calls on this stock.`,
+      action: "AVOID CALLS — consider PUTS when price breaks below the flag"
+    });
+  }
+
+  // ── 5. Coiling / Compression Detection ───────────────────────────────────────
+  // Price range getting smaller = big move coming soon
+  const earlyRange = (Math.max(...rh.slice(0,10)) - Math.min(...rl.slice(0,10)));
+  const recentRange = (Math.max(...rh.slice(-10)) - Math.min(...rl.slice(-10)));
+  if (recentRange < earlyRange * 0.5 && recentRange/currentPrice < 0.03) {
+    patterns.push({
+      name: "COILING / COMPRESSION",
+      signal: "NEUTRAL",
+      confidence: "MEDIUM",
+      emoji: "🔄",
+      plain: `Stock price is getting squeezed into a tighter and tighter range. This is called coiling — like a spring being compressed. When the spring releases it makes a big move. Direction unknown but a breakout is coming soon. Watch for the first big move and trade in that direction.`,
+      action: "WAIT for breakout direction then trade it aggressively"
+    });
+  }
+
+  // ── 6. Volume Climax Detection ───────────────────────────────────────────────
+  // Massive volume spike = potential reversal
+  const lastVol = rv[rv.length-1];
+  if (lastVol > avgVol * 3) {
+    const priceChange = (rc[rc.length-1]-rc[rc.length-2])/rc[rc.length-2]*100;
+    patterns.push({
+      name: priceChange > 0 ? "BUYING CLIMAX" : "SELLING CLIMAX",
+      signal: priceChange > 0 ? "CAUTION" : "BULLISH",
+      confidence: "MEDIUM",
+      emoji: "💥",
+      plain: priceChange > 0 
+        ? `Massive volume spike on an UP move. When everyone rushes to buy at once it often signals the TOP of the move. Big money may be selling to all the buyers. Be careful with calls here.`
+        : `Massive volume spike on a DOWN move. When everyone panics and sells at once it often signals the BOTTOM. Big money buys from panicking sellers. This can be a good call opportunity.`,
+      action: priceChange > 0 ? "CAUTION — potential top forming" : "WATCH for bounce — potential bottom"
+    });
+  }
+
+  // ── 7. Support/Resistance Retest ─────────────────────────────────────────────
+  if (swingLows.length >= 1) {
+    const nearestSupport = swingLows[swingLows.length-1].price;
+    const distFromSupport = (currentPrice - nearestSupport)/nearestSupport*100;
+    if (distFromSupport > 0 && distFromSupport < 1.5) {
+      patterns.push({
+        name: "AT SUPPORT — POTENTIAL BOUNCE",
+        signal: "BULLISH",
+        confidence: "MEDIUM",
+        emoji: "🧱",
+        plain: `Stock is sitting right at a support level ($${nearestSupport.toFixed(2)}) that held before. Price bounced here last time. If it holds again this is a good call entry with a clear stop loss just below support.`,
+        action: `BUY CALLS if stock holds above $${nearestSupport.toFixed(2)}. Set stop loss just below.`
+      });
+    }
+  }
+
+  return patterns.length > 0 ? patterns : null;
+}
+
 // ─── Divergence Detection ─────────────────────────────────────────────────────
 // Compares price highs/lows to RSI highs/lows to find hidden signals
 function detectDivergence(closes, highs, lows) {
@@ -1284,10 +1655,11 @@ app.get("/api/analyze", async (req, res) => {
     const batch = activeWatchlist.slice(0,8);
     const edLevel = getEducationLevel(data, strategyMemory);
 
-    const [spyR,qqqR,fgR,trendR,vixR,cryptoR,contextR,...stockR] = await Promise.allSettled([
+    const [spyR,qqqR,fgR,trendR,vixR,cryptoR,contextR,futuresR,breadthR,...stockR] = await Promise.allSettled([
       fetchMarketData("SPY"), fetchMarketData("QQQ"),
       getFearGreedIndex(), getTrendingTickers(),
       getVIX(), getCryptoCorrelation(), getMarketContext(),
+      getSPYFutures(), getMarketBreadth(),
       ...batch.map(s=>fetchMarketData(s))
     ]);
 
@@ -1298,6 +1670,11 @@ app.get("/api/analyze", async (req, res) => {
     const vix = vixR.status==="fulfilled"?vixR.value:{value:20,level:"NORMAL",tradingAdvice:"Trade normally",optionCost:"Options normally priced"};
     const crypto = cryptoR.status==="fulfilled"?cryptoR.value:{btcChange:0,cryptoMood:"NEUTRAL",impact:"Crypto data unavailable"};
     const marketContext = contextR.status==="fulfilled"?contextR.value:{weekTrend:"UNKNOWN",weekChange:0,catalyst:"UNKNOWN",headlines:[],moveAlreadyDone:false,contextRecommendation:"",plainEnglish:"Market context unavailable"};
+    const futures = futuresR.status==="fulfilled"?futuresR.value:{esChange:0,tomorrowBias:"UNKNOWN",tradingImplication:"Futures unavailable",plainEnglish:"Futures data unavailable"};
+    const breadth = breadthR.status==="fulfilled"?breadthR.value:{breadthScore:50,breadthLabel:"UNKNOWN",plainEnglish:"Breadth unavailable",tomorrowImplication:"",sectorMoves:[]};
+    const tomorrowEvents = getTomorrowEconomicEvents();
+    // After hours movers fetched after stock data
+    
     const marketRegime = detectMarketRegime(spyChange, 0, 0);
     const dayClassification = classifyMarketDay(spyChange, fearGreed.score, null);
     const marketTrend = spyChange<-2?"STRONGLY BEARISH":spyChange<-0.75?"BEARISH":spyChange>2?"STRONGLY BULLISH":spyChange>0.75?"BULLISH":"NEUTRAL";
@@ -1352,12 +1729,13 @@ app.get("/api/analyze", async (req, res) => {
 
     const topSymbols=Object.keys(marketDataMap).slice(0,5);
     const economicEvents = getTodayEconomicEvents();
-    const [newsR,unusualR,earningsR,intradayR,socialR]=await Promise.allSettled([
+    const [newsR,unusualR,earningsR,intradayR,socialR,afterHoursR]=await Promise.allSettled([
       Promise.all(topSymbols.map(s=>getStockNews(s).then(n=>({symbol:s,news:n})))),
       Promise.all(topSymbols.map(s=>getUnusualOptionsActivity(s).then(u=>({symbol:s,unusual:u})))),
       getUpcomingEarnings(topSymbols),
       Promise.all(topSymbols.map(s=>getIntradayContext(s).then(intra=>({symbol:s,intraday:intra})))),
-      getSocialSentiment(topSymbols)
+      getSocialSentiment(topSymbols),
+      getAfterHoursMovers(activeWatchlist.slice(0,8))
     ]);
     const newsMap={};
     if(newsR.status==="fulfilled")newsR.value.forEach(n=>{newsMap[n.symbol]=n.news;});
@@ -1367,6 +1745,7 @@ app.get("/api/analyze", async (req, res) => {
     const intradayMap={};
     if(intradayR.status==="fulfilled")intradayR.value.forEach(i=>{intradayMap[i.symbol]=i.intraday;});
     const socialMap = socialR.status==="fulfilled" ? socialR.value : {};
+    const afterHoursMovers = afterHoursR.status==="fulfilled" ? afterHoursR.value : [];
 
     // Track recently losing stocks to avoid recommending them again
     const recentTrades = data.trades?.slice(0,10)||[];
@@ -1433,6 +1812,8 @@ app.get("/api/analyze", async (req, res) => {
       correlationGroup: getStockCorrelation(sym),
       correlatedLaggards: findCorrelatedLaggards(sym, marketDataMap, spyChange),
       divergence: marketDataMap[sym]?.divergence || null,
+      chartPatterns: marketDataMap[sym]?.chartPatterns || null,
+      primaryPattern: marketDataMap[sym]?.chartPatterns?.[0] || null,
       momentum:marketDataMap[sym]?.momentum||{exhaustionLevel:"UNKNOWN",isTradeable:true,exhaustionWarning:"",moveRatio:0,remainingRoom:0},
       relativeStrength: (() => {
         const stockChange = marketDataMap[sym]?.priceData?.change || 0;
@@ -1598,6 +1979,24 @@ Return ONLY valid JSON:
     "todayTradeCount":${todayTrades},
     "vix":{"value":${vix.value},"level":"${vix.level}","advice":"${vix.tradingAdvice}","optionCost":"${vix.optionCost}"},
     "crypto":{"btcChange":${crypto.btcChange},"mood":"${crypto.cryptoMood}","impact":"${crypto.impact}"},
+    "futures":{
+      "esChange":${futures.esChange},
+      "tomorrowBias":"${futures.tomorrowBias}",
+      "tradingImplication":"${futures.tradingImplication}",
+      "plainEnglish":"${futures.plainEnglish}"
+    },
+    "breadth":{
+      "score":${breadth.breadthScore},
+      "label":"${breadth.breadthLabel}",
+      "advancing":${breadth.advancing||0},
+      "declining":${breadth.declining||0},
+      "plainEnglish":"${breadth.plainEnglish}",
+      "tomorrowImplication":"${breadth.tomorrowImplication}",
+      "leadingSector":"${breadth.leadingSector?.sector||"—"} ${breadth.leadingSector?.change||0}%",
+      "laggingSector":"${breadth.laggingSector?.sector||"—"} ${breadth.laggingSector?.change||0}%"
+    },
+    "afterHoursMovers":${JSON.stringify(afterHoursMovers.slice(0,3))},
+    "tomorrowEvents":${JSON.stringify(tomorrowEvents)},
     "marketContext":{
       "weekTrend":"${marketContext.weekTrend}",
       "weekChange":${marketContext.weekChange},
@@ -1644,7 +2043,9 @@ Return ONLY valid JSON:
       "newsHeadlines":[string,string],
       "unusualActivity":string,
       "earningsRisk":"None" or warning,
-      "divergence":"Explain any divergence detected in plain English — is price and momentum agreeing or disagreeing?",
+      "chartPattern":"Name and plain English explanation of the PRIMARY chart pattern detected — what would a trader see on TradingView right now?",
+      "chartPatternAction":"Specific action based on the pattern — buy calls, avoid, wait for breakout etc",
+      "divergence":"Explain any divergence detected in plain English",
       "thetaWarning":"Plain English warning about time decay — how much is this option losing per day just from time passing?",
       "strategyFit":"How this specific stock fits the ${bestStrategy.name} strategy today",
       "correlationGroup":"What sector/group this stock belongs to and how connected stocks are moving",
@@ -1688,7 +2089,7 @@ Return ONLY valid JSON:
         "suggestedOptionType":"CALL" or "PUT","strikePrice":number,
         "expiration":string,"estimatedOptionCost":string,
         "amountToRisk":string,"maxLoss":string,"estimatedGain":string,
-        "robinhoodSteps":"10 numbered steps split into HOW TO OPEN and HOW TO CLOSE the trade. OPENING THE TRADE: Step 1: Open Robinhood and search [SYMBOL]. Step 2: Tap Trade then tap Trade Options. Step 3: You will see 4 buttons at the top — tap BUY (left side, should be orange) and tap CALL (right side, should be orange) — do NOT tap Sell or Put. Step 4: Select expiration date [exact date]. Step 5: IMPORTANT — check the actual Ask Price column. If the recommended strike $[X] costs more than your budget scroll UP to find a higher strike with a cheaper Ask Price. Ask Price times 100 equals total cost. Step 6: Tap the green + button next to your chosen strike. Step 7: Set quantity to 1 contract, change to Limit order, set limit price to the Ask price, tap Review then Submit. Step 8: If it shows Queued that is normal — wait for it to fill, do not cancel unless price moves far away. CLOSING THE TRADE (how to sell and take profit or cut loss): Step 9: To close go to your Portfolio — tap the graph icon at the bottom of Robinhood — find your [SYMBOL] position and tap it — tap Sell to Close — set quantity to 1 — change to Limit order — set limit price to the current Bid price — tap Review then Submit. Step 10: Your trade is closed when it shows Filled. Then come back to this app and log the result."
+        "robinhoodSteps":"STEP BY STEP — OPENING THE TRADE:\n\n1. Open Robinhood and search [SYMBOL]\n\n2. Tap Trade → Trade Options\n\n3. You will see 4 buttons — tap BUY (orange, left) and tap CALL (orange, right). Do NOT tap Sell or Put.\n\n4. Select expiration date: [exact expiration date]\n\n5. Find the exact option — look for strike price $[strike]. The option name will look like: [SYMBOL] $[strike] Call [date]. If you cannot find it scroll up or down the list.\n\n6. Check the Ask Price column — it should be close to [estimated cost] per share. If it is much higher than expected scroll UP to find a cheaper strike.\n\n7. Tap the + button next to your chosen strike.\n\n8. Set quantity to 1 contract. Change order type to Limit. Set limit price to $0.01 ABOVE the current ask price — this guarantees your order fills faster. Example: if ask shows $0.08 set limit to $0.09.\n\n9. Tap Review Order → Submit.\n\n10. If it shows Queued wait up to 3 minutes. If still not filled after 3 minutes cancel and try again — the price may have moved.\n\n11. If you see Partial Fill — that means only some filled. Cancel the rest and work with what you have.\n\nOPENING DECISION RULE: If the option drops 20% within the first 10 minutes of buying — sell immediately. The setup failed. Do not hope it comes back.\n\nCLOSING THE TRADE:\n\n12. Go to Portfolio (graph icon at bottom of Robinhood) → find [SYMBOL] → tap it → tap Sell to Close\n\n13. Set quantity to 1 contract\n\n14. Change to Limit order. Set limit price to $0.01 BELOW the current Bid price — this guarantees a fast fill. Example: if Bid shows $0.12 set limit to $0.11.\n\n15. Tap Review → Submit → wait for Filled confirmation\n\n16. Come back to this app and log the result immediately."
       },
       "indicators":[
         {"name":"RSI (14)","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
