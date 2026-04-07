@@ -437,6 +437,26 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <!-- Warnings -->
     <div id="criticalWarnings"></div>
 
+    <!-- WHY IS THE MARKET MOVING? -->
+    <div id="marketContextBox" style="display:none;background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:10px">🌍 WHY IS THE MARKET MOVING TODAY?</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px">THIS WEEK'S TREND</div>
+          <div style="font-size:16px;font-weight:600" id="ctxWeekTrend">—</div>
+          <div style="font-size:10px;color:var(--muted)" id="ctxWeekChange">—</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px">MAIN REASON FOR TODAY'S MOVE</div>
+          <div style="font-size:13px;font-weight:600;color:var(--accent)" id="ctxCatalyst">—</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text);line-height:1.8;padding:12px;background:rgba(0,0,0,0.2);border-left:3px solid var(--accent);margin-bottom:10px" id="ctxPlainEnglish">—</div>
+      <div style="font-size:11px;color:var(--yellow);padding:10px;background:rgba(255,214,0,0.04);border-left:2px solid var(--yellow);line-height:1.7" id="ctxRecommendation">—</div>
+      <div style="margin-top:10px" id="ctxHeadlines"></div>
+      <div id="ctxCorrelations" style="margin-top:10px"></div>
+    </div>
+
     <!-- Is today good to trade? -->
     <div id="safeToTradeBox" style="display:none" class="safe-to-trade safe">
       <div class="safe-title" id="safeTitle">GOOD DAY TO TRADE</div>
@@ -931,6 +951,28 @@ function buildTradePanel(trade,idx){
       </div>
     </div>`:""}
 
+    <!-- RELATIVE STRENGTH vs SPY -->
+    ${trade.relativeStrength?`<div style="background:${trade.relativeStrength.isLaggard?"rgba(0,229,255,0.06)":trade.relativeStrength.isExtended?"rgba(255,59,92,0.08)":"rgba(0,0,0,0.2)"};border:1px solid ${trade.relativeStrength.isLaggard?"var(--accent)":trade.relativeStrength.isExtended?"var(--red)":"var(--border)"};padding:14px;margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:8px">📊 IS THIS STOCK MOVING ON ITS OWN OR JUST FOLLOWING THE MARKET?</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;color:${trade.relativeStrength.isLaggard?"var(--accent)":trade.relativeStrength.isExtended?"var(--red)":trade.relativeStrength.label==="OUTPERFORMING"?"var(--green)":"var(--text)"}">
+        ${trade.relativeStrength.label==="EXTREMELY_EXTENDED"?"🚫 MOVED WAY TOO MUCH — Options overpriced. AVOID.":trade.relativeStrength.label==="OUTPERFORMING"?"✅ OUTPERFORMING — Has its own strength. Good candidate.":trade.relativeStrength.label==="LAGGING"?"💡 LAGGARD — Hasn't moved yet. Potential opportunity.":trade.relativeStrength.label==="DIVERGING"?"⚡ MOVING OPPOSITE TO MARKET — Independent movement.":"➡️ MOVING WITH THE MARKET — No specific catalyst."}
+      </div>
+      <div style="font-size:11px;color:var(--text);line-height:1.7;margin-bottom:10px">${trade.relativeStrength.description}</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        <div style="text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">THIS STOCK MOVED</div><div style="font-size:15px;font-weight:600;color:${(trade.relativeStrength.stockChange||0)>=0?"var(--green)":"var(--red)"}">${(trade.relativeStrength.stockChange||0)>=0?"+":""}${(trade.relativeStrength.stockChange||0).toFixed(1)}%</div></div>
+        <div style="text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">SPY (MARKET) MOVED</div><div style="font-size:15px;font-weight:600;color:${(trade.relativeStrength.spyChange||0)>=0?"var(--green)":"var(--red)"}">${(trade.relativeStrength.spyChange||0)>=0?"+":""}${(trade.relativeStrength.spyChange||0).toFixed(1)}%</div></div>
+        <div style="text-align:center"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">RATIO (vs market)</div><div style="font-size:15px;font-weight:600;color:${(trade.relativeStrength.score||1)>3?"var(--red)":(trade.relativeStrength.score||1)<0.3?"var(--accent)":"var(--text)"}">${(trade.relativeStrength.score||1).toFixed(1)}x</div></div>
+      </div>
+    </div>`:""}
+
+    <!-- CORRELATION GROUP -->
+    ${trade.correlationGroup||trade.correlationInsight?`<div style="background:rgba(180,79,255,0.05);border:1px solid rgba(180,79,255,0.3);padding:14px;margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:8px">🔗 HOW THIS STOCK IS CONNECTED TO OTHERS</div>
+      <div style="font-size:13px;font-weight:600;color:var(--purple);margin-bottom:6px">${trade.correlationGroup||""}</div>
+      <div style="font-size:11px;color:var(--text);line-height:1.8;margin-bottom:8px">${trade.correlationInsight||""}</div>
+      ${trade.correlatedLaggards?`<div style="background:rgba(0,229,255,0.06);border-left:3px solid var(--accent);padding:10px;font-size:11px;color:var(--accent);line-height:1.7"><strong>💡 LAGGARD OPPORTUNITY:</strong> ${trade.correlatedLaggards}</div>`:""}
+    </div>`:""}
+
     <div class="sentiment-row">
       <div class="sent-card"><div class="sent-icon">${trade.newsSentiment==="BULLISH"?"📰✅":trade.newsSentiment==="BEARISH"?"📰❌":"📰➖"}</div><div class="sent-label">NEWS SAYING</div><div class="sent-val" style="color:${trade.newsSentiment==="BULLISH"?"var(--green)":trade.newsSentiment==="BEARISH"?"var(--red)":"var(--yellow)"}">${trade.newsSentiment==="BULLISH"?"GOOD NEWS ✅":trade.newsSentiment==="BEARISH"?"BAD NEWS ❌":"MIXED NEWS"}</div></div>
       <div class="sent-card"><div class="sent-icon">🐋</div><div class="sent-label">BIG MONEY DOING</div><div class="sent-val" style="font-size:10px;color:var(--text)">${trade.unusualActivity||"Nothing unusual"}</div></div>
@@ -957,6 +999,16 @@ function buildTradePanel(trade,idx){
       </div>
       <div class="signal-plain">${trade.signalExplanation||""}</div>
     </div>
+
+    <!-- DIVERGENCE SIGNAL -->
+    ${trade.divergence?`<div style="background:${trade.divergence.includes("BULLISH")?"rgba(0,255,136,0.06)":"rgba(255,59,92,0.06)"};border-left:4px solid ${trade.divergence.includes("BULLISH")?"var(--green)":"var(--red)"};padding:12px 14px;margin-bottom:10px;font-size:11px;line-height:1.8">
+      <strong style="color:${trade.divergence.includes("BULLISH")?"var(--green)":"var(--red)"}">🔍 DIVERGENCE SIGNAL:</strong> ${trade.divergence}
+    </div>`:""}
+
+    <!-- THETA WARNING -->
+    ${trade.thetaWarning?`<div style="background:rgba(255,140,0,0.06);border-left:4px solid var(--orange);padding:12px 14px;margin-bottom:10px;font-size:11px;line-height:1.8">
+      <strong style="color:var(--orange)">⏰ TIME DECAY WARNING:</strong> ${trade.thetaWarning}
+    </div>`:""}
 
     <!-- AM I MAKING MONEY? -->
     <div class="section-title" style="margin-top:14px">💰 HOW TO CHECK IF YOU'RE MAKING MONEY</div>
@@ -1150,11 +1202,63 @@ async function runAnalysis(){
       }
 
       document.getElementById("mktTrending").textContent=(ms.trendingStocks||[]).join(" · ");
+      
+      // Update market trend card with day type
+      const trendEl = document.getElementById("mktTrend");
+      if(trendEl && ms.dayType){
+        const dayColors = {
+          "EXTREME_VOLATILE":"var(--red)",
+          "NEWS_DRIVEN":"var(--orange)", 
+          "TRENDING":"var(--green)",
+          "CHOPPY":"var(--yellow)",
+          "UNCLEAR":"var(--muted)"
+        };
+        trendEl.style.color = dayColors[ms.dayType] || "var(--text)";
+      }
 
       // Is it safe to trade today?
       const stBox=document.getElementById("safeToTradeBox");
       stBox.style.display="block";
       let safeClass="safe",safeTitle="✅ GOOD DAY TO TRADE",safeDesc=ms.marketComment||"";
+      // Market context display
+      if(ms.marketContext){
+        const mc = ms.marketContext;
+        const ctxBox = document.getElementById("marketContextBox");
+        ctxBox.style.display = "block";
+        const wtEl = document.getElementById("ctxWeekTrend");
+        const wcEl = document.getElementById("ctxWeekChange");
+        const wc = mc.weekChange || 0;
+        wtEl.textContent = mc.weekTrend?.replace(/_/g," ") || "—";
+        wtEl.style.color = wc >= 0 ? "var(--green)" : "var(--red)";
+        wcEl.textContent = (wc >= 0 ? "+" : "") + wc.toFixed(1) + "% this week";
+        wcEl.style.color = wc >= 0 ? "var(--green)" : "var(--red)";
+        
+        const catalystLabels = {
+          "TARIFF_NEWS":"🏭 TARIFF/TRADE NEWS",
+          "FED_NEWS":"🏦 FEDERAL RESERVE NEWS", 
+          "INFLATION_DATA":"📊 INFLATION DATA",
+          "JOBS_DATA":"👷 JOBS DATA",
+          "EARNINGS":"💰 COMPANY EARNINGS",
+          "ECONOMIC_DATA":"📈 ECONOMIC DATA",
+          "MOMENTUM":"🚀 MARKET MOMENTUM",
+          "SELLOFF":"📉 MARKET SELLOFF",
+          "GENERAL_MOVEMENT":"📊 GENERAL MOVEMENT",
+          "UNKNOWN":"❓ REASON UNCLEAR"
+        };
+        document.getElementById("ctxCatalyst").textContent = catalystLabels[mc.catalyst] || mc.catalyst;
+        document.getElementById("ctxPlainEnglish").textContent = mc.plainEnglish || "—";
+        document.getElementById("ctxRecommendation").textContent = "💡 " + (mc.contextRecommendation || "—");
+        
+        if(mc.headlines && mc.headlines.length > 0){
+          document.getElementById("ctxHeadlines").innerHTML = `<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">MARKET NEWS RIGHT NOW:</div>` + 
+            mc.headlines.map(h=>`<div style="font-size:10px;padding:4px 0;border-bottom:1px solid var(--border);line-height:1.5;color:var(--text)">• ${h}</div>`).join("");
+        }
+
+        if(mc.moveAlreadyDone){
+          warnings.push({type:"caution",msg:"⏰ MOVE ALREADY HAPPENED: The big market move today started pre-market before 9:30 AM. By the time you trade most stocks have already priced it in. The app is looking for stocks that HAVEN'T moved yet — these are your best opportunities."});
+        }
+      }
+
       if(ms.isExtremelyVolatile){
         safeClass="danger";
         safeTitle="🚨 DO NOT TRADE TODAY";
@@ -1162,7 +1266,19 @@ async function runAnalysis(){
       } else if(ms.vix?.value>25){safeClass="risky";safeTitle="⚠️ TRADE CAREFULLY TODAY";}
       stBox.className="safe-to-trade "+safeClass;
       document.getElementById("safeTitle").textContent=safeTitle;
-      document.getElementById("safeDesc").textContent=safeDesc;
+      
+      // Add day type info
+      const dayTypeLabels = {
+        "EXTREME_VOLATILE": "🚨 EXTREME VOLATILE DAY",
+        "NEWS_DRIVEN": "📰 NEWS DRIVEN DAY",
+        "TRENDING": "📈 TRENDING DAY",
+        "CHOPPY": "↔️ CHOPPY/FLAT DAY",
+        "UNCLEAR": "❓ DIRECTION UNCLEAR"
+      };
+      const dayLabel = dayTypeLabels[ms.dayType] || ms.dayType;
+      const dayDesc = ms.dayPlainEnglish || "";
+      const dayAdvice = ms.dayTradingAdvice || "";
+      document.getElementById("safeDesc").innerHTML = `<strong>${dayLabel}</strong><br>${dayDesc}<br><br><em>${dayAdvice}</em>`;
 
       // Beginner tip
       if(ms.beginnerTip){
@@ -1186,12 +1302,31 @@ async function runAnalysis(){
     if(as){
       document.getElementById("strategyBox").innerHTML=`
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
-          <div class="strategy-name">${as.name}</div>
+          <div>
+            <div class="strategy-name">${as.name}</div>
+            <div style="font-size:10px;color:var(--purple);margin-top:2px">Score: ${as.score||0}/100 — Won the strategy competition today</div>
+          </div>
           <span style="font-size:9px;padding:3px 10px;border:1px solid var(--purple);color:var(--purple)">${as.key}</span>
         </div>
         <div class="strategy-plain">${as.strategyEducation||as.description||""}</div>
-        <div style="font-size:11px;color:var(--accent);margin-top:6px">Why today: ${as.whyToday||""}</div>
-        ${as.shouldAdapt&&as.adaptationAdvice?`<div style="background:rgba(255,214,0,0.06);border:1px solid rgba(255,214,0,0.3);padding:10px;margin-top:10px;font-size:11px;color:var(--yellow)">⚡ STRATEGY UPDATE: ${as.adaptationAdvice}</div>`:""}`;
+        <div style="font-size:11px;color:var(--accent);margin-top:8px;padding:10px;background:rgba(0,229,255,0.04);border-left:2px solid var(--accent);line-height:1.7">
+          <strong>Why this strategy won today:</strong> ${as.whyToday||""}
+        </div>
+        ${as.whyNotOthers?`<div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6">Why others lost: ${as.whyNotOthers}</div>`:""}
+        
+        ${as.allStrategiesRanked&&as.allStrategiesRanked.length>1?`
+        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:12px;margin-bottom:8px">ALL STRATEGIES RANKED TODAY:</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          ${as.allStrategiesRanked.map((s,i)=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:${i===0?"rgba(180,79,255,0.08)":"rgba(0,0,0,0.2)"};border-left:2px solid ${i===0?"var(--purple)":i===1?"var(--accent)":i===2?"var(--yellow)":"var(--border)"};">
+            <div style="font-size:11px;font-weight:${i===0?"600":"400"};color:${i===0?"var(--purple)":"var(--muted)"}">
+              ${i===0?"🥇":i===1?"🥈":i===2?"🥉":"  "} ${s.name}
+            </div>
+            <div style="font-size:11px;font-weight:600;color:${i===0?"var(--purple)":i===1?"var(--accent)":i===2?"var(--yellow)":"var(--muted)"}">${s.score}/100</div>
+          </div>`).join("")}
+        </div>`:""}
+        
+        ${as.shouldAdapt&&as.adaptationAdvice?`<div style="background:rgba(255,214,0,0.06);border:1px solid rgba(255,214,0,0.3);padding:10px;margin-top:10px;font-size:11px;color:var(--yellow)">⚡ ADAPTATION RECOMMENDED: ${as.adaptationAdvice}</div>`:""}`;
     }
 
     // Education lesson
@@ -1251,6 +1386,7 @@ async function runAnalysis(){
         <div class="rank-reason">${r.reason}</div>
         <div style="font-size:9px;margin-top:4px;color:${r.newsSentiment==="BULLISH"?"var(--green)":r.newsSentiment==="BEARISH"?"var(--red)":"var(--yellow)"}">News: ${r.newsSentiment||"—"}</div>
         <div style="font-size:9px;margin-top:3px;color:${r.unusualActivity&&r.unusualActivity!=="—"?"var(--purple)":"var(--muted)"}">Big $: ${r.unusualActivity||"—"}</div>
+        ${r.relativeStrength?`<div style="font-size:9px;margin-top:3px;color:${r.relativeStrength.isLaggard?"var(--accent)":r.relativeStrength.isExtended?"var(--red)":"var(--muted)"}">vs SPY: ${r.relativeStrength.label?.replace(/_/g," ")||"—"}</div>`:""}
       </div>`;
     }).join("");
 
