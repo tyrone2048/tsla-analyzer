@@ -1942,13 +1942,14 @@ app.get("/api/analyze", async (req, res) => {
 
     const topSymbols=Object.keys(marketDataMap).slice(0,5);
     const economicEvents = getTodayEconomicEvents();
-    const [newsR,unusualR,earningsR,intradayR,socialR,afterHoursR]=await Promise.allSettled([
+    const [newsR,unusualR,earningsR,intradayR,socialR,afterHoursR,finnhubR]=await Promise.allSettled([
       Promise.all(topSymbols.map(s=>getStockNews(s).then(n=>({symbol:s,news:n})))),
       Promise.all(topSymbols.map(s=>getUnusualOptionsActivity(s).then(u=>({symbol:s,unusual:u})))),
       getUpcomingEarnings(topSymbols),
       Promise.all(topSymbols.map(s=>getIntradayContext(s).then(intra=>({symbol:s,intraday:intra})))),
       getSocialSentiment(topSymbols),
-      getAfterHoursMovers(activeWatchlist.slice(0,8))
+      getAfterHoursMovers(activeWatchlist.slice(0,8)),
+      Promise.all(topSymbols.slice(0,3).map(s=>getFinnhubNews(s).then(n=>({symbol:s,finnhub:n})).catch(()=>({symbol:s,finnhub:null}))))
     ]);
     const newsMap={};
     if(newsR.status==="fulfilled")newsR.value.forEach(n=>{newsMap[n.symbol]=n.news;});
@@ -1958,8 +1959,9 @@ app.get("/api/analyze", async (req, res) => {
     const intradayMap={};
     if(intradayR.status==="fulfilled")intradayR.value.forEach(i=>{intradayMap[i.symbol]=i.intraday;});
     const socialMap = socialR.status==="fulfilled" ? socialR.value : {};
+    const afterHoursList = afterHoursR.status==="fulfilled" ? afterHoursR.value : [];
     const finnhubMap = {};
-    if(finnhubR.status==="fulfilled") finnhubR.value.forEach(f=>{ if(f.finnhub) finnhubMap[f.symbol]=f.finnhub; });
+    if(finnhubR.status==="fulfilled"&&Array.isArray(finnhubR.value)) finnhubR.value.forEach(f=>{ if(f&&f.finnhub) finnhubMap[f.symbol]=f.finnhub; });
     
     // Use CoinGecko for better Bitcoin data on crypto stocks
     const btcChange = coinGecko.btcChange24h || crypto.btcChange || 0;
