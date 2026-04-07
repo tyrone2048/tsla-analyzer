@@ -2259,6 +2259,80 @@ app.get("/api/challenge", (req, res) => {
   res.json({ success:true, data });
 });
 
+// ─── Export all data as backup ────────────────────────────────────────────────
+app.get("/api/export", (req, res) => {
+  try {
+    const data = loadData();
+    const strategy = loadStrategyMemory();
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      version: "3.0",
+      challenge: data,
+      strategyMemory: strategy
+    };
+    res.setHeader("Content-Disposition", "attachment; filename=trading-backup-" + new Date().toISOString().split("T")[0] + ".json");
+    res.setHeader("Content-Type", "application/json");
+    res.json(backup);
+  } catch(e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+// ─── Import backup data ───────────────────────────────────────────────────────
+app.post("/api/import", (req, res) => {
+  try {
+    const { challenge, strategyMemory } = req.body;
+    if (challenge) saveData(challenge);
+    if (strategyMemory) saveStrategyMemory(strategyMemory);
+    res.json({ success:true, message:"Data restored successfully!" });
+  } catch(e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+// ─── Manual trade entry (for logging past trades) ─────────────────────────────
+app.post("/api/trade/manual", (req, res) => {
+  const { symbol, optionType, amount, exitValue, result, date, notes, strategy } = req.body;
+  const data = loadData();
+  const sm = loadStrategyMemory();
+  const pnl = result==="win" ? parseFloat((exitValue-amount).toFixed(2)) : parseFloat((-amount).toFixed(2));
+  const oldBalance = data.balance;
+  
+  // Don't change balance for manual past entries — just log the trade
+  const trade = {
+    id: Date.now(),
+    date: date || new Date().toISOString(),
+    symbol, optionType,
+    entryPrice: amount, exitPrice: exitValue,
+    amountRisked: amount, pnl, result,
+    balanceAfter: data.balance,
+    notes: notes || "",
+    strategy: strategy || "MOMENTUM_SCALP",
+    marketRegime: "UNKNOWN",
+    manualEntry: true
+  };
+  
+  data.trades.unshift(trade);
+  
+  // Update strategy memory
+  const strat = strategy || "MOMENTUM_SCALP";
+  if (!sm.strategyPerformance[strat]) sm.strategyPerformance[strat] = {wins:0,losses:0,totalPnl:0};
+  if (result==="win") sm.strategyPerformance[strat].wins++;
+  else if (result==="loss") sm.strategyPerformance[strat].losses++;
+  sm.strategyPerformance[strat].totalPnl = parseFloat((sm.strategyPerformance[strat].totalPnl+pnl).toFixed(2));
+  
+  sm.patterns.unshift({
+    id: Date.now(), date: date || new Date().toISOString(),
+    symbol, optionType, strategy: strat,
+    marketRegime: "UNKNOWN", result, pnl,
+    pct: amount>0 ? parseFloat((pnl/amount*100).toFixed(1)) : 0
+  });
+  
+  saveData(data);
+  saveStrategyMemory(sm);
+  res.json({ success:true, trade });
+});
+
 // Reset journey
 app.post("/api/reset", (req, res) => {
   const { startingBalance } = req.body;
