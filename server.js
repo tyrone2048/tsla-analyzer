@@ -322,23 +322,32 @@ app.get("/api/analyze", async (req, res) => {
     const stopLoss=top?parseFloat((top.price-top.atr).toFixed(2)):0;
     const target=top?parseFloat((top.price+top.atr*1.5).toFixed(2)):0;
 
-    const prompt=`You are an expert options trading AI. Respond with ONLY valid JSON.
+    const prompt=`You are an expert options trading AI. Respond with ONLY valid compact JSON.
 
 TODAY: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()} ET
-SPY:${spyChange}% QQQ:${qqqChange}% VIX:${overview.vix.value} Fear/Greed:${overview.fearGreed.score}
+SPY:${spyChange}% QQQ:${qqqChange}% VIX:${overview.vix.value} Fear:${overview.fearGreed.score}/100
 Bitcoin:${overview.btc.change}% — ${overview.btc.impact}
-Time:${tw.window} ${tw.canTrade?"OPEN":"BLOCKED"} — ${tw.msg}
-${isExtreme?"EXTREME DAY: Focus ONLY on laggard stocks with own news catalyst":""}
+Time:${tw.window} ${tw.canTrade?"OPEN":"BLOCKED"} ${tw.msg}
+${isExtreme?"EXTREME DAY — find laggard stocks with own catalyst only":""}
 
-STOCKS RANKED:
-${summaries.slice(0,5).map((s,i)=>`${i+1}.${s.symbol} score:${s.score} chg:${s.change}% exhaust:${s.exhaustion} trend:${s.realtimeTrend} news:${s.news} bigmoney:${s.bigMoney||"none"} smc:${s.smcSignal||"none"} blocks:${s.blocks.slice(0,2)}`).join("\n")}
+TOP STOCKS (scored 0-100):
+${summaries.slice(0,5).map((s,i)=>`${i+1}.${s.symbol} score:${s.score} $${s.price} chg:${s.change}% exhaust:${s.exhaustion} trend:${s.realtimeTrend} vwap:${s.aboveVWAP?"above":"below"} news:${s.news} big$:${s.bigMoney||"none"} smc:${s.smcSignal||"none"} blocks:${s.blocks.slice(0,2)}`).join("\n")}
 
-TOP STOCK: ${top?.symbol||"none"} at $${top?.price||0}, RSI:${top?.rsi||0}, VWAP:${top?.aboveVWAP?"above":"below"} $${top?.vwap||0}, FVG:${top?.fvgZone||"none"}, Divergence:${top?.divergence?.plain||"none"}
+BEST STOCK DETAIL:
+${top?`${top.symbol}: $${top.price} RSI:${top.rsi} MACD:${top.macdBullish?"bull":"bear"} Vol:${top.volume} FVG:${top.fvgZone||"none"} Div:${top.divergence?.plain||"none"} SMC:${top.smcPlain||"none"}`:"No stock data"}
 
-USER: $${data.balance} balance | max risk $${(data.balance*0.20).toFixed(2)} | Level ${edLevel}
+USER: $${data.balance} | max $${(data.balance*0.20).toFixed(2)} per trade | Level ${edLevel}
+${pdtWarn||""} Week P&L: $${wkPnl.toFixed(2)}
 
-Respond with this JSON (fill in ALL real values based on the data above):
-{"marketSummary":{"spyChange":${spyChange},"qqqChange":${qqqChange},"marketTrend":"${regime}","fearGreedScore":${overview.fearGreed.score},"fearGreedRating":"${overview.fearGreed.rating}","trendingStocks":${JSON.stringify(overview.trending)},"preferredDirection":"${spyChange<-1.5?"PUT":spyChange>1.5?"CALL":"EITHER"}","marketRegime":"${regime}","dayType":"${isExtreme?"EXTREME_VOLATILE":Math.abs(spyChange)>0.5?"TRENDING":"CHOPPY"}","dayPlainEnglish":"Describe today market in plain English","dayTradingAdvice":"Specific advice for today","isExtremelyVolatile":${isExtreme},"volatileWarning":"${isExtreme?"Market moving "+Math.abs(spyChange).toFixed(1)+"% today":""}","pdtWarning":"${pdtWarn||""}","shouldStopTrading":false,"weekPnl":${wkPnl.toFixed(2)},"todayTradeCount":${todayTrades},"vix":{"value":${overview.vix.value},"level":"${overview.vix.level}","advice":"VIX trading advice","optionCost":"Options are cheap or expensive?"},"crypto":{"btcChange":${overview.btc.change},"mood":"${overview.btc.change>0?"BULLISH":"BEARISH"}","impact":"${overview.btc.impact}"},"trendStrength":{"score":${Math.min(100,Math.round(Math.abs(spyChange)*20))},"label":"${Math.abs(spyChange)>1.5?"STRONG":Math.abs(spyChange)>0.5?"MODERATE":"WEAK"}","plainEnglish":"Trend strength explanation"},"timeWindow":{"window":"${tw.window}","canTrade":${tw.canTrade},"message":"${tw.msg}"},"marketContext":{"weekTrend":"UNKNOWN","weekChange":0,"catalyst":"GENERAL","catalystExplanation":"Market context","moveAlreadyDone":${isExtreme},"contextRecommendation":"What to do today","headlines":[],"plainEnglish":"Why market moving today"},"topPatternStock":"${top?.symbol||""}","topPatternScore":${top?.score||0},"topPatternStep":"${top?.smcSignal==="ENTER_NOW"?"SMC ENTER NOW":top?.smcSignal==="WAIT_PULLBACK"?"SMC WAIT PULLBACK":top?.realtimeTrend||"No pattern"}","topPatternReady":${top?.smcSignal==="ENTER_NOW"||false},"marketComment":"2 sentences about today","beginnerTip":"1 tip for today"},"activeStrategy":{"name":"Best strategy name","key":"MOMENTUM_SCALP","score":70,"description":"Strategy description","whyToday":"Why this strategy fits today","whyNotOthers":"Why others scored lower","shouldAdapt":false,"adaptationAdvice":"No adaptation needed","strategyEducation":"Plain English explanation","allStrategiesRanked":[{"key":"MOMENTUM_SCALP","name":"Momentum Scalp","score":70,"breakdown":{}},{"key":"OVERSOLD_BOUNCE","name":"Oversold Bounce","score":55,"breakdown":{}},{"key":"SMC","name":"SMC Entry","score":${top?.smcSignal==="ENTER_NOW"?90:50},"breakdown":{}},{"key":"VWAP_RECLAIM","name":"VWAP Reclaim","score":50,"breakdown":{}}]},"positionSizing":{"totalBudgetToRisk":"$${(data.balance*0.15).toFixed(2)} maximum","reserveAmount":"$${(data.balance*0.85).toFixed(2)}","reasoning":"Keep position small"},"trades":[{"rank":1,"symbol":"${top?.symbol||"SOUN"}","signal":"${top&&top.score>=50?"BUY":"HOLD"}","entryState":"${top?.smcSignal==="ENTER_NOW"?"ENTER NOW — green candle inside FVG confirmed":top?.smcSignal==="WAIT_PULLBACK"?"WAIT — price needs to pull back to FVG zone then green candle":top?.realtimeTrend==="UPTREND"?"READY — uptrend confirmed wait for pullback entry":"WAIT — setup not complete yet"}","entryTrigger":"${top?.smcSignal==="ENTER_NOW"?"Green candle inside FVG zone — enter now":top?.fvgZone?"Price returns to "+top.fvgZone+" and green candle forms":"Wait for uptrend confirmation and entry signal"}","confidence":"${top&&top.score>=65?"HIGH":top&&top.score>=45?"MEDIUM":"LOW"}","accuracyScore":${top?.score||50},"tooLate":${(top?.blocks?.length||0)>0},"tooLateReason":"${top?.blocks?.[0]||""}","rewardRiskRatio":1.5,"rewardRiskBlocked":false,"spreadPercent":20,"patternStep":"${top?.smcSignal==="ENTER_NOW"?"SMC Step 5/5 — ENTER NOW":top?.smcSignal?"SMC Step 4/5 — waiting":"Analyzing on 5-minute chart"}","timeframe":"5-minute","resolutionTime":"1-4 hours","chartPattern":"Chart pattern explanation based on data","chartPatternAction":"Specific action","smcSetup":"${(top?.smcPlain||"No SMC setup").replace(/"/g,"'")}","smcEntryState":"${top?.smcSignal==="ENTER_NOW"?"ENTER NOW":top?.smcSignal==="WAIT_PULLBACK"?"WAIT FOR PULLBACK TO FVG":"NO SETUP"}","fvgZone":"${top?.fvgZone||"null"}","signalExplanation":"2-3 sentences why this stock and what the chart shows","analysis":"4-5 sentences: pattern timeframe entry trigger why this stock key risks","newsSentiment":"${top?.news||"NEUTRAL"}","newsHeadlines":${JSON.stringify(top?.newsHeadlines?.slice(0,2)||[])},"unusualActivity":"${top?.bigMoney||"None detected"}","earningsRisk":"None","divergence":"${(top?.divergence?.plain||"No divergence").replace(/"/g,"'")}","thetaWarning":"Option loses value daily — act promptly on entry signal","correlationInsight":"Explain sector connections","correlatedLaggards":"Laggard opportunity if any","strategyFit":"How stock fits strategy","currentPrice":${top?.price||0},"priceChange":${top?.change||0},"indicatorConsensus":{"bullish":${top?.macdBullish?1:0}${top?.rsi>=40&&top?.rsi<=65?"+1":"+0"}${top?.realtimeTrend==="UPTREND"?"+1":"+0"}${top?.aboveVWAP?"+1":"+0"}${top?.news==="BULLISH"?"+1":"+0"},"bearish":${top?.realtimeTrend==="DOWNTREND"?1:0}${top?.news==="BEARISH"?"+1":"+0"},"neutral":4},"indicators":[{"name":"RSI","signal":"${(top?.rsi||50)>=40&&(top?.rsi||50)<=65?"BULLISH":"NEUTRAL"}","value":"${top?.rsi||50}","meaning":"RSI ${top?.rsi||50} — ${(top?.rsi||50)>=40&&(top?.rsi||50)<=65?"momentum zone":"outside ideal range"}","color":"${(top?.rsi||50)>=40&&(top?.rsi||50)<=65?"green":"yellow"}"},{"name":"MACD","signal":"${top?.macdBullish?"BULLISH":"BEARISH"}","value":"${top?.macdBullish?"Bullish":"Bearish"}","meaning":"MACD ${top?.macdBullish?"bullish — momentum up":"bearish — momentum down"}","color":"${top?.macdBullish?"green":"red"}"},{"name":"Real-Time Trend","signal":"${top?.realtimeTrend==="UPTREND"?"BULLISH":top?.realtimeTrend==="DOWNTREND"?"BEARISH":"NEUTRAL"}","value":"${top?.realtimeTrend||"UNKNOWN"}","meaning":"${top?.realtimeTrend==="UPTREND"?"Moving up — good for calls":top?.realtimeTrend==="SIDEWAYS"?"Going sideways — options losing value":"Moving down"}","color":"${top?.realtimeTrend==="UPTREND"?"green":top?.realtimeTrend==="DOWNTREND"?"red":"yellow"}"},{"name":"VWAP","signal":"${top?.aboveVWAP?"BULLISH":"BEARISH"}","value":"${top?.aboveVWAP?"Above":"Below"} $${top?.vwap||0}","meaning":"${top?.aboveVWAP?"Above VWAP — bullish":"Below VWAP — bearish"}","color":"${top?.aboveVWAP?"green":"red"}"},{"name":"Volume","signal":"${top?.volume==="HIGH"?"BULLISH":top?.volume==="LOW"?"CAUTION":"NEUTRAL"}","value":"${top?.volume||"AVERAGE"}","meaning":"Volume is ${top?.volume||"average"}","color":"${top?.volume==="HIGH"?"green":top?.volume==="LOW"?"yellow":"yellow"}"},{"name":"Exhaustion","signal":"${top?.exhaustion==="FRESH"?"BULLISH":"CAUTION"}","value":"${top?.exhaustion||"UNKNOWN"}","meaning":"Move is ${top?.exhaustion==="FRESH"?"fresh — room to run":"extended — be careful"}","color":"${top?.exhaustion==="FRESH"?"green":"yellow"}"}],"support":${JSON.stringify((top?mdMap[top.symbol]?.levels?.supports||[]:[]).slice(0,3).map(l=>({level:l,strength:"Strong"})))},"resistance":${JSON.stringify((top?mdMap[top.symbol]?.levels?.resistances||[]:[]).slice(0,3).map(l=>({level:l,strength:"Moderate"})))},"entryPrice":${top?.price||0},"entryNote":"Enter near current price when signal confirms","stopLoss":${stopLoss},"stopNote":"1 ATR below entry — cut loss here","profitTarget":${target},"targetNote":"1.5x ATR target","riskReward":"1:1.5","atrNote":"ATR-based stop and target","probability":{"overallPercent":${top?.score||50},"factors":[{"label":"Pattern","score":${top?.smcSignal==="ENTER_NOW"?90:top?.smcSignal?70:40},"note":"${top?.smcSignal||"No SMC"}"},{"label":"Trend","score":${top?.realtimeTrend==="UPTREND"?75:top?.realtimeTrend==="SIDEWAYS"?25:45},"note":"${top?.realtimeTrend||"Unknown"}"},{"label":"News","score":${top?.news==="BULLISH"?75:top?.news==="BEARISH"?25:50},"note":"${top?.news||"Neutral"}"},{"label":"Volume","score":${top?.volume==="HIGH"?75:top?.volume==="LOW"?30:50},"note":"${top?.volume||"Average"}"}],"verdict":"${top&&top.score>=65?"Good setup":"Moderate setup — wait for better conditions"}"},"scenarios":[{"type":"bull","label":"Bull Case","probability":"25%","target":${top?parseFloat((top.price*1.05).toFixed(2)):0},"result":"+50-80% option gain"},{"type":"base","label":"Base Case","probability":"40%","target":${top?parseFloat((top.price*1.02).toFixed(2)):0},"result":"+20-40% option gain"},{"type":"bear","label":"Bear Case","probability":"25%","target":${top?parseFloat((top.price*0.98).toFixed(2)):0},"result":"-20-40% option loss"},{"type":"worst","label":"Worst Case","probability":"10%","target":${top?parseFloat((top.price*0.95).toFixed(2)):0},"result":"-80% option loss"}],"exitStrategy":{"recommendedHoldTime":"30min-2hrs","latestExitTime":"3:30 PM ET","sellSignals":["Up 50% — take profit now","Down 30% — cut loss","RSI above 75","Trend reverses"],"doNotHoldIf":["Below stop loss","After 3:30 PM","Market reverses hard"],"dayTradingTips":"Take profits fast. 50% gain on $5 = $2.50 real profit."},"budget":{"suggestedOptionType":"CALL","strikePrice":${top?parseFloat((top.price*1.02).toFixed(2)):0},"expiration":"Select 5-10 days out from today","estimatedOptionCost":"Check real Ask Price on Robinhood before buying","amountToRisk":"$${(data.balance*0.15).toFixed(2)} maximum","maxLoss":"$${(data.balance*0.15).toFixed(2)}","estimatedGain":"$${(data.balance*0.15*0.5).toFixed(2)}-$${(data.balance*0.15).toFixed(2)}","robinhoodSteps":"1. Search ${top?.symbol||"SYMBOL"}\\n2. Tap Trade then Trade Options\\n3. Tap BUY (left orange) and CALL (right orange)\\n4. Select expiration 5-10 days out\\n5. IMPORTANT: Check Ask Price — must be under $${(data.balance*0.20).toFixed(2)} total (Ask x 100)\\n6. Set limit price to Ask + $0.01\\n7. Tap Review then Submit\\n8. If queued 3+ min — cancel and retry with updated price"},"volume":"${top?.volume||"AVERAGE"}"}],"stockRankings":${JSON.stringify(summaries.slice(0,6).map(s=>({symbol:s.symbol,score:s.score,reason:s.blocks.length>0?s.blocks.join(", "):`${s.exhaustion} move ${s.realtimeTrend} trend ${s.news} news`,newsSentiment:s.news||"NEUTRAL",unusualActivity:s.bigMoney||"None",relativeStrength:{label:s.relativeStrength.label,description:`${s.change}% vs SPY ${spyChange}%`,isLaggard:s.relativeStrength.isLaggard,isExtended:s.relativeStrength.label==="EXTREMELY_EXTENDED",score:s.relativeStrength.ratio,stockChange:s.change,spyChange}})))},"educationLesson":{"level":${edLevel},"topic":"${topic}","explanation":"Explain ${topic} in 2 sentences","whyItMatters":"Why this matters for trading","actionable":"Watch for this today"},"performanceCoach":{"hasInsights":${perf.hasInsights},"summary":"${perf.summary.replace(/"/g,"'")}","insights":${JSON.stringify(perf.insights||[])}},"challengeContext":"From $${data.balance} to $10000 — keep going!"}`;
+Return compact JSON with these exact keys. Use real data values — no placeholders:
+{
+"ms":{"spy":${spyChange},"qqq":${qqqChange},"regime":"${regime}","fg":${overview.fearGreed.score},"vix":${overview.vix.value},"btcChg":${overview.btc.change},"btcImpact":"${overview.btc.impact}","trending":${JSON.stringify(overview.trending)},"dayType":"${isExtreme?"EXTREME_VOLATILE":Math.abs(spyChange)>0.5?"TRENDING":"CHOPPY"}","extreme":${isExtreme},"canTrade":${tw.canTrade},"timeMsg":"${tw.msg}","pdtWarn":"${pdtWarn||""}","weekPnl":${wkPnl.toFixed(2)},"dayTrades":${todayTrades},"marketComment":"2 sentences about today","tip":"1 beginner tip"},
+"strategy":{"name":"Best strategy name","key":"MOMENTUM_SCALP","why":"Why this strategy today in 2 sentences","education":"Plain English explanation"},
+"trade":{"symbol":"${top?.symbol||"SOUN"}","signal":"${top&&top.score>=50?"BUY":"HOLD"}","entry":"WAIT or READY or ENTER NOW — reason","trigger":"Exact entry trigger","confidence":"${top&&top.score>=65?"HIGH":top&&top.score>=45?"MEDIUM":"LOW"}","late":${(top?.blocks?.length||0)>0},"lateReason":"${top?.blocks?.[0]||""}","rrRatio":1.5,"pattern":"Pattern name on X-minute chart — explanation","patternAction":"What to do","smc":"${(top?.smcPlain||"No SMC setup").replace(/"/g,"'")}","smcState":"${top?.smcSignal==="ENTER_NOW"?"ENTER NOW":top?.smcSignal==="WAIT_PULLBACK"?"WAIT FOR FVG":"NO SETUP"}","fvg":"${top?.fvgZone||"none"}","why":"3 sentences: pattern timeframe entry trigger key risks","news":"${top?.news||"NEUTRAL"}","headlines":${JSON.stringify(top?.newsHeadlines?.slice(0,2)||[])},"bigMoney":"${top?.bigMoney||"None"}","divergence":"${(top?.divergence?.plain||"None").replace(/"/g,"'")}","price":${top?.price||0},"change":${top?.change||0},"rsi":${top?.rsi||0},"entry":${top?.price||0},"stop":${stopLoss},"target":${target},"rr":"1:1.5","prob":${top?.score||50},"verdict":"${top&&top.score>=65?"Good setup":"Wait for better conditions"}","holdTime":"30min-2hrs","exitTime":"3:30 PM ET","optionType":"CALL","strike":${top?parseFloat((top.price*1.02).toFixed(2)):0},"expiry":"5-10 days out","cost":"Check Ask Price on Robinhood","risk":"$${(data.balance*0.15).toFixed(2)}","steps":"1. Search ${top?.symbol||"SYM"}\n2. Trade Options\n3. BUY + CALL (both orange)\n4. Select expiry 5-10 days\n5. Check Ask < $${(data.balance*0.20).toFixed(2)} total\n6. Limit = Ask + $0.01\n7. Submit"},
+"rankings":${JSON.stringify(summaries.slice(0,6).map(s=>({sym:s.symbol,score:s.score,reason:s.blocks.length>0?s.blocks[0]:`${s.exhaustion} ${s.realtimeTrend} ${s.news}`,news:s.news||"NEUTRAL",bigMoney:s.bigMoney||"None",isLaggard:s.relativeStrength.isLaggard,rsLabel:s.relativeStrength.label})))},
+"lesson":{"level":${edLevel},"topic":"${topic}","explain":"Explain ${topic} in 2 sentences","matters":"Why it matters","watch":"What to watch today"},
+"coach":{"insights":${perf.hasInsights},"summary":"${perf.summary.replace(/"/g,"'")}"}
+}`;
 
     const ai=await anthropic.messages.create({model:"claude-sonnet-4-5",max_tokens:4000,messages:[{role:"user",content:prompt}]});
     const raw=ai.content[0]?.text||"";
@@ -356,12 +365,117 @@ Respond with this JSON (fill in ALL real values based on the data above):
         else throw new Error("No JSON");
       }catch(e2){throw new Error("Analysis failed — please try again");}
     }
-    analysis._fetchedAt=new Date().toISOString();
-    analysis._balance=data.balance;
-    analysis._edLevel=edLevel;
-    analysis._trades=data.trades.slice(-10);
-    analysis._milestones=data.milestones;
-    res.json({success:true,data:analysis});
+    // Convert compact format to expected format
+    const ms = analysis.ms || {};
+    const tr = analysis.trade || {};
+    const expanded = {
+      marketSummary: {
+        spyChange: ms.spy||spyChange, qqqChange: ms.qqq||qqqChange,
+        marketTrend: ms.regime||regime, fearGreedScore: ms.fg||50,
+        fearGreedRating: overview.fearGreed.rating,
+        trendingStocks: ms.trending||overview.trending,
+        preferredDirection: spyChange<-1.5?"PUT":spyChange>1.5?"CALL":"EITHER",
+        marketRegime: ms.regime||regime,
+        dayType: ms.dayType||"CHOPPY",
+        dayPlainEnglish: ms.marketComment||"",
+        dayTradingAdvice: tw.msg,
+        isExtremelyVolatile: ms.extreme||false,
+        volatileWarning: ms.extreme?`Market moving ${Math.abs(spyChange).toFixed(1)}% today`:"",
+        pdtWarning: ms.pdtWarn||"",
+        shouldStopTrading: false,
+        weekPnl: ms.weekPnl||0,
+        todayTradeCount: ms.dayTrades||0,
+        vix: {value:ms.vix||overview.vix.value, level:overview.vix.level, advice:"Check VIX level", optionCost:overview.vix.value>25?"Options expensive":"Options normal"},
+        crypto: {btcChange:ms.btcChg||overview.btc.change, mood:overview.btc.change>0?"BULLISH":"BEARISH", impact:ms.btcImpact||overview.btc.impact},
+        trendStrength: {score:Math.min(100,Math.round(Math.abs(spyChange)*20)), label:Math.abs(spyChange)>1.5?"STRONG":Math.abs(spyChange)>0.5?"MODERATE":"WEAK", plainEnglish:"Trend strength today"},
+        timeWindow: {window:tw.window, canTrade:tw.canTrade, message:tw.msg},
+        marketContext: {weekTrend:"UNKNOWN",weekChange:0,catalyst:"GENERAL",catalystExplanation:"Market moving",moveAlreadyDone:isExtreme,contextRecommendation:isExtreme?"Find laggards with own catalyst":"Follow the trend",headlines:[],plainEnglish:ms.marketComment||""},
+        topPatternStock: top?.symbol||"",
+        topPatternScore: top?.score||0,
+        topPatternStep: tr.pattern||"Analyzing",
+        topPatternReady: tr.smcState==="ENTER NOW",
+        marketComment: ms.marketComment||"",
+        beginnerTip: ms.tip||""
+      },
+      activeStrategy: {
+        name: analysis.strategy?.name||"Momentum Scalp",
+        key: analysis.strategy?.key||"MOMENTUM_SCALP",
+        score: 70,
+        description: analysis.strategy?.education||"",
+        whyToday: analysis.strategy?.why||"",
+        whyNotOthers: "Other strategies scored lower today",
+        shouldAdapt: false,
+        adaptationAdvice: "No adaptation needed",
+        strategyEducation: analysis.strategy?.education||"",
+        allStrategiesRanked: [{key:"MOMENTUM_SCALP",name:"Momentum Scalp",score:70,breakdown:{}},{key:"OVERSOLD_BOUNCE",name:"Oversold Bounce",score:55,breakdown:{}},{key:"SMC",name:"SMC Entry",score:tr.smcState==="ENTER NOW"?90:50,breakdown:{}}]
+      },
+      positionSizing: {
+        totalBudgetToRisk:`$${(data.balance*0.15).toFixed(2)} maximum`,
+        reserveAmount:`$${(data.balance*0.85).toFixed(2)}`,
+        reasoning:"Keep position small at this balance level"
+      },
+      trades: [{
+        rank:1, symbol:tr.symbol||top?.symbol||"SOUN",
+        signal:tr.signal||"HOLD",
+        entryState:tr.entry||"WAIT — analyzing setup",
+        entryTrigger:tr.trigger||"Wait for confirmation",
+        confidence:tr.confidence||"MEDIUM",
+        accuracyScore:top?.score||50,
+        tooLate:tr.late||false, tooLateReason:tr.lateReason||"",
+        rewardRiskRatio:tr.rrRatio||1.5, rewardRiskBlocked:false, spreadPercent:20,
+        patternStep:tr.pattern||"Analyzing on 5-minute chart",
+        timeframe:"5-minute", resolutionTime:"1-4 hours",
+        chartPattern:tr.pattern||"No clear pattern",
+        chartPatternAction:tr.patternAction||"Wait for setup",
+        smcSetup:tr.smc||"No SMC setup",
+        smcEntryState:tr.smcState||"NO SETUP",
+        fvgZone:tr.fvg||null,
+        signalExplanation:tr.why||"",
+        analysis:tr.why||"",
+        newsSentiment:tr.news||"NEUTRAL",
+        newsHeadlines:tr.headlines||[],
+        unusualActivity:tr.bigMoney||"None",
+        earningsRisk:"None",
+        divergence:tr.divergence||"None",
+        thetaWarning:"Option loses value daily — act promptly",
+        correlationInsight:"Check correlated stocks",
+        correlatedLaggards:null,
+        strategyFit:"Fits based on current conditions",
+        currentPrice:tr.price||top?.price||0,
+        priceChange:tr.change||top?.change||0,
+        indicatorConsensus:{bullish:top?.macdBullish?3:1,bearish:top?.realtimeTrend==="DOWNTREND"?2:0,neutral:4},
+        indicators:[
+          {name:"RSI",signal:(top?.rsi||50)>=40&&(top?.rsi||50)<=65?"BULLISH":"NEUTRAL",value:String(top?.rsi||50),meaning:`RSI ${top?.rsi||50} — ${(top?.rsi||50)>=40&&(top?.rsi||50)<=65?"momentum zone":"outside ideal range"}`,color:(top?.rsi||50)>=40&&(top?.rsi||50)<=65?"green":"yellow"},
+          {name:"MACD",signal:top?.macdBullish?"BULLISH":"BEARISH",value:top?.macdBullish?"Bullish":"Bearish",meaning:`MACD is ${top?.macdBullish?"bullish":"bearish"}`,color:top?.macdBullish?"green":"red"},
+          {name:"Real-Time Trend",signal:top?.realtimeTrend==="UPTREND"?"BULLISH":top?.realtimeTrend==="DOWNTREND"?"BEARISH":"NEUTRAL",value:top?.realtimeTrend||"UNKNOWN",meaning:top?.realtimeTrend==="UPTREND"?"Moving up — good":top?.realtimeTrend==="SIDEWAYS"?"Flat — avoid":"Moving down",color:top?.realtimeTrend==="UPTREND"?"green":top?.realtimeTrend==="DOWNTREND"?"red":"yellow"},
+          {name:"VWAP",signal:top?.aboveVWAP?"BULLISH":"BEARISH",value:`${top?.aboveVWAP?"Above":"Below"} $${top?.vwap||0}`,meaning:top?.aboveVWAP?"Above VWAP — bullish":"Below VWAP — bearish",color:top?.aboveVWAP?"green":"red"},
+          {name:"Volume",signal:top?.volume==="HIGH"?"BULLISH":top?.volume==="LOW"?"CAUTION":"NEUTRAL",value:top?.volume||"AVERAGE",meaning:`Volume is ${top?.volume||"average"}`,color:top?.volume==="HIGH"?"green":"yellow"},
+          {name:"Exhaustion",signal:top?.exhaustion==="FRESH"?"BULLISH":"CAUTION",value:top?.exhaustion||"UNKNOWN",meaning:top?.exhaustion==="FRESH"?"Fresh — room to run":"Extended — careful",color:top?.exhaustion==="FRESH"?"green":"yellow"}
+        ],
+        support:(top?mdMap[top.symbol]?.levels?.supports||[]:[]).slice(0,3).map(l=>({level:l,strength:"Strong"})),
+        resistance:(top?mdMap[top.symbol]?.levels?.resistances||[]:[]).slice(0,3).map(l=>({level:l,strength:"Moderate"})),
+        entryPrice:tr.entry||top?.price||0,
+        entryNote:"Enter when signal confirms",
+        stopLoss:stopLoss, stopNote:"1 ATR below — cut loss here",
+        profitTarget:target, targetNote:"1.5x ATR target",
+        riskReward:"1:1.5", atrNote:"ATR-based levels",
+        probability:{overallPercent:tr.prob||top?.score||50,factors:[{label:"Pattern",score:tr.smcState==="ENTER NOW"?90:50,note:tr.smcState||"None"},{label:"Trend",score:top?.realtimeTrend==="UPTREND"?75:30,note:top?.realtimeTrend||"Unknown"},{label:"News",score:top?.news==="BULLISH"?75:top?.news==="BEARISH"?25:50,note:top?.news||"Neutral"},{label:"Volume",score:top?.volume==="HIGH"?75:top?.volume==="LOW"?30:50,note:top?.volume||"Average"}],verdict:tr.verdict||"Moderate setup"},
+        scenarios:[{type:"bull",label:"Bull Case",probability:"25%",target:top?parseFloat((top.price*1.05).toFixed(2)):0,result:"+50-80% gain"},{type:"base",label:"Base Case",probability:"40%",target:top?parseFloat((top.price*1.02).toFixed(2)):0,result:"+20-40% gain"},{type:"bear",label:"Bear Case",probability:"25%",target:top?parseFloat((top.price*0.98).toFixed(2)):0,result:"-20-40% loss"},{type:"worst",label:"Worst Case",probability:"10%",target:top?parseFloat((top.price*0.95).toFixed(2)):0,result:"-80% loss"}],
+        exitStrategy:{recommendedHoldTime:tr.holdTime||"1-2hrs",latestExitTime:tr.exitTime||"3:30 PM ET",sellSignals:["Up 50% — take profit","Down 30% — cut loss","RSI above 75","Trend reverses"],doNotHoldIf:["Below stop loss","After 3:30 PM"],dayTradingTips:"Take profits fast. Real money."},
+        budget:{suggestedOptionType:tr.optionType||"CALL",strikePrice:tr.strike||0,expiration:tr.expiry||"5-10 days out",estimatedOptionCost:tr.cost||"Check Robinhood",amountToRisk:tr.risk||`$${(data.balance*0.15).toFixed(2)}`,maxLoss:tr.risk||`$${(data.balance*0.15).toFixed(2)}`,estimatedGain:`$${(data.balance*0.15*0.5).toFixed(2)}-$${(data.balance*0.15).toFixed(2)}`,robinhoodSteps:tr.steps||"1. Search SYMBOL\n2. Trade Options\n3. BUY + CALL\n4. Select expiry\n5. Check Ask Price\n6. Limit = Ask + $0.01\n7. Submit"},
+        volume:top?.volume||"AVERAGE"
+      }],
+      stockRankings:(analysis.rankings||[]).map(r=>({symbol:r.sym,score:r.score,reason:r.reason,newsSentiment:r.news,unusualActivity:r.bigMoney,relativeStrength:{label:r.rsLabel,description:"",isLaggard:r.isLaggard,isExtended:r.rsLabel==="EXTREMELY_EXTENDED",score:1,stockChange:0,spyChange}})),
+      educationLesson:{level:analysis.lesson?.level||edLevel,topic:analysis.lesson?.topic||topic,explanation:analysis.lesson?.explain||"",whyItMatters:analysis.lesson?.matters||"",actionable:analysis.lesson?.watch||""},
+      performanceCoach:{hasInsights:analysis.coach?.insights||false,summary:analysis.coach?.summary||"Complete more trades",insights:[]},
+      challengeContext:`From $${data.balance} to $10000 — keep going!`
+    };
+    expanded._fetchedAt=new Date().toISOString();
+    expanded._balance=data.balance;
+    expanded._edLevel=edLevel;
+    expanded._trades=data.trades.slice(-10);
+    expanded._milestones=data.milestones;
+    res.json({success:true,data:expanded});
   }catch(err){
     console.error("[Analysis] Error:",err.message);
     res.status(500).json({success:false,error:err.message});
