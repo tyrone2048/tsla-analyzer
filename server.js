@@ -13,6 +13,15 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Global error handlers — prevent server from crashing
+process.on("uncaughtException", (err) => {
+  console.error("[CRASH PREVENTED] Uncaught Exception:", err.message);
+  console.error(err.stack);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[CRASH PREVENTED] Unhandled Promise Rejection:", reason);
+});
+
 // ─── Data Files ───────────────────────────────────────────────────────────────
 const DATA_FILE     = path.join(__dirname, "challenge_data.json");
 const STRATEGY_FILE = path.join(__dirname, "strategy_memory.json");
@@ -2619,6 +2628,12 @@ app.get("/api/analyze", async (req, res) => {
       ? `🛑 WEEKLY LOSS LIMIT HIT: You've lost $${Math.abs(weekPnl).toFixed(2)} this week which is more than 20% of your starting balance. Stop trading for the rest of this week. Come back fresh on Monday. Protecting your capital is more important than making it back today.`
       : null;
 
+    const allStocksUpBig = Object.values(marketDataMap).filter(s => Math.abs(s.priceData?.change||0) > 15).length;
+    // Only true sit-out if literally everything moved big AND no independent catalysts
+    const shouldSitOut = Math.abs(spyChange) > 5 && allStocksUpBig > 6;
+    // On extreme days focus on laggards and momentum — not blocking everything
+    const extremeDayMode = Math.abs(spyChange) > 3 && !shouldSitOut;
+    const marketComment2 = shouldSitOut ? "EXTREME — focus on independent catalysts only" : extremeDayMode ? "VOLATILE — momentum and SMC strategies only, focus on laggards" : isMildlyVolatile ? "TRADE CAUTIOUSLY" : "GOOD DAY TO TRADE";
     const shouldStopTrading = balanceTooLow || hitWeeklyLimit || shouldSitOut;
     
     // Already up big warning  
@@ -2805,12 +2820,6 @@ app.get("/api/analyze", async (req, res) => {
     const numTrades=getTradeCount(data.balance,marketTrend,topScore);
 
     // Market condition assessment — adapt strategies instead of hard blocking
-    const allStocksUpBig = Object.values(marketDataMap).filter(s => Math.abs(s.priceData?.change||0) > 15).length;
-    // Only true sit-out if literally everything moved big AND no independent catalysts
-    const shouldSitOut = Math.abs(spyChange) > 5 && allStocksUpBig > 6;
-    // On extreme days focus on laggards and momentum — not blocking everything
-    const extremeDayMode = Math.abs(spyChange) > 3 && !shouldSitOut;
-    const marketComment2 = shouldSitOut ? "EXTREME — focus on independent catalysts only" : extremeDayMode ? "VOLATILE — momentum and SMC strategies only, focus on laggards" : isMildlyVolatile ? "TRADE CAUTIOUSLY" : "GOOD DAY TO TRADE";
     
     // Trend strength
     const trendStrength = scoreTrendStrength(spyChange, fearGreed.score, null);
@@ -2842,7 +2851,7 @@ Respond with this JSON only - fill in real values, no placeholders:
   "trades":[{"rank":1,"symbol":"BEST_SYMBOL","signal":"BUY","entryState":"WAIT or READY or ENTER NOW with reason","entryTrigger":"Exact trigger","confidence":"MEDIUM","accuracyScore":60,"tooLate":false,"tooLateReason":"","rewardRiskRatio":2.0,"rewardRiskBlocked":false,"spreadPercent":20,"patternStep":"Pattern Step X/Y timeframe","timeframe":"5-minute","resolutionTime":"1-4 hours","chartPattern":"Pattern + 1 sentence","chartPatternAction":"Action","smcSetup":"SMC setup or NO SETUP","smcEntryState":"NO SETUP","fvgZone":null,"signalExplanation":"2 sentences why","analysis":"3 sentences: pattern timeframe entry risks","newsSentiment":"NEUTRAL","newsHeadlines":["headline"],"unusualActivity":"none","earningsRisk":"None","divergence":"none","thetaWarning":"Loses X per day","correlationInsight":"Connected stocks","correlatedLaggards":null,"strategyFit":"Fits because","currentPrice":0,"priceChange":0,"indicatorConsensus":{"bullish":5,"bearish":3,"neutral":4},"indicators":[{"name":"RSI","signal":"BULLISH","value":"52","meaning":"Good zone","color":"green"},{"name":"MACD","signal":"BULLISH","value":"Cross","meaning":"Momentum up","color":"green"},{"name":"Volume","signal":"CAUTION","value":"LOW","meaning":"Low volume","color":"yellow"},{"name":"EMA 20","signal":"BULLISH","value":"Above","meaning":"Uptrend","color":"green"},{"name":"Stochastic","signal":"NEUTRAL","value":"55","meaning":"Neutral","color":"yellow"},{"name":"OBV","signal":"BULLISH","value":"Rising","meaning":"Buying","color":"green"}],"support":[{"level":0,"strength":"Strong"}],"resistance":[{"level":0,"strength":"Moderate"}],"entryPrice":0,"entryNote":"Enter here","stopLoss":0,"stopNote":"Stop here","profitTarget":0,"targetNote":"Target","riskReward":"1:2","atrNote":"ATR note","probability":{"overallPercent":60,"factors":[{"label":"Trend","score":70,"note":"Up"},{"label":"Momentum","score":60,"note":"Building"},{"label":"Volume","score":50,"note":"Average"},{"label":"News","score":55,"note":"Neutral"}],"verdict":"Moderate setup"},"scenarios":[{"type":"bull","label":"Bull","probability":"25%","target":0,"result":"+50%"},{"type":"base","label":"Base","probability":"40%","target":0,"result":"+20%"},{"type":"bear","label":"Bear","probability":"25%","target":0,"result":"-30%"},{"type":"worst","label":"Worst","probability":"10%","target":0,"result":"-80%"}],"exitStrategy":{"recommendedHoldTime":"1-2 hrs","latestExitTime":"3:30 PM ET","sellSignals":["Up 50% take profit","Down 30% cut loss"],"doNotHoldIf":["Below stop loss","After 3:30 PM"],"dayTradingTips":"Take profits fast"},"budget":{"suggestedOptionType":"CALL","strikePrice":0,"expiration":"Date here","estimatedOptionCost":"$0.05-0.08","amountToRisk":"$5","maxLoss":"$5","estimatedGain":"$3-6","robinhoodSteps":"1. Search SYMBOL\n2. Trade Options\n3. BUY + CALL\n4. Select expiration\n5. Check Ask Price\n6. Limit = Ask + $0.01\n7. Submit"},"volume":"AVERAGE"}],
   "stockRankings":[{"symbol":"SYM","score":70,"reason":"reason","newsSentiment":"NEUTRAL","unusualActivity":"none","relativeStrength":{"label":"WITH_MARKET","description":"desc","isLaggard":false,"isExtended":false,"score":1.0,"stockChange":0,"spyChange":${spyChange}}}],
   "educationLesson":{"level":${edLevel},"topic":"${todayTopic}","explanation":"2 sentences","whyItMatters":"1 sentence","actionable":"1 sentence"},
-  "performanceCoach":{"hasInsights":${perfAnalysis.hasInsights},"summary":"${perfAnalysis.hasInsights?perfAnalysis.summary.replace(/"/g,"'"):"Complete more trades"}","insights":[]},
+  "performanceCoach":{"hasInsights":${perfAnalysis.hasInsights},"summary":"${perfAnalysis.hasInsights?"Good insights available":"Complete more trades"}","insights":[]},
   "challengeContext":"Journey from $${data.balance} to $10000"
 }`;
     // Safety check - make sure patternScores exists
@@ -3150,7 +3159,6 @@ app.post("/api/monitor/stop",(req,res)=>{
   res.json({success:true});
 });
 
-app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
 
 // ─── Background Market Scanner ────────────────────────────────────────────────
 const alertHistory = {}; // Track sent alerts to avoid duplicates
@@ -3529,6 +3537,7 @@ app.get("/api/alerts/latest", (req, res) => {
   } catch(e) { res.json({ success:true, alerts:[] }); }
 });
 
+app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
 const PORT=process.env.PORT||3000;
 app.listen(PORT,()=>{
   console.log(`Challenge AI v3 on port ${PORT}`);
