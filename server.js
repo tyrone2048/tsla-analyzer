@@ -2693,31 +2693,8 @@ app.get("/api/analyze", async (req, res) => {
     // Add all strategy scores to context
     const allStrategyScores = bestStrategy.allStrategiesScored || [];
 
-    // Get active strategies for today based on day type
-    const activeStrategyKeys = Object.entries(STRATEGIES)
-      .filter(([,s]) => s.educationLevel <= edLevel)
-      .map(([k]) => k);
-    
-    // MULTI-TIMEFRAME ANALYSIS — fetch correct timeframe per strategy for top stocks
-    const topSymbols4TF = topSymbols.slice(0,4);
-    const multiTFResults = {};
-    await Promise.allSettled(
-      topSymbols4TF.map(async sym => {
-        const tfAnalysis = await getMultiTimeframeAnalysis(sym, activeStrategyKeys);
-        multiTFResults[sym] = tfAnalysis;
-      })
-    );
-    
-    // Merge multi-timeframe results into summaries
-    const enrichedSummaries = summaries.map(s => ({
-      ...s,
-      multiTimeframe: multiTFResults[s.symbol] || null
-    }));
-
-    // PATTERN-FIRST STOCK SCORING — score each stock based on chart path + confirmation
-    const patternScores = enrichedSummaries.map(s => 
-      scoreStockWithPatternMTF(s, spyChange, dayClassification.dayType, socialMap, unusualMap, earningsMap, marketContext)
-    ).sort((a, b) => b.totalScore - a.totalScore);
+    // PATTERN-FIRST STOCK SCORING — placeholder, will be replaced after summaries built
+    let patternScores = [];
 
     // Pattern matching — find similar past setups
     const patterns = strategyMemory.patterns || [];
@@ -2797,6 +2774,32 @@ app.get("/api/analyze", async (req, res) => {
         plainEnglish:intradayMap[sym].plainEnglish,
       }:null
     }));
+
+    // Get active strategies for today based on day type
+    const activeStrategyKeys = Object.entries(STRATEGIES)
+      .filter(([,s]) => s.educationLevel <= edLevel)
+      .map(([k]) => k);
+    
+    // MULTI-TIMEFRAME ANALYSIS — fetch correct timeframe per strategy for top stocks
+    const topSymbols4TF = topSymbols.slice(0,4);
+    const multiTFResults = {};
+    await Promise.allSettled(
+      topSymbols4TF.map(async sym => {
+        const tfAnalysis = await getMultiTimeframeAnalysis(sym, activeStrategyKeys);
+        multiTFResults[sym] = tfAnalysis;
+      })
+    );
+    
+    // Merge multi-timeframe results into summaries
+    const enrichedSummaries = summaries.map(s => ({
+      ...s,
+      multiTimeframe: multiTFResults[s.symbol] || null
+    }));
+
+    // PATTERN-FIRST STOCK SCORING — now runs after summaries is built
+    patternScores = enrichedSummaries.map(s => 
+      scoreStockWithPatternMTF(s, spyChange, dayClassification.dayType, socialMap, unusualMap, earningsMap, marketContext)
+    ).sort((a, b) => b.totalScore - a.totalScore);
 
     const topScore=Math.max(...summaries.map(s=>{let sc=50;if(s.macdBullish)sc+=8;if(s.aboveEMA50)sc+=5;if(s.obvTrend==="RISING")sc+=8;if(s.unusualActivity?.bigMoney==="BULLISH")sc+=12;if(s.isTrending)sc+=5;return sc;}),0);
     const numTrades=getTradeCount(data.balance,marketTrend,topScore);
