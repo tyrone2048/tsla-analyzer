@@ -1354,6 +1354,8 @@ async function runAnalysis(){
   const li=setInterval(()=>{if(si>0){const prev=document.getElementById(steps[si-1]);if(prev)prev.className="done";}if(si<steps.length){const cur=document.getElementById(steps[si]);if(cur)cur.className="active";si++;}},1300);
 
   try{
+    // Initialize warnings array at very top so all code blocks can use it
+    const warnings=[];
     const r=await fetch("/api/analyze");
     if(!r.ok){const e=await r.json();throw new Error(e.error||"Server error "+r.status);}
     const res=await r.json();clearInterval(li);
@@ -1561,7 +1563,6 @@ async function runAnalysis(){
 
       // Warnings
       const warningsEl=document.getElementById("criticalWarnings");
-      const warnings=[];
       if(ms.isExtremelyVolatile)warnings.push({type:"danger",msg:`🚨 EXTREME VOLATILITY WARNING: Market is moving ${Math.abs(ms.spyChange).toFixed(1)}% today — options prices are INFLATED and unpredictable. Only risk $5 maximum per trade today or consider waiting.`});
       if(ms.pdtWarning)warnings.push({type:"caution",msg:ms.pdtWarning});
       if(ms.todayTradeCount>=2)warnings.push({type:"caution",msg:`⚠️ PDT WARNING: You've made ${ms.todayTradeCount} day trades today. After 3 more you'll need $25,000 to keep trading. Switch to a CASH ACCOUNT to avoid this (Account → Investing → Account Type).`});
