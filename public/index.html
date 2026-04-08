@@ -1137,16 +1137,16 @@ function buildTradePanel(trade,idx){
     </div>`:""}
 
     <!-- ENTRY STATE — MOST IMPORTANT -->
-    ${trade.entryState?`<div style="background:${trade.entryState.includes("ENTER NOW")?"rgba(0,255,136,0.08)":trade.entryState.includes("READY")?"rgba(255,214,0,0.06)":"rgba(0,229,255,0.06)"};border:2px solid ${trade.entryState.includes("ENTER NOW")?"var(--green)":trade.entryState.includes("READY")?"var(--yellow)":"var(--accent)"};padding:16px;margin-bottom:12px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;color:${trade.entryState.includes("ENTER NOW")?"var(--green)":trade.entryState.includes("READY")?"var(--yellow)":"var(--accent)"}">
-        ${trade.entryState.includes("ENTER NOW")?"✅ ENTER NOW":trade.entryState.includes("READY")?"🟡 READY — WAIT FOR TRIGGER":"⏳ WAIT — NOT READY YET"}
+    ${trade.entryState?`<div style="background:${String(trade.entryState).includes("ENTER NOW")?"rgba(0,255,136,0.08)":String(trade.entryState||"").includes("READY")?"rgba(255,214,0,0.06)":"rgba(0,229,255,0.06)"};border:2px solid ${String(trade.entryState||"").includes("ENTER NOW")?"var(--green)":String(trade.entryState||"").includes("READY")?"var(--yellow)":"var(--accent)"};padding:16px;margin-bottom:12px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;color:${String(trade.entryState||"").includes("ENTER NOW")?"var(--green)":String(trade.entryState||"").includes("READY")?"var(--yellow)":"var(--accent)"}">
+        ${String(trade.entryState||"").includes("ENTER NOW")?"✅ ENTER NOW":String(trade.entryState||"").includes("READY")?"🟡 READY — WAIT FOR TRIGGER":"⏳ WAIT — NOT READY YET"}
       </div>
       <div style="font-size:12px;color:var(--text);margin-top:8px;line-height:1.8">${trade.entryState}</div>
       ${trade.entryTrigger?`<div style="font-size:11px;color:var(--yellow);margin-top:8px;padding:8px;background:rgba(0,0,0,0.2);border-left:2px solid var(--yellow);line-height:1.7">
         <strong>Exact trigger:</strong> ${trade.entryTrigger}
       </div>`:""}
       
-      ${trade.entryState&&trade.entryState.includes("WAIT")?`
+      ${trade.entryState&&String(trade.entryState||"").includes("WAIT")?`
       <div style="margin-top:12px;padding:12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);">
         <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px">🤖 LET THE SCANNER WATCH FOR YOU:</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6">Enter your email — the background scanner checks every 90 seconds and emails you the MOMENT the trigger fires. You don't need to watch the screen.</div>
