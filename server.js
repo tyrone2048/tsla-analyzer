@@ -3529,10 +3529,20 @@ app.get("/api/alerts/latest", (req, res) => {
   } catch(e) { res.json({ success:true, alerts:[] }); }
 });
 
-// Start background scanner — runs every 90 seconds during market hours
-const SCAN_INTERVAL = 90 * 1000; // 90 seconds
-setInterval(detectCatalysts, SCAN_INTERVAL);
-console.log("[Scanner] Background scanner started — checking every 90 seconds during market hours");
-
 const PORT=process.env.PORT||3000;
-app.listen(PORT,()=>console.log(`Challenge AI v3 on port ${PORT}`));
+app.listen(PORT,()=>{
+  console.log(`Challenge AI v3 on port ${PORT}`);
+  
+  // Start background scanner after 10 second delay to let server fully initialize
+  setTimeout(() => {
+    try {
+      const SCAN_INTERVAL = 90 * 1000;
+      setInterval(() => {
+        detectCatalysts().catch(e => console.error("[Scanner] Error:", e.message));
+      }, SCAN_INTERVAL);
+      console.log("[Scanner] Background scanner started — checking every 90 seconds during market hours");
+    } catch(e) {
+      console.error("[Scanner] Failed to start:", e.message);
+    }
+  }, 10000);
+});
