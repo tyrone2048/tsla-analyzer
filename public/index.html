@@ -736,6 +736,22 @@ window.onload=()=>{
   livePriceInterval=setInterval(updateLivePrice,30000);
 };
 
+// Safe DOM helper — never crashes on null elements
+function safeSet(id, prop, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (prop === 'html') el.innerHTML = val;
+  else if (prop === 'text') el.textContent = val;
+  else if (prop === 'display') el.style.display = val;
+  else if (prop === 'color') el.style.color = val;
+  else if (prop === 'width') el.style.width = val;
+  else if (prop === 'background') el.style.background = val;
+  else if (prop === 'border') el.style.borderColor = val;
+  else if (prop === 'class') el.className = val;
+  else el[prop] = val;
+}
+function safeEl(id) { return document.getElementById(id); }
+
 function showPage(id,btn){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
   document.querySelectorAll(".nav-tab").forEach(t=>t.classList.remove("active"));
@@ -1364,34 +1380,34 @@ async function runAnalysis(){
 
     currentSymbol=d.trades?.[0]?.symbol||"SOUN";
     currentStrategy=d.activeStrategy?.key||"MOMENTUM_SCALP";
-    document.getElementById("edLevelBadge").textContent="LVL "+(d._edLevel||1);
+    safeSet("edLevelBadge","text","LVL "+(d._edLevel||1));
 
     // Market dashboard
     const ms=d.marketSummary;
     if(ms){
       const sc=ms.spyChange>=0?"var(--green)":"var(--red)";
       const qc=ms.qqqChange>=0?"var(--green)":"var(--red)";
-      document.getElementById("mktSpy").innerHTML=`<span style="color:${sc}">${ms.spyChange>=0?"+":""}${ms.spyChange?.toFixed(2)||0}%</span>`;
-      document.getElementById("mktSpy").nextElementSibling.textContent=ms.spyChange>=0?"Market going UP today":"Market going DOWN today";
-      document.getElementById("mktQqq").innerHTML=`<span style="color:${qc}">${ms.qqqChange>=0?"+":""}${ms.qqqChange?.toFixed(2)||0}%</span>`;
+      safeSet("mktSpy","html",`<span style="color:${sc}">${ms.spyChange>=0?"+":""}${ms.spyChange?.toFixed(2)||0}%</span>`);
+      const spyEl=safeEl("mktSpy");if(spyEl&&spyEl.nextElementSibling)spyEl.nextElementSibling.textContent=ms.spyChange>=0?"Market going UP today":"Market going DOWN today";
+      safeSet("mktQqq","html",`<span style="color:${qc}">${ms.qqqChange>=0?"+":""}${ms.qqqChange?.toFixed(2)||0}%</span>`);
 
       // VIX
       if(ms.vix){
         const vixColor=ms.vix.value>30?"var(--red)":ms.vix.value>20?"var(--yellow)":"var(--green)";
-        document.getElementById("mktVix").innerHTML=`<span style="color:${vixColor}">${ms.vix.value}</span>`;
-        document.getElementById("mktVixSub").textContent=ms.vix.value>30?"HIGH FEAR — options expensive":ms.vix.value>20?"Elevated fear":"Low fear — good conditions";
-        document.getElementById("mktVixSub").style.color=vixColor;
+        safeSet("mktVix","html",`<span style="color:${vixColor}">${ms.vix.value}</span>`);
+        safeSet("mktVixSub","text",ms.vix.value>30?"HIGH FEAR — options expensive":ms.vix.value>20?"Elevated fear":"Low fear — good conditions");
+        safeSet("mktVixSub","color",vixColor);
       }
 
       // Bitcoin
       if(ms.crypto){
         const bc=ms.crypto.btcChange>=0?"var(--green)":"var(--red)";
-        document.getElementById("mktBtc").innerHTML=`<span style="color:${bc}">${ms.crypto.btcChange>=0?"+":""}${ms.crypto.btcChange?.toFixed(2)||0}%</span>`;
-        document.getElementById("mktBtcSub").textContent=ms.crypto.impact||"affects MARA/RIOT";
-        document.getElementById("mktBtcSub").style.color=bc;
+        safeSet("mktBtc","html",`<span style="color:${bc}">${ms.crypto.btcChange>=0?"+":""}${ms.crypto.btcChange?.toFixed(2)||0}%</span>`);
+        safeSet("mktBtcSub","text",ms.crypto.impact||"affects MARA/RIOT");
+        safeSet("mktBtcSub","color",bc);
       }
 
-      document.getElementById("mktTrending").textContent=(ms.trendingStocks||[]).join(" · ");
+      safeSet("mktTrending","text",(ms.trendingStocks||[]).join(" · "));
       
       // Update market trend card with day type
       const trendEl = document.getElementById("mktTrend");
@@ -1409,9 +1425,9 @@ async function runAnalysis(){
       // Time window display
       if(ms.timeWindow){
         const tw = ms.timeWindow;
-        const twBox = document.getElementById("timeWindowBox");
-        const twTitle = document.getElementById("timeWindowTitle");
-        const twMsg = document.getElementById("timeWindowMsg");
+        const twBox = safeEl("timeWindowBox");
+        const twTitle = safeEl("timeWindowTitle");
+        const twMsg = safeEl("timeWindowMsg");
         if(twBox && twTitle && twMsg){
           twBox.style.display = "block";
           const twColors = {false:"var(--red)", true:"var(--green)"};
@@ -1434,7 +1450,7 @@ async function runAnalysis(){
       if(ms.trendStrength){
         const ts = ms.trendStrength;
         const tsColor = ts.score >= 70 ? "var(--green)" : ts.score >= 50 ? "var(--yellow)" : "var(--red)";
-        document.getElementById("mktTrend").innerHTML += `<div style="font-size:9px;color:${tsColor};margin-top:2px">Strength: ${ts.label} (${ts.score}/100)</div>`;
+        const trendEl2=safeEl("mktTrend");if(trendEl2)trendEl2.innerHTML+=`<div style="font-size:9px;color:${tsColor};margin-top:2px">Strength: ${ts.label} (${ts.score}/100)</div>`;
       }
 
       // Is it safe to trade today?
@@ -1444,10 +1460,10 @@ async function runAnalysis(){
       // Market context display
       if(ms.marketContext){
         const mc = ms.marketContext;
-        const ctxBox = document.getElementById("marketContextBox");
+        const ctxBox = safeEl("marketContextBox");
         ctxBox.style.display = "block";
-        const wtEl = document.getElementById("ctxWeekTrend");
-        const wcEl = document.getElementById("ctxWeekChange");
+        const wtEl = safeEl("ctxWeekTrend");
+        const wcEl = safeEl("ctxWeekChange");
         const wc = mc.weekChange || 0;
         wtEl.textContent = mc.weekTrend?.replace(/_/g," ") || "—";
         wtEl.style.color = wc >= 0 ? "var(--green)" : "var(--red)";
@@ -1466,12 +1482,12 @@ async function runAnalysis(){
           "GENERAL_MOVEMENT":"📊 GENERAL MOVEMENT",
           "UNKNOWN":"❓ REASON UNCLEAR"
         };
-        document.getElementById("ctxCatalyst").textContent = catalystLabels[mc.catalyst] || mc.catalyst;
-        document.getElementById("ctxPlainEnglish").textContent = mc.plainEnglish || "—";
-        document.getElementById("ctxRecommendation").textContent = "💡 " + (mc.contextRecommendation || "—");
+        safeSet("ctxCatalyst","text",catalystLabels[mc.catalyst]||mc.catalyst);
+        safeSet("ctxPlainEnglish","text",mc.plainEnglish||"—");
+        safeSet("ctxRecommendation","text","💡 "+(mc.contextRecommendation||"—"));
         
         if(mc.headlines && mc.headlines.length > 0){
-          document.getElementById("ctxHeadlines").innerHTML = `<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">MARKET NEWS RIGHT NOW:</div>` + 
+          const hlEl=safeEl("ctxHeadlines");if(hlEl)hlEl.innerHTML = `<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">MARKET NEWS RIGHT NOW:</div>` + 
             mc.headlines.map(h=>`<div style="font-size:10px;padding:4px 0;border-bottom:1px solid var(--border);line-height:1.5;color:var(--text)">• ${h}</div>`).join("");
         }
 
@@ -1479,7 +1495,7 @@ async function runAnalysis(){
       const fut = ms.futures;
       if(fut && document.getElementById("ctxFutures")){
         const fc = (fut.esChange||0) >= 0 ? "var(--green)" : "var(--red)";
-        document.getElementById("ctxFutures").innerHTML = `
+        const ctxFut=safeEl("ctxFutures");if(ctxFut)ctxFut.innerHTML = `
           <div style="display:flex;align-items:center;gap:10px;padding:8px;background:rgba(0,0,0,0.2);border-left:2px solid ${fc}">
             <div style="font-size:9px;color:var(--muted)">SPY FUTURES</div>
             <div style="font-size:14px;font-weight:600;color:${fc}">${(fut.esChange||0)>=0?"+":""}${(fut.esChange||0).toFixed(2)}%</div>
@@ -1491,7 +1507,7 @@ async function runAnalysis(){
       const br = ms.breadth;
       if(br && document.getElementById("ctxBreadth")){
         const bc = (br.score||50) >= 60 ? "var(--green)" : (br.score||50) <= 40 ? "var(--red)" : "var(--yellow)";
-        document.getElementById("ctxBreadth").innerHTML = `
+        const ctxBre=safeEl("ctxBreadth");if(ctxBre)ctxBre.innerHTML = `
           <div style="padding:8px;background:rgba(0,0,0,0.2);border-left:2px solid ${bc}">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
               <div style="font-size:9px;color:var(--muted)">MARKET BREADTH</div>
@@ -1539,7 +1555,7 @@ async function runAnalysis(){
         safeDesc="The market is moving "+Math.abs(ms.spyChange).toFixed(1)+"% today — this is historically extreme and happens maybe once a year. Options prices are wildly inflated. Even experienced traders sit out days like this. Protect your $"+d._balance.toFixed(2)+" and come back tomorrow when conditions are normal. "+safeDesc;
       } else if(ms.vix?.value>25){safeClass="risky";safeTitle="⚠️ TRADE CAREFULLY TODAY";}
       stBox.className="safe-to-trade "+safeClass;
-      document.getElementById("safeTitle").textContent=safeTitle;
+      safeSet("safeTitle","text",safeTitle);
       
       // Add day type info
       const dayTypeLabels = {
@@ -1556,18 +1572,18 @@ async function runAnalysis(){
 
       // Beginner tip
       if(ms.beginnerTip){
-        const tipEl=document.getElementById("beginnerTip");
-        tipEl.style.display="block";
+        const tipEl=safeEl("beginnerTip");
+        if(tipEl)tipEl.style.display="block";
         tipEl.textContent="💡 TIP FOR TODAY: "+ms.beginnerTip;
       }
 
       // Warnings
-      const warningsEl=document.getElementById("criticalWarnings");
+      const warningsEl=safeEl("criticalWarnings");
       if(ms.isExtremelyVolatile)warnings.push({type:"danger",msg:`🚨 EXTREME VOLATILITY WARNING: Market is moving ${Math.abs(ms.spyChange).toFixed(1)}% today — options prices are INFLATED and unpredictable. Only risk $5 maximum per trade today or consider waiting.`});
       if(ms.pdtWarning)warnings.push({type:"caution",msg:ms.pdtWarning});
       if(ms.todayTradeCount>=2)warnings.push({type:"caution",msg:`⚠️ PDT WARNING: You've made ${ms.todayTradeCount} day trades today. After 3 more you'll need $25,000 to keep trading. Switch to a CASH ACCOUNT to avoid this (Account → Investing → Account Type).`});
       if(ms.vix?.value>30)warnings.push({type:"caution",msg:`⚠️ HIGH FEAR INDEX (VIX: ${ms.vix.value}): Options are expensive right now. Reduce your position size. ${ms.vix.advice}`});
-      warningsEl.innerHTML=warnings.map(w=>`<div class="warning-box ${w.type}">${w.msg}</div>`).join("");
+      if(warningsEl)warningsEl.innerHTML=warnings.map(w=>`<div class="warning-box ${w.type}">${w.msg}</div>`).join("");
     }
 
     // Active strategy
