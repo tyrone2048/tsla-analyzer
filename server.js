@@ -2845,30 +2845,42 @@ Respond with this JSON only - fill in real values, no placeholders:
   "performanceCoach":{"hasInsights":${perfAnalysis.hasInsights},"summary":"${perfAnalysis.hasInsights?perfAnalysis.summary.replace(/"/g,"'"):"Complete more trades"}","insights":[]},
   "challengeContext":"Journey from $${data.balance} to $10000"
 }`;
+    // Safety check - make sure patternScores exists
+    if (!patternScores || patternScores.length === 0) {
+      console.error("patternScores is empty - using fallback");
+      patternScores = summaries.map(s => ({
+        symbol: s.symbol, totalScore: 50, entryReady: false,
+        path: null, blocks: [], direction: "CALL",
+        patternDescription: "No pattern detected", fvgZone: null,
+        stepInfo: "No pattern", timeframe: "daily", resolutionTime: "unknown"
+      })).sort((a,b) => b.totalScore - a.totalScore);
+    }
+
+    console.log("[Analysis] Sending prompt to AI, patternScores:", patternScores.length);
+    
     const ai = await anthropic.messages.create({ 
       model:"claude-sonnet-4-5", 
       max_tokens:4000,
       messages:[{role:"user",content:prompt}] 
     });
-    const raw = ai.content[0].text;
+    
+    const raw = ai.content[0]?.text || "";
+    console.log("[Analysis] AI response length:", raw.length, "chars");
     
     let analysis;
     try {
-      // Extract JSON from response
       const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("No JSON found in AI response");
+      if (!match) throw new Error("No JSON found — response: " + raw.substring(0,200));
       analysis = JSON.parse(match[0]);
     } catch(parseErr) {
-      console.error("JSON parse error:", parseErr.message);
-      console.error("Raw response length:", raw.length);
-      console.error("Raw preview:", raw.substring(0, 500));
+      console.error("[Analysis] Parse error:", parseErr.message);
+      console.error("[Analysis] Raw start:", raw.substring(0, 300));
+      console.error("[Analysis] Raw end:", raw.substring(raw.length-300));
       
-      // Try to find partial JSON and repair it
       try {
         const jsonStart = raw.indexOf("{");
         if (jsonStart >= 0) {
           let partial = raw.substring(jsonStart);
-          // Close any open structures
           const opens = (partial.match(/\{/g)||[]).length;
           const closes = (partial.match(/\}/g)||[]).length;
           const arrOpens = (partial.match(/\[/g)||[]).length;
@@ -2877,12 +2889,13 @@ Respond with this JSON only - fill in real values, no placeholders:
           for(let i=0;i<opens-closes;i++) partial += "}";
           analysis = JSON.parse(partial);
           analysis._truncated = true;
-          console.log("JSON repaired successfully");
+          console.log("[Analysis] JSON repaired");
         } else {
-          throw new Error("No JSON structure found");
+          throw new Error("No JSON structure in response");
         }
       } catch(repairErr) {
-        throw new Error("Analysis failed — please try again in 30 seconds");
+        console.error("[Analysis] Repair failed:", repairErr.message);
+        throw new Error("Analysis failed — please try again");
       }
     }
 
