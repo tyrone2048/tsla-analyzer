@@ -401,6 +401,386 @@ function detectMarketRegime(spyChange, spyVolume, vixLevel) {
   return "CHOPPY";
 }
 
+// ─── Pattern-First Scoring Engine ────────────────────────────────────────────
+// Step 1: Identify what chart path each stock is on
+// Step 2: Match path to strategy
+// Step 3: Confirm with news, volume, big money, market conditions
+// Step 4: Score and rank
+// Step 5: Pick winner closest to entry trigger with most confirmation
+
+function identifyChartPath(stock) {
+  const s = stock;
+  const intra = s.intraday;
+  const smc = s.smcAnalysis;
+  const patterns = s.chartPatterns || [];
+  const div = s.divergence;
+  
+  const paths = [];
+
+  // PATH 1 — SMC: FVG + BOS Setup
+  if (smc?.fairValueGaps?.length > 0 && smc?.breakOfStructure) {
+    const step = smc.entrySignal?.type === "ENTER_NOW" ? 5 :
+                 smc.entrySignal?.type === "WAIT" ? 4 :
+                 smc.breakOfStructure ? 3 :
+                 smc.fairValueGaps?.length > 0 ? 2 : 1;
+    paths.push({
+      name: "FVG + Break of Structure",
+      strategy: "SMC",
+      step, totalSteps: 5,
+      direction: smc.breakOfStructure?.type === "BULLISH" ? "CALL" : "PUT",
+      entryReady: step === 5,
+      description: smc.plainEnglish || "SMC setup in progress",
+      fvgZone: smc.fairValueGaps?.[smc.fairValueGaps.length-1] ? 
+        `$${smc.fairValueGaps[smc.fairValueGaps.length-1].bottomOfGap?.toFixed(2)}-$${smc.fairValueGaps[smc.fairValueGaps.length-1].topOfGap?.toFixed(2)}` : null,
+      score: step * 20 // Max 100 when on step 5
+    });
+  }
+
+  // PATH 2 — Bull Flag
+  const bullFlag = patterns.find(p => p.name === "BULL FLAG");
+  if (bullFlag) {
+    const hasBreakout = intra?.orbSignal === "BULLISH_BREAKOUT";
+    const step = hasBreakout ? 3 : 2;
+    paths.push({
+      name: "Bull Flag",
+      strategy: "CONTINUATION",
+      step, totalSteps: 3,
+      direction: "CALL",
+      entryReady: hasBreakout && intra?.isMoving,
+      description: hasBreakout ? 
+        "Bull flag BREAKING OUT — enter on volume confirmation" :
+        "Bull flag forming — tight consolidation after strong move. Wait for breakout above flag.",
+      score: step * 33
+    });
+  }
+
+  // PATH 3 — Double Bottom (W shape)
+  const dblBottom = patterns.find(p => p.name === "DOUBLE BOTTOM");
+  if (dblBottom) {
+    const bouncing = intra?.realtimeTrend === "UPTREND";
+    const step = bouncing ? 4 : 3;
+    paths.push({
+      name: "Double Bottom (W)",
+      strategy: "OVERSOLD_BOUNCE",
+      step, totalSteps: 4,
+      direction: "CALL",
+      entryReady: bouncing && s.rsi < 45,
+      description: bouncing ?
+        "W pattern confirmed — second bottom held and price bouncing. Green candle = entry." :
+        "W pattern forming — second bottom testing. Watch for hold and green candle.",
+      score: step * 25
+    });
+  }
+
+  // PATH 4 — VWAP Reclaim
+  if (intra?.aboveVWAP && intra?.realtimeTrend === "UPTREND" && s.change < 5) {
+    const step = intra?.isMoving ? 4 : 3;
+    paths.push({
+      name: "VWAP Reclaim",
+      strategy: "VWAP_RECLAIM",
+      step, totalSteps: 4,
+      direction: "CALL",
+      entryReady: intra?.isMoving && intra?.aboveVWAP,
+      description: intra?.isMoving ?
+        `Price reclaimed VWAP at $${intra.vwap} and trending up — entry confirmed` :
+        `Price above VWAP at $${intra.vwap} — watching for momentum confirmation`,
+      score: step * 25
+    });
+  }
+
+  // PATH 5 — Opening Range Breakout
+  if (intra?.orbSignal === "BULLISH_BREAKOUT") {
+    const step = intra?.isMoving ? 3 : 2;
+    paths.push({
+      name: "Opening Range Breakout",
+      strategy: "BREAKOUT",
+      step, totalSteps: 3,
+      direction: "CALL",
+      entryReady: intra?.isMoving,
+      description: `Price broke above opening range high at $${intra?.openingRangeHigh?.toFixed(2)} — momentum breakout`,
+      score: step * 33
+    });
+  }
+
+  // PATH 6 — Oversold with Bullish Divergence
+  if (div?.type === "BULLISH_DIVERGENCE" && s.rsi < 40) {
+    paths.push({
+      name: "Oversold Divergence",
+      strategy: "SUPPORT_BOUNCE",
+      step: 3, totalSteps: 4,
+      direction: "CALL",
+      entryReady: intra?.realtimeTrend === "UPTREND",
+      description: "Price falling but momentum recovering — bullish divergence. Watch for green candle.",
+      score: 75
+    });
+  }
+
+  // PATH 7 — Uptrend Continuation
+  const upChannel = patterns.find(p => p.name === "UPTREND CHANNEL");
+  if (upChannel && s.macdBullish) {
+    const step = intra?.realtimeTrend === "UPTREND" ? 3 : 2;
+    paths.push({
+      name: "Uptrend Continuation",
+      strategy: "TREND_FOLLOWING",
+      step, totalSteps: 3,
+      direction: "CALL",
+      entryReady: intra?.realtimeTrend === "UPTREND" && intra?.aboveVWAP,
+      description: "Stock in confirmed uptrend channel — buy on pullbacks to support",
+      score: step * 33
+    });
+  }
+
+  // PATH 8 — Volume Spike with Price Move
+  if (s.volume === "HIGH" && intra?.isMoving && s.momentum?.exhaustionLevel === "FRESH") {
+    paths.push({
+      name: "Volume Spike",
+      strategy: "VOLUME_SPIKE",
+      step: 3, totalSteps: 3,
+      direction: s.change > 0 ? "CALL" : "PUT",
+      entryReady: true,
+      description: "Unusual volume with fresh price move — big money entering position",
+      score: 80
+    });
+  }
+
+  // Sort by score descending, return best path
+  paths.sort((a, b) => b.score - a.score);
+  return paths.length > 0 ? { bestPath: paths[0], allPaths: paths } : null;
+}
+
+function scoreStockWithPattern(stock, spyChange, dayType, socialMap, unusualMap, earningsMap, marketContext) {
+  const s = stock;
+  let totalScore = 0;
+  const breakdown = {};
+
+  // Get the chart path this stock is on
+  const pathResult = identifyChartPath(s);
+  const path = pathResult?.bestPath;
+
+  // LAYER 1 — Pattern score (max 30 points)
+  if (path) {
+    const patternScore = Math.round((path.step / path.totalSteps) * 30);
+    totalScore += patternScore;
+    breakdown.pattern = { score: patternScore, detail: `${path.name} — Step ${path.step}/${path.totalSteps}` };
+  } else {
+    breakdown.pattern = { score: 0, detail: "No clear pattern forming" };
+  }
+
+  // LAYER 2 — Entry trigger ready (max 20 points)
+  if (path?.entryReady) {
+    totalScore += 20;
+    breakdown.entry = { score: 20, detail: "Entry trigger met — ready to trade" };
+  } else if (path?.step >= 3) {
+    totalScore += 10;
+    breakdown.entry = { score: 10, detail: "Close to entry — watching" };
+  } else {
+    breakdown.entry = { score: 0, detail: "Not near entry yet" };
+  }
+
+  // LAYER 3 — News alignment (max 15 points)
+  const social = s.socialSentiment || socialMap?.[s.symbol] || {};
+  const direction = path?.direction || "CALL";
+  if (social.label === "BULLISH" && direction === "CALL") { totalScore += 15; breakdown.news = { score: 15, detail: "Bullish news confirms CALL direction" }; }
+  else if (social.label === "BEARISH" && direction === "PUT") { totalScore += 15; breakdown.news = { score: 15, detail: "Bearish news confirms PUT direction" }; }
+  else if (social.label === "NEUTRAL") { totalScore += 7; breakdown.news = { score: 7, detail: "Neutral news — no conflict" }; }
+  else { totalScore += 0; breakdown.news = { score: 0, detail: "News conflicts with pattern direction" }; }
+
+  // LAYER 4 — Volume confirmation (max 10 points)
+  if (s.volume === "HIGH") { totalScore += 10; breakdown.volume = { score: 10, detail: "High volume confirming the move" }; }
+  else if (s.volume === "AVERAGE") { totalScore += 5; breakdown.volume = { score: 5, detail: "Average volume — acceptable" }; }
+  else { totalScore += 0; breakdown.volume = { score: 0, detail: "Low volume — weak signal" }; }
+
+  // LAYER 5 — Big money alignment (max 10 points)
+  const unusual = s.unusualActivity || unusualMap?.[s.symbol];
+  if (unusual?.bigMoney === "BULLISH" && direction === "CALL") { totalScore += 10; breakdown.bigMoney = { score: 10, detail: "Institutional money buying calls" }; }
+  else if (unusual?.bigMoney === "BEARISH" && direction === "PUT") { totalScore += 10; breakdown.bigMoney = { score: 10, detail: "Institutional money buying puts" }; }
+  else { totalScore += 3; breakdown.bigMoney = { score: 3, detail: "No unusual institutional activity" }; }
+
+  // LAYER 6 — Market conditions (max 10 points)
+  const dayBonus = dayType === "TRENDING" && ["CONTINUATION","BREAKOUT","MOMENTUM_SCALP","TREND_FOLLOWING","VOLUME_SPIKE"].includes(path?.strategy) ? 10 :
+                   dayType === "CHOPPY" && ["OVERSOLD_BOUNCE","SUPPORT_BOUNCE","SMC","VWAP_RECLAIM"].includes(path?.strategy) ? 10 :
+                   dayType === "EXTREME_VOLATILE" ? -20 : 5;
+  totalScore += Math.max(0, dayBonus);
+  breakdown.market = { score: Math.max(0, dayBonus), detail: `${dayType} day — ${dayBonus >= 10 ? "perfect" : dayBonus >= 5 ? "suitable" : "poor"} for this pattern` };
+
+  // LAYER 7 — Momentum not exhausted (max 5 points)
+  const exhaustion = s.momentum?.exhaustionLevel;
+  if (exhaustion === "FRESH") { totalScore += 5; breakdown.exhaustion = { score: 5, detail: "Fresh move — plenty of room" }; }
+  else if (exhaustion === "EXTENDED") { totalScore += 2; breakdown.exhaustion = { score: 2, detail: "Slightly extended" }; }
+  else { totalScore += 0; breakdown.exhaustion = { score: 0, detail: "Exhausted — move may be done" }; }
+
+  // HARD BLOCKS — override everything
+  const blocks = [];
+  if (["VERY_EXHAUSTED","EXTREMELY_EXHAUSTED"].includes(exhaustion)) { blocks.push("Already moved too much"); totalScore = Math.min(totalScore, 20); }
+  if (s.intraday?.realtimeTrend === "SIDEWAYS" && !path?.entryReady) { blocks.push("Stock not moving"); totalScore = Math.min(totalScore, 25); }
+  if (earningsMap?.[s.symbol]) { blocks.push("Earnings risk"); totalScore = Math.min(totalScore, 30); }
+  if (s.relativeStrength?.isExtended) { blocks.push("Moved too far vs market"); totalScore = Math.min(totalScore, 25); }
+
+  return {
+    symbol: s.symbol,
+    totalScore: Math.max(0, Math.min(100, Math.round(totalScore))),
+    path: path || null,
+    allPaths: pathResult?.allPaths || [],
+    breakdown,
+    blocks,
+    entryReady: path?.entryReady || false,
+    direction: path?.direction || "CALL",
+    patternDescription: path?.description || "No clear pattern",
+    fvgZone: path?.fvgZone || null,
+    stepInfo: path ? `Step ${path.step} of ${path.totalSteps} — ${path.name}` : "No pattern"
+  };
+}
+
+// ─── MTF-Aware Pattern Scoring ───────────────────────────────────────────────
+// Same as scoreStockWithPattern but uses correct timeframe data per strategy
+function scoreStockWithPatternMTF(stock, spyChange, dayType, socialMap, unusualMap, earningsMap, marketContext) {
+  const s = stock;
+  const mtf = s.multiTimeframe || {};
+  
+  let totalScore = 0;
+  const breakdown = {};
+  let bestPath = null;
+  let bestPathScore = 0;
+
+  // Find the best pattern across all timeframes
+  // Each strategy checked on its optimal timeframe
+  const strategyPaths = [];
+  
+  Object.entries(mtf).forEach(([stratKey, tfData]) => {
+    if (!tfData || !tfData.suitableForDayTrade) return; // Skip weekly/monthly timeframes
+    
+    // Run pattern identification on this timeframe's data
+    const tempStock = {
+      ...s,
+      chartPatterns: tfData.chartPatterns || [],
+      smcAnalysis: tfData.smcAnalysis || null,
+      divergence: tfData.divergence || null,
+      intraday: s.intraday // Keep intraday for VWAP etc
+    };
+    
+    const pathResult = identifyChartPath(tempStock);
+    if (pathResult?.bestPath) {
+      strategyPaths.push({
+        ...pathResult.bestPath,
+        timeframe: tfData.timeframe,
+        interval: tfData.interval,
+        strategyKey: stratKey,
+        resolutionTime: tfData.patternResolutionTime,
+        // Bonus for matching timeframe to strategy
+        timeframeBonus: pathResult.bestPath.strategy === stratKey ? 15 : 5
+      });
+    }
+  });
+  
+  // Also check daily patterns from original data
+  const dailyPathResult = identifyChartPath(s);
+  if (dailyPathResult?.bestPath) {
+    // Only add daily patterns for swing strategies
+    const swingStrategies = ["TREND_FOLLOWING","OVERSOLD_BOUNCE","GAP_FILL"];
+    if (swingStrategies.includes(dailyPathResult.bestPath.strategy)) {
+      strategyPaths.push({
+        ...dailyPathResult.bestPath,
+        timeframe: "daily",
+        interval: "1d",
+        strategyKey: dailyPathResult.bestPath.strategy,
+        resolutionTime: "1-4 weeks",
+        timeframeBonus: 10
+      });
+    }
+  }
+  
+  // Pick best path — prioritize intraday patterns and entry-ready setups
+  strategyPaths.sort((a, b) => {
+    // Prioritize entry ready
+    if (a.entryReady && !b.entryReady) return -1;
+    if (!a.entryReady && b.entryReady) return 1;
+    // Then by step progress
+    const aProgress = a.step / a.totalSteps;
+    const bProgress = b.step / b.totalSteps;
+    if (aProgress !== bProgress) return bProgress - aProgress;
+    // Then by timeframe bonus
+    return b.timeframeBonus - a.timeframeBonus;
+  });
+  
+  bestPath = strategyPaths[0] || null;
+
+  // LAYER 1 — Pattern score (max 30 points)
+  if (bestPath) {
+    const patternScore = Math.round((bestPath.step / bestPath.totalSteps) * 30) + (bestPath.timeframeBonus || 0);
+    totalScore += Math.min(30, patternScore);
+    breakdown.pattern = { 
+      score: Math.min(30, patternScore), 
+      detail: `${bestPath.name} on ${bestPath.timeframe} chart — Step ${bestPath.step}/${bestPath.totalSteps}`,
+      timeframe: bestPath.timeframe,
+      resolutionTime: bestPath.resolutionTime
+    };
+  } else {
+    breakdown.pattern = { score: 0, detail: "No clear pattern on any timeframe" };
+  }
+
+  // LAYER 2 — Entry trigger ready (max 20 points)
+  if (bestPath?.entryReady) {
+    totalScore += 20;
+    breakdown.entry = { score: 20, detail: `Entry trigger met on ${bestPath?.timeframe} chart` };
+  } else if (bestPath && bestPath.step / bestPath.totalSteps >= 0.6) {
+    totalScore += 10;
+    breakdown.entry = { score: 10, detail: "Close to entry — watching" };
+  } else {
+    breakdown.entry = { score: 0, detail: "Not near entry yet" };
+  }
+
+  // LAYERS 3-7 same as before
+  const social = s.socialSentiment || socialMap?.[s.symbol] || {};
+  const direction = bestPath?.direction || "CALL";
+  if (social.label === "BULLISH" && direction === "CALL") { totalScore += 15; breakdown.news = { score: 15, detail: "Bullish news confirms direction" }; }
+  else if (social.label === "BEARISH" && direction === "PUT") { totalScore += 15; breakdown.news = { score: 15, detail: "Bearish news confirms direction" }; }
+  else if (social.label === "NEUTRAL") { totalScore += 7; breakdown.news = { score: 7, detail: "Neutral news" }; }
+  else { totalScore += 0; breakdown.news = { score: 0, detail: "News conflicts with pattern" }; }
+
+  if (s.volume === "HIGH") { totalScore += 10; breakdown.volume = { score: 10, detail: "High volume confirming move" }; }
+  else if (s.volume === "AVERAGE") { totalScore += 5; breakdown.volume = { score: 5, detail: "Average volume" }; }
+  else { totalScore += 0; breakdown.volume = { score: 0, detail: "Low volume — weak signal" }; }
+
+  const unusual = s.unusualActivity || unusualMap?.[s.symbol];
+  if (unusual?.bigMoney === "BULLISH" && direction === "CALL") { totalScore += 10; breakdown.bigMoney = { score: 10, detail: "Institutions buying calls" }; }
+  else if (unusual?.bigMoney === "BEARISH" && direction === "PUT") { totalScore += 10; breakdown.bigMoney = { score: 10, detail: "Institutions buying puts" }; }
+  else { totalScore += 3; breakdown.bigMoney = { score: 3, detail: "No unusual activity" }; }
+
+  const dayBonus = dayType === "TRENDING" && ["CONTINUATION","BREAKOUT","MOMENTUM_SCALP","TREND_FOLLOWING","VOLUME_SPIKE"].includes(bestPath?.strategy) ? 10 :
+                   dayType === "CHOPPY" && ["OVERSOLD_BOUNCE","SUPPORT_BOUNCE","SMC","VWAP_RECLAIM"].includes(bestPath?.strategy) ? 10 :
+                   dayType === "EXTREME_VOLATILE" ? -20 : 5;
+  totalScore += Math.max(0, dayBonus);
+  breakdown.market = { score: Math.max(0, dayBonus), detail: `${dayType} day` };
+
+  const exhaustion = s.momentum?.exhaustionLevel;
+  if (exhaustion === "FRESH") { totalScore += 5; breakdown.exhaustion = { score: 5, detail: "Fresh move" }; }
+  else if (exhaustion === "EXTENDED") { totalScore += 2; breakdown.exhaustion = { score: 2, detail: "Slightly extended" }; }
+  else { breakdown.exhaustion = { score: 0, detail: "Exhausted" }; }
+
+  // HARD BLOCKS
+  const blocks = [];
+  if (["VERY_EXHAUSTED","EXTREMELY_EXHAUSTED"].includes(exhaustion)) { blocks.push("Already moved too much"); totalScore = Math.min(totalScore, 20); }
+  if (s.intraday?.realtimeTrend === "SIDEWAYS" && !bestPath?.entryReady) { blocks.push("Not moving"); totalScore = Math.min(totalScore, 25); }
+  if (earningsMap?.[s.symbol]) { blocks.push("Earnings risk"); totalScore = Math.min(totalScore, 30); }
+  if (s.relativeStrength?.isExtended) { blocks.push("Too extended vs market"); totalScore = Math.min(totalScore, 25); }
+
+  return {
+    symbol: s.symbol,
+    totalScore: Math.max(0, Math.min(100, Math.round(totalScore))),
+    path: bestPath,
+    allPaths: strategyPaths,
+    breakdown,
+    blocks,
+    entryReady: bestPath?.entryReady || false,
+    direction: bestPath?.direction || "CALL",
+    patternDescription: bestPath?.description || "No clear pattern",
+    fvgZone: bestPath?.fvgZone || null,
+    stepInfo: bestPath ? `${bestPath.name} — Step ${bestPath.step}/${bestPath.totalSteps} (${bestPath.timeframe} chart)` : "No pattern",
+    timeframe: bestPath?.timeframe || "—",
+    resolutionTime: bestPath?.resolutionTime || "—"
+  };
+}
+
 // ─── Full Strategy Scoring Engine ────────────────────────────────────────────
 // Runs ALL strategies against current conditions and picks the best one
 function selectBestStrategy(data, strategyMemory, marketRegime, spyChange, summaries, dayType) {
@@ -1325,6 +1705,119 @@ async function getUpcomingEarnings(symbols) {
 }
 
 // ─── Opening Range & VWAP (intraday context) ─────────────────────────────────
+// ─── Multi-Timeframe Data Fetcher ────────────────────────────────────────────
+async function fetchTimeframeData(symbol, interval, range) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=${range}`;
+    const r = await fetch(url, { headers: {"User-Agent":"Mozilla/5.0"} });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const result = d.chart?.result?.[0];
+    if (!result) return null;
+    
+    const timestamps = result.timestamp || [];
+    const quote = result.indicators?.quote?.[0] || {};
+    const closes = quote.close || [];
+    const opens = quote.open || [];
+    const highs = quote.high || [];
+    const lows = quote.low || [];
+    const volumes = quote.volume || [];
+    
+    // Filter out null values
+    const bars = timestamps.map((t, i) => ({
+      time: new Date(t * 1000),
+      open: opens[i],
+      high: highs[i],
+      low: lows[i],
+      close: closes[i],
+      volume: volumes[i]
+    })).filter(b => b.close !== null && b.close !== undefined);
+    
+    return {
+      interval,
+      range,
+      bars,
+      closes: bars.map(b => b.close),
+      opens: bars.map(b => b.open),
+      highs: bars.map(b => b.high),
+      lows: bars.map(b => b.low),
+      volumes: bars.map(b => b.volume)
+    };
+  } catch(e) { return null; }
+}
+
+// Strategy optimal timeframes
+const STRATEGY_TIMEFRAMES = {
+  MOMENTUM_SCALP:   { interval: "2m",  range: "1d", name: "2-minute" },
+  SMC:              { interval: "5m",  range: "5d", name: "5-minute" },
+  VWAP_RECLAIM:     { interval: "2m",  range: "1d", name: "2-minute" },
+  CONTINUATION:     { interval: "5m",  range: "5d", name: "5-minute" },
+  BREAKOUT:         { interval: "5m",  range: "5d", name: "5-minute" },
+  OVERSOLD_BOUNCE:  { interval: "15m", range: "5d", name: "15-minute" },
+  SUPPORT_BOUNCE:   { interval: "15m", range: "5d", name: "15-minute" },
+  VOLUME_SPIKE:     { interval: "2m",  range: "1d", name: "2-minute" },
+  NEWS_CATALYST:    { interval: "5m",  range: "5d", name: "5-minute" },
+  GAP_FILL:         { interval: "5m",  range: "5d", name: "5-minute" },
+  TREND_FOLLOWING:  { interval: "1h",  range: "1mo", name: "1-hour" },
+  EARNINGS_PLAY:    { interval: "1d",  range: "3mo", name: "daily" }
+};
+
+// Fetch the right timeframe for each strategy and run pattern detection
+async function getMultiTimeframeAnalysis(symbol, activeStrategies) {
+  const results = {};
+  
+  // Determine which unique timeframes we need
+  const neededTimeframes = new Set();
+  activeStrategies.forEach(strat => {
+    const tf = STRATEGY_TIMEFRAMES[strat];
+    if (tf) neededTimeframes.add(`${tf.interval}|${tf.range}`);
+  });
+  
+  // Fetch all needed timeframes in parallel
+  const tfData = {};
+  await Promise.allSettled(
+    [...neededTimeframes].map(async tfKey => {
+      const [interval, range] = tfKey.split("|");
+      const data = await fetchTimeframeData(symbol, interval, range);
+      if (data) tfData[tfKey] = data;
+    })
+  );
+  
+  // Run pattern detection on correct timeframe for each strategy
+  activeStrategies.forEach(strat => {
+    const tf = STRATEGY_TIMEFRAMES[strat];
+    if (!tf) return;
+    
+    const tfKey = `${tf.interval}|${tf.range}`;
+    const data = tfData[tfKey];
+    if (!data || data.bars.length < 10) return;
+    
+    const { closes, opens, highs, lows, volumes } = data;
+    
+    results[strat] = {
+      timeframe: tf.name,
+      interval: tf.interval,
+      barCount: data.bars.length,
+      chartPatterns: detectChartPatterns(closes, highs, lows, volumes),
+      smcAnalysis: detectSMC(closes, highs, lows, opens),
+      divergence: detectDivergence(closes, highs, lows),
+      rsi: calcRSI(closes),
+      macd: calcMACD(closes),
+      currentPrice: closes[closes.length-1],
+      // Is the pattern actionable on this timeframe?
+      // A pattern on 5-min data resolves in hours = good for same-day options
+      // A pattern on daily data resolves in weeks = bad for weekly options
+      patternResolutionTime: tf.interval === "2m" ? "30-90 minutes" :
+                              tf.interval === "5m" ? "1-4 hours" :
+                              tf.interval === "15m" ? "2-8 hours" :
+                              tf.interval === "1h" ? "1-3 days" : "1-4 weeks",
+      suitableForDayTrade: ["2m","5m","15m"].includes(tf.interval)
+    };
+  });
+  
+  return results;
+}
+
 async function getIntradayContext(symbol) {
   try {
     // Fetch 2-minute intraday data for real time trend analysis
@@ -1542,6 +2035,205 @@ function getTodayEconomicEvents() {
 
 // ─── Technical Indicators ─────────────────────────────────────────────────────
 function calcRSI(c,p=14){if(c.length<p+1)return null;let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l+=Math.abs(d);}let ag=g/p,al=l/p;for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];ag=(ag*(p-1)+(d>0?d:0))/p;al=(al*(p-1)+(d<0?Math.abs(d):0))/p;}return al===0?100:parseFloat((100-100/(1+ag/al)).toFixed(2));}
+
+// ─── SMC — Smart Money Concepts ──────────────────────────────────────────────
+// Fair Value Gap, Break of Structure, Liquidity detection
+
+function detectSMC(closes, highs, lows, opens) {
+  if (!closes || closes.length < 10) return null;
+  
+  const results = {
+    fairValueGaps: [],
+    breakOfStructure: null,
+    liquidityLevels: [],
+    entrySignal: null,
+    plainEnglish: ""
+  };
+
+  // ── 1. FAIR VALUE GAP DETECTION ──────────────────────────────────────────────
+  // A FVG exists when: candle 3 low > candle 1 high (bullish gap)
+  // OR candle 3 high < candle 1 low (bearish gap)
+  // Meaning the wicks of candle 1 and candle 3 do NOT overlap
+  for (let i = 2; i < Math.min(closes.length, 30); i++) {
+    const c1High = highs[i-2]; // Candle 1 high
+    const c1Low = lows[i-2];   // Candle 1 low
+    const c2Close = closes[i-1]; // Middle candle — the big move
+    const c3High = highs[i];   // Candle 3 high
+    const c3Low = lows[i];     // Candle 3 low
+    
+    // Bullish FVG: candle 3 low is ABOVE candle 1 high — gap between them
+    if (c3Low > c1High) {
+      const gapSize = parseFloat((c3Low - c1High).toFixed(3));
+      const gapPercent = parseFloat((gapSize / c1High * 100).toFixed(2));
+      if (gapPercent > 0.1) { // Only meaningful gaps
+        results.fairValueGaps.push({
+          type: "BULLISH",
+          topOfGap: c3Low,   // Price needs to come back DOWN to here
+          bottomOfGap: c1High, // This is the bottom of the gap zone
+          candleIndex: i,
+          gapSize,
+          gapPercent,
+          filled: closes[closes.length-1] <= c3Low && closes[closes.length-1] >= c1High,
+          plainEnglish: `Bullish FVG: Gap between $${c1High.toFixed(2)} and $${c3Low.toFixed(2)} — price may return here before going up`
+        });
+      }
+    }
+    
+    // Bearish FVG: candle 3 high is BELOW candle 1 low — gap between them
+    if (c3High < c1Low) {
+      const gapSize = parseFloat((c1Low - c3High).toFixed(3));
+      const gapPercent = parseFloat((gapSize / c1Low * 100).toFixed(2));
+      if (gapPercent > 0.1) {
+        results.fairValueGaps.push({
+          type: "BEARISH",
+          topOfGap: c1Low,
+          bottomOfGap: c3High,
+          candleIndex: i,
+          gapSize,
+          gapPercent,
+          filled: closes[closes.length-1] >= c3High && closes[closes.length-1] <= c1Low,
+          plainEnglish: `Bearish FVG: Gap between $${c3High.toFixed(2)} and $${c1Low.toFixed(2)} — price may return here before going down`
+        });
+      }
+    }
+  }
+
+  // Keep only the 3 most recent meaningful FVGs
+  results.fairValueGaps = results.fairValueGaps.slice(-3);
+
+  // ── 2. SWING HIGHS AND LOWS (for BOS and Liquidity) ─────────────────────────
+  const swingHighs = [];
+  const swingLows = [];
+  for (let i = 2; i < highs.length - 2; i++) {
+    if (highs[i] > highs[i-1] && highs[i] > highs[i-2] && highs[i] > highs[i+1] && highs[i] > highs[i+2]) {
+      swingHighs.push({ price: highs[i], index: i });
+    }
+    if (lows[i] < lows[i-1] && lows[i] < lows[i-2] && lows[i] < lows[i+1] && lows[i] < lows[i+2]) {
+      swingLows.push({ price: lows[i], index: i });
+    }
+  }
+
+  // ── 3. LIQUIDITY LEVELS ───────────────────────────────────────────────────────
+  // Swing highs = buy-side liquidity (stop losses of short sellers cluster here)
+  // Swing lows = sell-side liquidity (stop losses of long buyers cluster here)
+  const currentPrice = closes[closes.length-1];
+  
+  swingHighs.slice(-5).forEach(sh => {
+    results.liquidityLevels.push({
+      type: "BUY_SIDE",
+      price: parseFloat(sh.price.toFixed(2)),
+      above: sh.price > currentPrice,
+      plainEnglish: `Buy-side liquidity at $${sh.price.toFixed(2)} — stop losses of sellers cluster here`
+    });
+  });
+  
+  swingLows.slice(-5).forEach(sl => {
+    results.liquidityLevels.push({
+      type: "SELL_SIDE", 
+      price: parseFloat(sl.price.toFixed(2)),
+      below: sl.price < currentPrice,
+      plainEnglish: `Sell-side liquidity at $${sl.price.toFixed(2)} — stop losses of buyers cluster here`
+    });
+  });
+
+  // ── 4. BREAK OF STRUCTURE ─────────────────────────────────────────────────────
+  // Bullish BOS: current price breaks ABOVE a previous swing high
+  // Bearish BOS: current price breaks BELOW a previous swing low
+  if (swingHighs.length >= 2) {
+    const lastSwingHigh = swingHighs[swingHighs.length-1].price;
+    const prevSwingHigh = swingHighs[swingHighs.length-2].price;
+    
+    if (currentPrice > lastSwingHigh) {
+      results.breakOfStructure = {
+        type: "BULLISH",
+        level: parseFloat(lastSwingHigh.toFixed(2)),
+        plainEnglish: `✅ BULLISH BREAK OF STRUCTURE: Price broke above $${lastSwingHigh.toFixed(2)}. Trend confirmed UP. Look for pullback to FVG for entry.`
+      };
+    }
+  }
+  
+  if (swingLows.length >= 2 && !results.breakOfStructure) {
+    const lastSwingLow = swingLows[swingLows.length-1].price;
+    
+    if (currentPrice < lastSwingLow) {
+      results.breakOfStructure = {
+        type: "BEARISH",
+        level: parseFloat(lastSwingLow.toFixed(2)),
+        plainEnglish: `⚠️ BEARISH BREAK OF STRUCTURE: Price broke below $${lastSwingLow.toFixed(2)}. Trend confirmed DOWN. Look for bounce to FVG for PUT entry.`
+      };
+    }
+  }
+
+  // ── 5. ENTRY SIGNAL — Green candle inside FVG after BOS ──────────────────────
+  // This is the exact entry the trader described
+  if (results.breakOfStructure && results.fairValueGaps.length > 0) {
+    const bos = results.breakOfStructure;
+    const recentFVGs = results.fairValueGaps.filter(fvg => fvg.type === (bos.type === "BULLISH" ? "BULLISH" : "BEARISH"));
+    
+    if (recentFVGs.length > 0) {
+      const targetFVG = recentFVGs[recentFVGs.length-1];
+      const lastClose = closes[closes.length-1];
+      const lastOpen = opens ? opens[opens.length-1] : lastClose;
+      const prevClose = closes[closes.length-2];
+      
+      // Is price currently inside the FVG zone?
+      const insideFVG = bos.type === "BULLISH" 
+        ? lastClose >= targetFVG.bottomOfGap && lastClose <= targetFVG.topOfGap
+        : lastClose >= targetFVG.bottomOfGap && lastClose <= targetFVG.topOfGap;
+      
+      // Is the last candle green (close > open)?
+      const isGreenCandle = lastClose > (lastOpen || prevClose);
+      const isRedCandle = lastClose < (lastOpen || prevClose);
+      
+      if (insideFVG && bos.type === "BULLISH" && isGreenCandle) {
+        results.entrySignal = {
+          type: "ENTER_NOW",
+          direction: "CALL",
+          fvgZone: `$${targetFVG.bottomOfGap.toFixed(2)} - $${targetFVG.topOfGap.toFixed(2)}`,
+          plainEnglish: `🟢 ENTER NOW: Price is inside the bullish FVG zone ($${targetFVG.bottomOfGap.toFixed(2)}-$${targetFVG.topOfGap.toFixed(2)}) AND a GREEN candle just formed. This is your exact entry signal. BUY CALL immediately.`,
+          confidence: "HIGH"
+        };
+      } else if (insideFVG && bos.type === "BEARISH" && isRedCandle) {
+        results.entrySignal = {
+          type: "ENTER_NOW",
+          direction: "PUT",
+          fvgZone: `$${targetFVG.bottomOfGap.toFixed(2)} - $${targetFVG.topOfGap.toFixed(2)}`,
+          plainEnglish: `🔴 ENTER NOW: Price is inside the bearish FVG zone AND a RED candle just formed. BUY PUT immediately.`,
+          confidence: "HIGH"
+        };
+      } else if (bos.type === "BULLISH" && lastClose > targetFVG.topOfGap) {
+        results.entrySignal = {
+          type: "WAIT",
+          direction: "CALL",
+          fvgZone: `$${targetFVG.bottomOfGap.toFixed(2)} - $${targetFVG.topOfGap.toFixed(2)}`,
+          plainEnglish: `⏳ WAIT: Bullish BOS confirmed. Waiting for price to PULL BACK into the FVG zone ($${targetFVG.bottomOfGap.toFixed(2)}-$${targetFVG.topOfGap.toFixed(2)}). Then wait for a green candle — that is your entry.`,
+          confidence: "MEDIUM"
+        };
+      } else if (bos.type === "BEARISH" && lastClose < targetFVG.bottomOfGap) {
+        results.entrySignal = {
+          type: "WAIT",
+          direction: "PUT", 
+          fvgZone: `$${targetFVG.bottomOfGap.toFixed(2)} - $${targetFVG.topOfGap.toFixed(2)}`,
+          plainEnglish: `⏳ WAIT: Bearish BOS confirmed. Waiting for price to BOUNCE back into the FVG zone ($${targetFVG.bottomOfGap.toFixed(2)}-$${targetFVG.topOfGap.toFixed(2)}). Then wait for a red candle — that is your entry.`,
+          confidence: "MEDIUM"
+        };
+      }
+    }
+  }
+
+  // ── 6. PLAIN ENGLISH SUMMARY ──────────────────────────────────────────────────
+  if (results.entrySignal) {
+    results.plainEnglish = results.entrySignal.plainEnglish;
+  } else if (results.breakOfStructure) {
+    results.plainEnglish = results.breakOfStructure.plainEnglish + " No FVG retest yet.";
+  } else if (results.fairValueGaps.length > 0) {
+    results.plainEnglish = `FVG detected at ${results.fairValueGaps[results.fairValueGaps.length-1].plainEnglish}. No Break of Structure yet — wait for BOS before entering.`;
+  } else {
+    results.plainEnglish = "No SMC setup detected currently. Wait for a clear FVG + BOS combination.";
+  }
+
+  return results;
+}
 
 // ─── Chart Pattern Detection ─────────────────────────────────────────────────
 // Detects the same patterns a trader would see on TradingView
@@ -2001,6 +2693,32 @@ app.get("/api/analyze", async (req, res) => {
     // Add all strategy scores to context
     const allStrategyScores = bestStrategy.allStrategiesScored || [];
 
+    // Get active strategies for today based on day type
+    const activeStrategyKeys = Object.entries(STRATEGIES)
+      .filter(([,s]) => s.educationLevel <= edLevel)
+      .map(([k]) => k);
+    
+    // MULTI-TIMEFRAME ANALYSIS — fetch correct timeframe per strategy for top stocks
+    const topSymbols4TF = topSymbols.slice(0,4);
+    const multiTFResults = {};
+    await Promise.allSettled(
+      topSymbols4TF.map(async sym => {
+        const tfAnalysis = await getMultiTimeframeAnalysis(sym, activeStrategyKeys);
+        multiTFResults[sym] = tfAnalysis;
+      })
+    );
+    
+    // Merge multi-timeframe results into summaries
+    const enrichedSummaries = summaries.map(s => ({
+      ...s,
+      multiTimeframe: multiTFResults[s.symbol] || null
+    }));
+
+    // PATTERN-FIRST STOCK SCORING — score each stock based on chart path + confirmation
+    const patternScores = enrichedSummaries.map(s => 
+      scoreStockWithPatternMTF(s, spyChange, dayClassification.dayType, socialMap, unusualMap, earningsMap, marketContext)
+    ).sort((a, b) => b.totalScore - a.totalScore);
+
     // Pattern matching — find similar past setups
     const patterns = strategyMemory.patterns || [];
     const matchingPatterns = patterns.filter(p =>
@@ -2033,6 +2751,7 @@ app.get("/api/analyze", async (req, res) => {
       divergence: marketDataMap[sym]?.divergence || null,
       chartPatterns: marketDataMap[sym]?.chartPatterns || null,
       primaryPattern: marketDataMap[sym]?.chartPatterns?.[0] || null,
+      smcAnalysis: marketDataMap[sym]?.smcAnalysis || null,
       finnhubSentiment: finnhubMap[sym] || null,
       btcCorrelationSignal: ["MARA","RIOT","CLSK"].includes(sym) ? coinGecko.miningStockImpact : null,
       econEvents: economicEvents.length > 0 ? economicEvents : null,
@@ -2238,7 +2957,11 @@ Return ONLY valid JSON:
       "plainEnglish":"${marketContext.plainEnglish}"
     },
     "marketComment":"2 plain English sentences about today's market. If extremely volatile warn beginner traders strongly.",
-    "beginnerTip":"1 sentence of the most important thing a beginner should know about trading TODAY specifically"
+    "beginnerTip":"1 sentence of the most important thing a beginner should know about trading TODAY specifically",
+    "topPatternStock":"${patternScores[0]?.symbol||""}",
+    "topPatternScore":${patternScores[0]?.totalScore||0},
+    "topPatternStep":"${patternScores[0]?.stepInfo||""}",
+    "topPatternReady":${patternScores[0]?.entryReady||false}
   },
   "activeStrategy":{
     "name":"${bestStrategy.name}","key":"${bestStrategy.key}",
@@ -2275,6 +2998,9 @@ Return ONLY valid JSON:
       "earningsRisk":"None" or warning,
       "chartPattern":"Name and plain English explanation of the PRIMARY chart pattern detected — what would a trader see on TradingView right now?",
       "chartPatternAction":"Specific action based on the pattern — buy calls, avoid, wait for breakout etc",
+      "smcSetup":"Plain English explanation of the FVG + BOS + Liquidity setup for this stock. Is there an active SMC entry signal?",
+      "smcEntryState":"ENTER NOW (green candle in FVG after BOS)" or "WAIT FOR PULLBACK TO FVG" or "WAIT FOR BOS" or "NO SETUP",
+      "fvgZone":"The exact price zone to watch e.g. $3.45 - $3.62",
       "divergence":"Explain any divergence detected in plain English",
       "thetaWarning":"Plain English warning about time decay — how much is this option losing per day just from time passing?",
       "strategyFit":"How this specific stock fits the ${bestStrategy.name} strategy today",
