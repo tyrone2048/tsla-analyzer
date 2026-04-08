@@ -337,11 +337,11 @@ function classifyMarketDay(spyChange, vixValue, spyIntradayData) {
     return {
       dayType: "EXTREME_VOLATILE",
       regime: spyChange > 0 ? "STRONG_BULL" : "STRONG_BEAR",
-      bestStrategy: "SIT_OUT",
-      description: "Market moving 3%+ — extreme volatility day",
-      plainEnglish: "The market is moving too much today. Options are overpriced and moves can reverse violently. Professional traders sit out days like this.",
-      tradingAdvice: "DO NOT TRADE. Wait for a normal day. Your money is safer sitting still.",
-      confidence: "HIGH"
+      bestStrategy: spyChange > 0 ? "MOMENTUM_SCALP" : "MOMENTUM_SCALP",
+      description: `Market moving ${absChange.toFixed(1)}% — extreme day. Adapting strategy.`,
+      plainEnglish: `Market is up ${absChange.toFixed(1)}% today. Stocks that already moved 20%+ are dangerous — options are overpriced. BUT stocks with their OWN news catalyst that are LAGGING the market (moved less than SPY) are still tradeable. The app is scanning for those right now.`,
+      tradingAdvice: `Extreme day protocol: Skip stocks up 15%+ that just followed the market. Focus ONLY on stocks with independent catalysts moving less than the overall market. Keep position size at $3-5 maximum. Use SMC or Momentum Scalp strategies only.`,
+      confidence: "MEDIUM"
     };
   }
   
@@ -2804,10 +2804,13 @@ app.get("/api/analyze", async (req, res) => {
     const topScore=Math.max(...summaries.map(s=>{let sc=50;if(s.macdBullish)sc+=8;if(s.aboveEMA50)sc+=5;if(s.obvTrend==="RISING")sc+=8;if(s.unusualActivity?.bigMoney==="BULLISH")sc+=12;if(s.isTrending)sc+=5;return sc;}),0);
     const numTrades=getTradeCount(data.balance,marketTrend,topScore);
 
-    // Hard sit-out check
+    // Market condition assessment — adapt strategies instead of hard blocking
     const allStocksUpBig = Object.values(marketDataMap).filter(s => Math.abs(s.priceData?.change||0) > 15).length;
-    const shouldSitOut = isExtremelyVolatile || allStocksUpBig > 3;
-    const marketComment2 = shouldSitOut ? "SIT OUT TODAY" : isMildlyVolatile ? "TRADE CAUTIOUSLY" : "GOOD DAY TO TRADE";
+    // Only true sit-out if literally everything moved big AND no independent catalysts
+    const shouldSitOut = Math.abs(spyChange) > 5 && allStocksUpBig > 6;
+    // On extreme days focus on laggards and momentum — not blocking everything
+    const extremeDayMode = Math.abs(spyChange) > 3 && !shouldSitOut;
+    const marketComment2 = shouldSitOut ? "EXTREME — focus on independent catalysts only" : extremeDayMode ? "VOLATILE — momentum and SMC strategies only, focus on laggards" : isMildlyVolatile ? "TRADE CAUTIOUSLY" : "GOOD DAY TO TRADE";
     
     // Trend strength
     const trendStrength = scoreTrendStrength(spyChange, fearGreed.score, null);
@@ -2822,10 +2825,14 @@ MARKET SAFETY CHECK:
 - Extreme volatility: ${isExtremelyVolatile} (SPY: ${spyChange}%)
 - Stocks up 20%+: ${allStocksUpBig}
 ${shouldSitOut ? `
-⚠️ CRITICAL: Today is NOT safe to trade. SPY is up ${spyChange}% which is historically extreme.
-ALL your recommendations should be HOLD/SIT OUT.
-Tell the user clearly: "DO NOT TRADE TODAY. The market is moving ${Math.abs(spyChange).toFixed(1)}% which is extremely unusual. Options are overpriced and moves can reverse violently. Protect your $${data.balance} and come back tomorrow."
-Do not recommend any stock for trading today.` : ""}
+⚠️ EXTREME MARKET: SPY moving ${spyChange}% AND most stocks already moved 15%+.
+Focus ONLY on the 1-2 stocks that have NOT moved much yet (true laggards with own catalyst).
+If no laggards exist recommend sitting out and explain why clearly.` : ""}
+${extremeDayMode ? `
+⚡ VOLATILE DAY PROTOCOL: SPY moving ${spyChange}% but not all stocks exhausted.
+Find stocks with independent catalysts that are lagging the market.
+Use ONLY Momentum Scalp, SMC, or Volume Spike strategies.
+Ignore stocks up 15%+ — focus on stocks up less than ${(Math.abs(spyChange)*0.3).toFixed(1)}% that have specific news.` : ""}
 
 USER PROFILE:
 - Balance: $${data.balance} | Goal: $10,000
