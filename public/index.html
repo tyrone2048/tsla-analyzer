@@ -1165,8 +1165,6 @@ function buildTradePanel(trade,idx){
           <div class="signal-word">${trade.signal==="BUY"?"BUY — GO UP 📈":trade.signal==="SELL"?"SELL — GO DOWN 📉":"HOLD — WAIT ⏸"}</div>
           <div class="signal-conf">Confidence: <strong style="color:var(--text)">${trade.confidence}</strong> · Accuracy: <strong style="color:var(--text)">${trade.accuracyScore||0}%</strong></div>
           <div style="font-size:10px;color:var(--muted);margin-top:3px">▲${trade.indicatorConsensus?.bullish||0} bullish · ▼${trade.indicatorConsensus?.bearish||0} bearish · —${trade.indicatorConsensus?.neutral||0} neutral</div>
-          ${trade.patternStep?`<div style="font-size:10px;color:var(--green);margin-top:4px;font-weight:600">📊 ${trade.patternStep}</div>`:""}
-          ${trade.timeframe?`<div style="font-size:9px;color:var(--muted);margin-top:2px">Detected on: ${trade.timeframe} chart · Resolves in: ${trade.resolutionTime||"—"}</div>`:""}
         </div>
         <div style="text-align:right"><div style="font-size:9px;color:var(--muted);letter-spacing:1px">LIVE PRICE</div><div class="signal-price">$${trade.currentPrice?.toFixed(2)||"—"}</div><div style="font-size:11px;color:${trade.priceChange>=0?"var(--green)":"var(--red)"}">${chgSign}${trade.priceChange?.toFixed(2)||0}% today</div></div>
       </div>
@@ -1600,22 +1598,9 @@ async function runAnalysis(){
           <span style="font-size:9px;padding:3px 10px;border:1px solid var(--purple);color:var(--purple)">${as.key}</span>
         </div>
         <div class="strategy-plain">${as.strategyEducation||as.description||""}</div>
-        <div style="font-size:9px;padding:4px 8px;display:inline-block;border:1px solid var(--border);color:var(--muted);margin-top:6px">
-          ⏱ Optimal timeframe: ${{"MOMENTUM_SCALP":"2-minute","SMC":"5-minute","VWAP_RECLAIM":"2-minute","CONTINUATION":"5-minute","BREAKOUT":"5-minute","OVERSOLD_BOUNCE":"15-minute","SUPPORT_BOUNCE":"15-minute","VOLUME_SPIKE":"2-minute","NEWS_CATALYST":"5-minute","GAP_FILL":"5-minute","TREND_FOLLOWING":"1-hour","EARNINGS_PLAY":"Daily"}[as.key]||"5-minute"} charts
-        </div>
         <div style="font-size:11px;color:var(--accent);margin-top:8px;padding:10px;background:rgba(0,229,255,0.04);border-left:2px solid var(--accent);line-height:1.7">
           <strong>Why this strategy won today:</strong> ${as.whyToday||""}
         </div>
-
-        <!-- Pattern Path Progress -->
-        ${d.marketSummary?.topPatternStock?`
-        <div style="margin-top:12px;padding:12px;background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.2);">
-          <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:8px">📊 CHART PATH DETECTED ON ${d.marketSummary.topPatternStock}</div>
-          <div style="font-size:13px;font-weight:600;color:${d.marketSummary.topPatternReady?"var(--green)":"var(--yellow)"};margin-bottom:6px">
-            ${d.marketSummary.topPatternStep||"—"}
-          </div>
-          <div style="font-size:11px;color:var(--muted)">Score: ${d.marketSummary.topPatternScore}/100 · ${d.marketSummary.topPatternReady?"🟢 ENTRY READY":"⏳ Building setup"}</div>
-        </div>`:""}
         ${as.whyNotOthers?`<div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6">Why others lost: ${as.whyNotOthers}</div>`:""}
         
         ${as.allStrategiesRanked&&as.allStrategiesRanked.length>1?`
