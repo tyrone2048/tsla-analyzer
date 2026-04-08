@@ -12,519 +12,1001 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 process.on("uncaughtException", (err) => { console.error("[CRASH PREVENTED]", err.message); });
-process.on("unhandledRejection", (reason) => { console.error("[REJECTION PREVENTED]", reason?.message||reason); });
+process.on("unhandledRejection", (reason) => { console.error("[REJECTION]", reason?.message || reason); });
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Data files
-const DATA_FILE = path.join(__dirname, "challenge_data.json");
-const STRATEGY_FILE = path.join(__dirname, "strategy_memory.json");
-const PENDING_FILE = path.join(__dirname, "pending_setups.json");
+// ─── Files ────────────────────────────────────────────────────────────────────
+const DATA_FILE    = path.join(__dirname, "challenge_data.json");
+const LEARN_FILE   = path.join(__dirname, "smc_learning.json");
 
 function loadData() {
   if (!fs.existsSync(DATA_FILE)) {
-    const d = { balance:10, startingBalance:10, goal:10000, trades:[], milestones:[], createdAt:new Date().toISOString(), consecutiveWins:0, consecutiveLosses:0 };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(d,null,2)); return d;
+    const d = { balance:10, startingBalance:10, trades:[], milestones:[] };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(d,null,2));
+    return d;
   }
   try { return JSON.parse(fs.readFileSync(DATA_FILE,"utf8")); }
-  catch(e) { return { balance:10, startingBalance:10, goal:10000, trades:[], milestones:[] }; }
+  catch(e) { return { balance:10, startingBalance:10, trades:[], milestones:[] }; }
 }
 function saveData(d) { fs.writeFileSync(DATA_FILE, JSON.stringify(d,null,2)); }
-function loadSM() {
-  if (!fs.existsSync(STRATEGY_FILE)) { const d={patterns:[],strategyPerformance:{},lastAdaptation:null}; fs.writeFileSync(STRATEGY_FILE,JSON.stringify(d,null,2)); return d; }
-  try { return JSON.parse(fs.readFileSync(STRATEGY_FILE,"utf8")); } catch(e) { return {patterns:[],strategyPerformance:{}}; }
+
+function loadLearning() {
+  if (!fs.existsSync(LEARN_FILE)) {
+    const d = {
+      totalTrades: 0,
+      wins: 0,
+      losses: 0,
+      setupData: [],       // Every SMC setup ever traded
+      bestStocks: {},      // Win rate per stock
+      bestTimes: {},       // Win rate per hour
+      bestGapSizes: [],    // What gap % worked
+      bestConditions: [],  // What market conditions worked
+      insights: []         // Auto-generated insights
+    };
+    fs.writeFileSync(LEARN_FILE, JSON.stringify(d,null,2));
+    return d;
+  }
+  try { return JSON.parse(fs.readFileSync(LEARN_FILE,"utf8")); }
+  catch(e) { return { totalTrades:0, wins:0, losses:0, setupData:[], bestStocks:{}, bestTimes:{}, bestGapSizes:[], bestConditions:[], insights:[] }; }
 }
-function saveSM(d) { fs.writeFileSync(STRATEGY_FILE, JSON.stringify(d,null,2)); }
-function loadPending() { try { return fs.existsSync(PENDING_FILE)?JSON.parse(fs.readFileSync(PENDING_FILE,"utf8")):[];} catch(e){return[];} }
-function savePending(d) { fs.writeFileSync(PENDING_FILE, JSON.stringify(d,null,2)); }
+function saveLearning(d) { fs.writeFileSync(LEARN_FILE, JSON.stringify(d,null,2)); }
 
 const MILESTONES = [25,50,100,250,500,1000,2500,5000,10000];
-function checkMilestone(old, nw, existing) { for(const m of MILESTONES){if(old<m&&nw>=m&&!(existing||[]).includes(m))return m;} return null; }
-
-const CHEAP = ["SOUN","SOFI","MARA","RIOT","PLTR","HOOD","AAL","VALE","CLSK","NIO","XPEV","PLUG","BBAI","SAVE","SPCE"];
-const MID = ["TSLA","AMD","NVDA","AAPL","AMZN","META","COIN","RBLX"];
-const HIGH = ["TSLA","NVDA","AAPL","AMZN","META","MSFT","GOOGL","SPY","QQQ"];
-function getWatchlist(bal) { if(bal>=2000)return HIGH; if(bal>=500)return[...CHEAP.slice(0,8),...MID.slice(0,4)]; if(bal>=100)return[...CHEAP.slice(0,10),...MID.slice(0,2)]; return CHEAP; }
-
-const activeMonitors = {};
-async function sendEmail(to, subject, html) {
-  if (!process.env.ALERT_EMAIL||!process.env.ALERT_EMAIL_PASSWORD) return false;
-  try { const t=nodemailer.createTransport({service:"gmail",auth:{user:process.env.ALERT_EMAIL,pass:process.env.ALERT_EMAIL_PASSWORD}}); await t.sendMail({from:process.env.ALERT_EMAIL,to,subject,html}); return true; }
-  catch(e) { console.error("Email:",e.message); return false; }
-}
-
-// Technical indicators
-function calcRSI(c,p=14) { if(!c||c.length<p+1)return null; let g=0,l=0; for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l+=Math.abs(d);} let ag=g/p,al=l/p; for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];ag=(ag*(p-1)+(d>0?d:0))/p;al=(al*(p-1)+(d<0?Math.abs(d):0))/p;} return al===0?100:parseFloat((100-100/(1+ag/al)).toFixed(2)); }
-function calcEMA(c,p) { if(!c||c.length<p)return null; const k=2/(p+1); let e=c.slice(0,p).reduce((a,b)=>a+b,0)/p; for(let i=p;i<c.length;i++)e=c[i]*k+e*(1-k); return parseFloat(e.toFixed(2)); }
-function calcMACD(c) { const e12=calcEMA(c,12),e26=calcEMA(c,26); if(!e12||!e26)return null; return{macdLine:parseFloat((e12-e26).toFixed(2)),bullish:e12>e26}; }
-function calcATR(h,l,c,p=14) { if(!h||h.length<p+1)return null; const t=[]; for(let i=1;i<h.length;i++)t.push(Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]))); return parseFloat((t.slice(-p).reduce((a,b)=>a+b,0)/p).toFixed(2)); }
-function calcStoch(h,l,c,p=14) { if(!c||c.length<p)return null; const hh=Math.max(...h.slice(-p)),ll=Math.min(...l.slice(-p)),cur=c[c.length-1]; return hh===ll?50:parseFloat(((cur-ll)/(hh-ll)*100).toFixed(2)); }
-function calcWR(h,l,c,p=14) { if(!c||c.length<p)return null; const hh=Math.max(...h.slice(-p)),ll=Math.min(...l.slice(-p)),cur=c[c.length-1]; return hh===ll?-50:parseFloat(((hh-cur)/(hh-ll)*-100).toFixed(2)); }
-function calcOBV(c,v) { let o=0; const vals=[0]; for(let i=1;i<c.length;i++){if(c[i]>c[i-1])o+=v[i];else if(c[i]<c[i-1])o-=v[i];vals.push(o);} const r=vals.slice(-10); return{trend:r[r.length-1]>r[0]?"RISING":"FALLING"}; }
-function volAnalysis(v) { if(!v||!v.length)return{trend:"AVERAGE",ratio:1}; const avg=v.slice(-20).reduce((a,b)=>a+b,0)/Math.min(v.length,20),today=v[v.length-1],ratio=avg>0?parseFloat((today/avg).toFixed(2)):1; return{today,avg20:Math.round(avg),ratio,trend:ratio>1.2?"HIGH":ratio<0.8?"LOW":"AVERAGE"}; }
-function findSR(h,l,c,price) { if(!h||h.length<10)return{supports:[],resistances:[]}; const rh=h.slice(-60),rl=l.slice(-60),sup=[],res=[]; for(let i=2;i<rl.length-2;i++){if(rl[i]<rl[i-1]&&rl[i]<rl[i-2]&&rl[i]<rl[i+1]&&rl[i]<rl[i+2])sup.push(parseFloat(rl[i].toFixed(2)));if(rh[i]>rh[i-1]&&rh[i]>rh[i-2]&&rh[i]>rh[i+1]&&rh[i]>rh[i+2])res.push(parseFloat(rh[i].toFixed(2)));} return{supports:[...new Set(sup)].filter(s=>s<price).sort((a,b)=>b-a).slice(0,3),resistances:[...new Set(res)].filter(r=>r>price).sort((a,b)=>a-b).slice(0,3)}; }
-
-function detectSMC(closes,highs,lows,opens) {
-  if(!closes||closes.length<10)return null;
-  const fvgs=[];
-  for(let i=2;i<Math.min(closes.length,30);i++){
-    const c1H=highs[i-2],c3L=lows[i],c1L=lows[i-2],c3H=highs[i];
-    if(c3L>c1H){const g=parseFloat((c3L-c1H).toFixed(3));if(g/c1H*100>0.1)fvgs.push({type:"BULLISH",top:c3L,bottom:c1H});}
-    if(c3H<c1L){const g=parseFloat((c1L-c3H).toFixed(3));if(g/c1L*100>0.1)fvgs.push({type:"BEARISH",top:c1L,bottom:c3H});}
-  }
-  const cp=closes[closes.length-1];
-  const lo=opens?opens[opens.length-1]:cp;
-  const isGreen=cp>lo;
-  const sH=[],sL=[];
-  for(let i=2;i<highs.length-2;i++){
-    if(highs[i]>highs[i-1]&&highs[i]>highs[i-2]&&highs[i]>highs[i+1]&&highs[i]>highs[i+2])sH.push(highs[i]);
-    if(lows[i]<lows[i-1]&&lows[i]<lows[i-2]&&lows[i]<lows[i+1]&&lows[i]<lows[i+2])sL.push(lows[i]);
-  }
-  let bos=null;
-  if(sH.length>=1&&cp>sH[sH.length-1])bos={type:"BULLISH",level:parseFloat(sH[sH.length-1].toFixed(2))};
-  else if(sL.length>=1&&cp<sL[sL.length-1])bos={type:"BEARISH",level:parseFloat(sL[sL.length-1].toFixed(2))};
-  let entrySignal=null,plain="No SMC setup.";
-  const lFVG=fvgs[fvgs.length-1];
-  if(lFVG&&bos){
-    const inFVG=cp>=lFVG.bottom&&cp<=lFVG.top;
-    if(inFVG&&bos.type==="BULLISH"&&isGreen){entrySignal="ENTER_NOW";plain=`ENTER NOW: Green candle inside FVG $${lFVG.bottom.toFixed(2)}-$${lFVG.top.toFixed(2)} after BOS at $${bos.level}. This is your entry.`;}
-    else if(bos.type==="BULLISH"&&cp>lFVG.top){entrySignal="WAIT_PULLBACK";plain=`WAIT: BOS confirmed at $${bos.level}. Wait for pullback to FVG $${lFVG.bottom.toFixed(2)}-$${lFVG.top.toFixed(2)} then green candle.`;}
-    else{plain=`FVG at $${lFVG.bottom.toFixed(2)}-$${lFVG.top.toFixed(2)}. BOS at $${bos?.level||0}. Setup building.`;}
-  } else if(lFVG){plain=`FVG at $${lFVG.bottom.toFixed(2)}-$${lFVG.top.toFixed(2)}. Waiting for Break of Structure.`;}
-  return{fairValueGaps:fvgs.slice(-3),breakOfStructure:bos,entrySignal,plainEnglish:plain,fvgZone:lFVG?`$${lFVG.bottom.toFixed(2)}-$${lFVG.top.toFixed(2)}`:null};
-}
-
-function detectDivergence(closes,highs,lows) {
-  if(!closes||closes.length<20)return null;
-  const rc=closes.slice(-20),rsiVals=[];
-  for(let i=10;i<rc.length;i++){const rsi=calcRSI(rc.slice(0,i+1));if(rsi)rsiVals.push(rsi);}
-  if(rsiVals.length<5)return null;
-  const pN=rc[rc.length-1],pP=rc[rc.length-6],rN=rsiVals[rsiVals.length-1],rP=rsiVals[rsiVals.length-6];
-  const pH=pN>pP,rH=rN>rP;
-  if(pH&&!rH&&rN>50)return{type:"BEARISH_DIVERGENCE",signal:"BEARISH",plain:"Price rising but momentum weakening — reversal possible."};
-  if(!pH&&rH&&rN<50)return{type:"BULLISH_DIVERGENCE",signal:"BULLISH",plain:"Price falling but momentum recovering — bounce likely."};
-  if(pH&&rH)return{type:"CONFIRMED_BULLISH",signal:"BULLISH",plain:"Price AND momentum rising — strong buy signal."};
+function checkMilestone(old, nw, existing) {
+  for (const m of MILESTONES) { if(old<m&&nw>=m&&!(existing||[]).includes(m)) return m; }
   return null;
 }
 
-async function fetchMarketData(symbol) {
+// ─── Watchlist ────────────────────────────────────────────────────────────────
+const WATCHLIST = ["SOUN","SOFI","MARA","RIOT","PLTR","HOOD","AAL","NIO","XPEV","PLUG","BBAI","SAVE","CLSK","VALE","SPCE"];
+
+// ─── Email ────────────────────────────────────────────────────────────────────
+const activeMonitors = {};
+async function sendEmail(to, subject, html) {
+  if (!process.env.ALERT_EMAIL || !process.env.ALERT_EMAIL_PASSWORD) return false;
   try {
-    const r=await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1y`,{headers:{"User-Agent":"Mozilla/5.0"}});
-    if(!r.ok)return null;
-    const d=await r.json();
-    const result=d.chart?.result?.[0];
-    if(!result)return null;
-    const meta=result.meta,q=result.indicators?.quote?.[0]||{};
-    const closes=(q.close||[]).filter(Boolean);
-    const highs=(q.high||[]).filter(Boolean);
-    const lows=(q.low||[]).filter(Boolean);
-    const opens=(q.open||[]).filter(Boolean);
-    const volumes=(q.volume||[]).filter(Boolean);
-    const price=parseFloat((meta.regularMarketPrice||0).toFixed(2));
-    const prev=parseFloat((meta.chartPreviousClose||price).toFixed(2));
-    const change=parseFloat(((price-prev)/prev*100).toFixed(2));
-    const atr=calcATR(highs,lows,closes)||price*0.02;
-    const avgMove=parseFloat((atr/price*100).toFixed(2));
-    const moveRatio=avgMove>0?parseFloat((Math.abs(change)/avgMove).toFixed(1)):0;
-    const exhaust=moveRatio>=5?"EXTREMELY_EXHAUSTED":moveRatio>=3?"VERY_EXHAUSTED":moveRatio>=2?"EXHAUSTED":moveRatio>=1.5?"EXTENDED":"FRESH";
-    let affordableStrikes=[];
-    try {
-      const or=await fetch(`https://query1.finance.yahoo.com/v7/finance/options/${symbol}`,{headers:{"User-Agent":"Mozilla/5.0"}});
-      if(or.ok){const od=await or.json();const calls=od.optionChain?.result?.[0]?.options?.[0]?.calls||[];affordableStrikes=calls.filter(c=>c.ask>0&&c.openInterest>=50&&(c.ask-c.bid)<=0.06).map(c=>({strike:c.strike,ask:parseFloat((c.ask||0).toFixed(2)),bid:parseFloat((c.bid||0).toFixed(2)),spread:parseFloat(((c.ask-c.bid)).toFixed(3)),openInterest:c.openInterest||0,expiration:new Date((c.expiration||0)*1000).toLocaleDateString(),totalCost:parseFloat(((c.ask||0)*100).toFixed(2))}));}
-    }catch(e){}
-    const rsi=calcRSI(closes),macd=calcMACD(closes),ema20=calcEMA(closes,20),ema50=calcEMA(closes,50),ema200=calcEMA(closes,200);
-    const stoch=calcStoch(highs,lows,closes),wr=calcWR(highs,lows,closes),obv=calcOBV(closes,volumes);
-    const vol=volAnalysis(volumes),sr=findSR(highs,lows,closes,price);
-    const smc=detectSMC(closes,highs,lows,opens),div=detectDivergence(closes,highs,lows);
-    return{symbol,price,priceData:{current:price,prev,change,high52:parseFloat((meta.fiftyTwoWeekHigh||0).toFixed(2)),low52:parseFloat((meta.fiftyTwoWeekLow||0).toFixed(2))},volume:vol,momentum:{exhaustionLevel:exhaust,moveRatio,avgDailyMove:avgMove,isTradeable:["FRESH","EXTENDED"].includes(exhaust)},indicators:{rsi,macd,ema20,ema50,ema200,stochastic:stoch,williamsR:wr,obv},levels:sr,smcAnalysis:smc,divergence:div,options:{affordableStrikes},rawData:{closes:closes.slice(-30),highs:highs.slice(-30),lows:lows.slice(-30),opens:opens.slice(-30),volumes:volumes.slice(-30)}};
-  }catch(e){console.error(`fetchMarketData ${symbol}:`,e.message);return null;}
+    const t = nodemailer.createTransport({ service:"gmail", auth:{ user:process.env.ALERT_EMAIL, pass:process.env.ALERT_EMAIL_PASSWORD }});
+    await t.sendMail({ from:process.env.ALERT_EMAIL, to, subject, html });
+    return true;
+  } catch(e) { console.error("Email:", e.message); return false; }
 }
 
-async function getIntraday(symbol) {
-  try {
-    const r=await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=2m&range=1d`,{headers:{"User-Agent":"Mozilla/5.0"}});
-    if(!r.ok)return null;
-    const d=await r.json();
-    const result=d.chart?.result?.[0];
-    if(!result)return null;
-    const ts=result.timestamp||[],q=result.indicators?.quote?.[0]||{};
-    const bars=ts.map((t,i)=>({t,c:q.close?.[i],h:q.high?.[i],l:q.low?.[i],v:q.volume?.[i]||0})).filter(b=>b.c);
-    if(bars.length<5)return null;
-    const fc=bars.map(b=>b.c),fh=bars.map(b=>b.h),fl=bars.map(b=>b.l),fv=bars.map(b=>b.v);
-    const cp=fc[fc.length-1];
-    const fhour=bars.filter(b=>new Date(b.t*1000).getHours()<10);
-    const orH=fhour.length?Math.max(...fhour.map(b=>b.h)):null;
-    const orL=fhour.length?Math.min(...fhour.map(b=>b.l)):null;
-    const orbSignal=orH&&orL?(cp>orH?"BULLISH_BREAKOUT":cp<orL?"BEARISH_BREAKDOWN":"INSIDE"):null;
-    const tv=fv.reduce((a,b)=>a+b,0);
-    const vwap=tv>0?parseFloat((bars.reduce((s,b,i)=>s+((b.h+b.l+b.c)/3)*fv[i],0)/tv).toFixed(2)):null;
-    const recent=fc.slice(-6),rH=fh.slice(-6),rL=fl.slice(-6);
-    let hh=0,hl=0,lh=0,ll=0;
-    for(let i=1;i<recent.length;i++){if(rH[i]>rH[i-1])hh++;else lh++;if(rL[i]>rL[i-1])hl++;else ll++;}
-    const trend=hh>=4&&hl>=4?"UPTREND":lh>=4&&ll>=4?"DOWNTREND":"SIDEWAYS";
-    const m30=fc.length>=15?parseFloat(((cp-fc[fc.length-15])/fc[fc.length-15]*100).toFixed(2)):0;
-    return{openPrice:fc[0],currentPrice:cp,orHigh:orH,orLow:orL,orbSignal,vwap,aboveVWAP:vwap?cp>vwap:null,realtimeTrend:trend,isMoving:Math.abs(m30)>0.3,moveIn30:m30};
-  }catch(e){return null;}
+// ─── Indicators ───────────────────────────────────────────────────────────────
+function calcRSI(c, p=14) {
+  if (!c || c.length < p+1) return null;
+  let g=0, l=0;
+  for (let i=1; i<=p; i++) { const d=c[i]-c[i-1]; if(d>=0) g+=d; else l+=Math.abs(d); }
+  let ag=g/p, al=l/p;
+  for (let i=p+1; i<c.length; i++) {
+    const d=c[i]-c[i-1];
+    ag=(ag*(p-1)+(d>0?d:0))/p;
+    al=(al*(p-1)+(d<0?Math.abs(d):0))/p;
+  }
+  return al===0?100:parseFloat((100-100/(1+ag/al)).toFixed(2));
 }
 
-async function getNews(symbol) {
-  try {
-    const r=await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}&newsCount=5&enableFuzzyQuery=false`,{headers:{"User-Agent":"Mozilla/5.0"}});
-    const d=await r.json();
-    const news=(d.news||[]).filter(n=>Date.now()-n.providerPublishTime*1000<24*60*60*1000);
-    const bw=["surge","jump","gain","rise","rally","buy","upgrade","beat","profit","growth","strong","positive"],bW=["drop","fall","loss","down","sell","downgrade","miss","decline","weak","negative","cut"];
-    let bu=0,be=0;
-    news.forEach(n=>{const t=(n.title||"").toLowerCase();bw.forEach(w=>{if(t.includes(w))bu++;});bW.forEach(w=>{if(t.includes(w))be++;});});
-    const tot=bu+be,sc=tot>0?Math.round(bu/tot*100):50;
-    return{headlines:news.slice(0,3).map(n=>n.title),sentimentScore:sc,label:sc>60?"BULLISH":sc<40?"BEARISH":"NEUTRAL"};
-  }catch(e){return{headlines:[],sentimentScore:50,label:"NEUTRAL"};}
+function calcATR(h, l, c, p=14) {
+  if (!h || h.length < p+1) return null;
+  const t=[];
+  for (let i=1; i<h.length; i++) t.push(Math.max(h[i]-l[i], Math.abs(h[i]-c[i-1]), Math.abs(l[i]-c[i-1])));
+  return parseFloat((t.slice(-p).reduce((a,b)=>a+b,0)/p).toFixed(4));
 }
 
-async function getUnusualOptions(symbol) {
-  try {
-    const r=await fetch(`https://query1.finance.yahoo.com/v7/finance/options/${symbol}`,{headers:{"User-Agent":"Mozilla/5.0"}});
-    if(!r.ok)return null;
-    const d=await r.json();
-    const opts=d.optionChain?.result?.[0]?.options?.[0];
-    if(!opts)return null;
-    const calls=opts.calls||[],puts=opts.puts||[];
-    const cv=calls.reduce((s,c)=>s+(c.volume||0),0),pv=puts.reduce((s,p)=>s+(p.volume||0),0);
-    const ratio=cv>0?parseFloat((pv/cv).toFixed(2)):1;
-    return{callVolume:cv,putVolume:pv,putCallRatio:ratio,bigMoney:ratio<0.5?"BULLISH":ratio>2?"BEARISH":"NEUTRAL"};
-  }catch(e){return null;}
-}
+// ─── SMC Core Detection ───────────────────────────────────────────────────────
+// THE STRATEGY: FVG + Liquidity + BOS + Green candle confirmation
+function detectSMCSetup(closes, highs, lows, opens, volumes) {
+  if (!closes || closes.length < 15) return null;
 
-async function getMarketOverview() {
-  const [fgR,vixR,btcR,trendR]=await Promise.allSettled([
-    fetch("https://production.dataviz.cnn.io/index/fearandgreed/graphdata",{headers:{"User-Agent":"Mozilla/5.0"}}).then(r=>r.json()).then(d=>({score:Math.round(d.fear_and_greed?.score||50),rating:d.fear_and_greed?.rating||"Neutral"})),
-    fetch("https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=5d",{headers:{"User-Agent":"Mozilla/5.0"}}).then(r=>r.json()).then(d=>{const v=parseFloat((d.chart?.result?.[0]?.meta?.regularMarketPrice||20).toFixed(2));return{value:v,level:v>30?"HIGH_FEAR":v>20?"ELEVATED":"NORMAL"};}),
-    fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true",{headers:{"User-Agent":"Mozilla/5.0"}}).then(r=>r.json()).then(d=>{const ch=parseFloat((d.bitcoin?.usd_24h_change||0).toFixed(2));return{change:ch,impact:ch>3?`Bitcoin up ${ch}% — MARA/RIOT calls likely`:ch<-3?`Bitcoin down ${Math.abs(ch)}% — avoid MARA/RIOT`:`Bitcoin flat`};}),
-    fetch("https://query1.finance.yahoo.com/v1/finance/trending/US",{headers:{"User-Agent":"Mozilla/5.0"}}).then(r=>r.json()).then(d=>(d.finance?.result?.[0]?.quotes||[]).slice(0,5).map(q=>q.symbol))
-  ]);
-  return{
-    fearGreed:fgR.status==="fulfilled"?fgR.value:{score:50,rating:"Neutral"},
-    vix:vixR.status==="fulfilled"?vixR.value:{value:20,level:"NORMAL"},
-    btc:btcR.status==="fulfilled"?btcR.value:{change:0,impact:"Bitcoin data unavailable"},
-    trending:trendR.status==="fulfilled"?trendR.value:[]
+  const result = {
+    step: 0,           // 1=FVG found, 2=Liquidity identified, 3=BOS confirmed, 4=Price in FVG, 5=ENTER NOW
+    fvg: null,         // The fair value gap
+    liquidity: null,   // Liquidity levels
+    bos: null,         // Break of structure level
+    entrySignal: null, // ENTER_NOW or WAIT
+    plain: "",         // Plain English explanation
+    direction: "CALL"
   };
+
+  // STEP 1 — Find Fair Value Gaps
+  // Three candles where wick of candle 1 and wick of candle 3 do NOT overlap
+  const fvgs = [];
+  for (let i=2; i<closes.length; i++) {
+    const c1High = highs[i-2];
+    const c1Low  = lows[i-2];
+    const c3High = highs[i];
+    const c3Low  = lows[i];
+
+    // Bullish FVG: candle 3 low is ABOVE candle 1 high — gap between them
+    if (c3Low > c1High) {
+      const gapPct = parseFloat(((c3Low - c1High) / c1High * 100).toFixed(2));
+      if (gapPct >= 0.2) { // Only meaningful gaps
+        fvgs.push({
+          type: "BULLISH",
+          top: parseFloat(c3Low.toFixed(3)),
+          bottom: parseFloat(c1High.toFixed(3)),
+          gapPct,
+          candleIdx: i
+        });
+      }
+    }
+
+    // Bearish FVG: candle 3 high is BELOW candle 1 low
+    if (c3High < c1Low) {
+      const gapPct = parseFloat(((c1Low - c3High) / c1Low * 100).toFixed(2));
+      if (gapPct >= 0.2) {
+        fvgs.push({
+          type: "BEARISH",
+          top: parseFloat(c1Low.toFixed(3)),
+          bottom: parseFloat(c3High.toFixed(3)),
+          gapPct,
+          candleIdx: i
+        });
+      }
+    }
+  }
+
+  if (fvgs.length === 0) {
+    result.plain = "No Fair Value Gap detected yet. Waiting for a fast candle move that leaves a gap.";
+    return result;
+  }
+
+  result.step = 1;
+  const latestFVG = fvgs[fvgs.length - 1];
+  result.fvg = latestFVG;
+
+  // STEP 2 — Find Liquidity (swing highs/lows where stop losses cluster)
+  const swingHighs = [], swingLows = [];
+  for (let i=2; i<highs.length-2; i++) {
+    if (highs[i]>highs[i-1]&&highs[i]>highs[i-2]&&highs[i]>highs[i+1]&&highs[i]>highs[i+2])
+      swingHighs.push({ price: highs[i], idx: i });
+    if (lows[i]<lows[i-1]&&lows[i]<lows[i-2]&&lows[i]<lows[i+1]&&lows[i]<lows[i+2])
+      swingLows.push({ price: lows[i], idx: i });
+  }
+
+  const currentPrice = closes[closes.length - 1];
+
+  if (swingHighs.length > 0 || swingLows.length > 0) {
+    result.step = 2;
+    result.liquidity = {
+      buySide: swingHighs.slice(-3).map(h => parseFloat(h.price.toFixed(3))),
+      sellSide: swingLows.slice(-3).map(l => parseFloat(l.price.toFixed(3)))
+    };
+  }
+
+  // STEP 3 — Break of Structure
+  // Bullish BOS: current price breaks above previous swing high
+  let bos = null;
+  if (swingHighs.length >= 1) {
+    const lastHigh = swingHighs[swingHighs.length - 1].price;
+    if (currentPrice > lastHigh) {
+      bos = { type:"BULLISH", level: parseFloat(lastHigh.toFixed(3)) };
+    }
+  }
+  if (!bos && swingLows.length >= 1) {
+    const lastLow = swingLows[swingLows.length - 1].price;
+    if (currentPrice < lastLow) {
+      bos = { type:"BEARISH", level: parseFloat(lastLow.toFixed(3)) };
+    }
+  }
+
+  if (!bos) {
+    result.plain = `FVG found at $${latestFVG.bottom.toFixed(2)}-$${latestFVG.top.toFixed(2)}. Liquidity at $${swingHighs.slice(-1)[0]?.price.toFixed(2)||"?"}. Waiting for price to BREAK the previous high to confirm direction.`;
+    return result;
+  }
+
+  result.step = 3;
+  result.bos = bos;
+  result.direction = bos.type === "BULLISH" ? "CALL" : "PUT";
+
+  // STEP 4 — Is price pulling back into the FVG zone?
+  const inFVG = currentPrice >= latestFVG.bottom && currentPrice <= latestFVG.top;
+  const approachingFVG = bos.type === "BULLISH" ?
+    currentPrice > latestFVG.bottom && currentPrice < latestFVG.top * 1.02 :
+    currentPrice < latestFVG.top && currentPrice > latestFVG.bottom * 0.98;
+
+  if (!inFVG && !approachingFVG) {
+    result.plain = `BOS confirmed ${bos.type} at $${bos.level.toFixed(2)}. FVG zone is $${latestFVG.bottom.toFixed(2)}-$${latestFVG.top.toFixed(2)}. Waiting for price to PULL BACK into this zone.`;
+    return result;
+  }
+
+  result.step = 4;
+
+  // STEP 5 — Green (or red) confirmation candle inside FVG
+  const lastOpen  = opens ? opens[opens.length-1] : currentPrice;
+  const lastClose = closes[closes.length-1];
+  const isGreen = lastClose > lastOpen;
+  const isRed   = lastClose < lastOpen;
+
+  const confirmed = (bos.type==="BULLISH" && isGreen) || (bos.type==="BEARISH" && isRed);
+
+  if (confirmed) {
+    result.step = 5;
+    result.entrySignal = "ENTER_NOW";
+    result.plain = `🟢 ENTER NOW: ${bos.type==="BULLISH"?"Green":"Red"} candle formed inside FVG ($${latestFVG.bottom.toFixed(2)}-$${latestFVG.top.toFixed(2)}) after BOS at $${bos.level.toFixed(2)}. This is your exact entry signal.`;
+  } else {
+    result.entrySignal = "WAIT_CANDLE";
+    result.plain = `Price is inside FVG zone ($${latestFVG.bottom.toFixed(2)}-$${latestFVG.top.toFixed(2)}). WAIT for a ${bos.type==="BULLISH"?"GREEN":"RED"} candle to form here — that is your entry signal.`;
+  }
+
+  return result;
 }
 
+// ─── Fetch 5-minute candles ───────────────────────────────────────────────────
+async function get5MinCandles(symbol) {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=5m&range=5d`, { headers:{"User-Agent":"Mozilla/5.0"} });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const result = d.chart?.result?.[0];
+    if (!result) return null;
+    const q = result.indicators?.quote?.[0] || {};
+    const timestamps = result.timestamp || [];
+    const bars = timestamps.map((t,i) => ({
+      time: new Date(t*1000),
+      open:  q.open?.[i],
+      high:  q.high?.[i],
+      low:   q.low?.[i],
+      close: q.close?.[i],
+      volume:q.volume?.[i] || 0
+    })).filter(b => b.close !== null && b.close !== undefined && b.open !== null);
+
+    if (bars.length < 15) return null;
+
+    // Only use today's bars for intraday analysis
+    const today = new Date().toDateString();
+    const todayBars = bars.filter(b => b.time.toDateString() === today);
+    const useBars = todayBars.length >= 10 ? todayBars : bars.slice(-50);
+
+    return {
+      bars: useBars,
+      closes:  useBars.map(b => b.close),
+      opens:   useBars.map(b => b.open),
+      highs:   useBars.map(b => b.high),
+      lows:    useBars.map(b => b.low),
+      volumes: useBars.map(b => b.volume),
+      currentPrice: useBars[useBars.length-1].close
+    };
+  } catch(e) { return null; }
+}
+
+// ─── Fetch daily data for exhaustion check ────────────────────────────────────
+async function getDailyData(symbol) {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=60d`, { headers:{"User-Agent":"Mozilla/5.0"} });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const result = d.chart?.result?.[0];
+    if (!result) return null;
+    const meta = result.meta;
+    const q = result.indicators?.quote?.[0] || {};
+    const closes = (q.close||[]).filter(Boolean);
+    const highs  = (q.high||[]).filter(Boolean);
+    const lows   = (q.low||[]).filter(Boolean);
+    const price  = parseFloat((meta.regularMarketPrice||0).toFixed(2));
+    const prev   = parseFloat((meta.chartPreviousClose||price).toFixed(2));
+    const change = parseFloat(((price-prev)/prev*100).toFixed(2));
+    const atr    = calcATR(highs, lows, closes) || price * 0.02;
+    const avgMove = parseFloat((atr/price*100).toFixed(2));
+    const moveRatio = avgMove > 0 ? parseFloat((Math.abs(change)/avgMove).toFixed(1)) : 0;
+    const exhaustion = moveRatio>=5?"EXTREMELY_EXHAUSTED":moveRatio>=3?"VERY_EXHAUSTED":moveRatio>=2?"EXHAUSTED":moveRatio>=1.5?"EXTENDED":"FRESH";
+
+    // Options chain for real Ask prices
+    let options = [];
+    try {
+      const or = await fetch(`https://query1.finance.yahoo.com/v7/finance/options/${symbol}`, { headers:{"User-Agent":"Mozilla/5.0"} });
+      if (or.ok) {
+        const od = await or.json();
+        const calls = od.optionChain?.result?.[0]?.options?.[0]?.calls || [];
+        options = calls
+          .filter(c => c.ask > 0 && c.openInterest >= 50)
+          .map(c => ({
+            strike: c.strike,
+            ask: parseFloat((c.ask||0).toFixed(2)),
+            bid: parseFloat((c.bid||0).toFixed(2)),
+            spread: parseFloat(((c.ask||0)-(c.bid||0)).toFixed(3)),
+            spreadPct: c.ask > 0 ? parseFloat(((c.ask-c.bid)/c.ask*100).toFixed(1)) : 100,
+            openInterest: c.openInterest || 0,
+            expiration: new Date((c.expiration||0)*1000).toLocaleDateString(),
+            totalCost: parseFloat(((c.ask||0)*100).toFixed(2))
+          }))
+          .sort((a,b) => a.strike - b.strike);
+      }
+    } catch(e) {}
+
+    // News
+    let news = { label:"NEUTRAL", headlines:[] };
+    try {
+      const nr = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}&newsCount=5&enableFuzzyQuery=false`, { headers:{"User-Agent":"Mozilla/5.0"} });
+      const nd = await nr.json();
+      const articles = (nd.news||[]).filter(n => Date.now()-n.providerPublishTime*1000 < 24*60*60*1000);
+      const bw=["surge","jump","gain","rise","rally","buy","upgrade","beat","profit","strong","positive","boost"];
+      const mw=["drop","fall","loss","down","sell","downgrade","miss","decline","weak","negative","cut"];
+      let bu=0, be=0;
+      articles.forEach(n => { const t=(n.title||"").toLowerCase(); bw.forEach(w=>{if(t.includes(w))bu++;}); mw.forEach(w=>{if(t.includes(w))be++;}); });
+      const tot = bu+be;
+      const sc = tot > 0 ? Math.round(bu/tot*100) : 50;
+      news = { label: sc>60?"BULLISH":sc<40?"BEARISH":"NEUTRAL", headlines: articles.slice(0,2).map(n=>n.title) };
+    } catch(e) {}
+
+    return { symbol, price, change, exhaustion, moveRatio, atr, rsi: calcRSI(closes), options, news };
+  } catch(e) { return null; }
+}
+
+// ─── Market check ─────────────────────────────────────────────────────────────
+async function getMarketStatus() {
+  try {
+    const r = await fetch("https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1d&range=5d", { headers:{"User-Agent":"Mozilla/5.0"} });
+    const d = await r.json();
+    const meta = d.chart?.result?.[0]?.meta;
+    const spyChange = parseFloat(((meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose * 100).toFixed(2));
+    const isExtreme = Math.abs(spyChange) > 3;
+    const isBull = spyChange > 0.5;
+    return { spyChange, isExtreme, isBull };
+  } catch(e) { return { spyChange:0, isExtreme:false, isBull:true }; }
+}
+
+// ─── Time window ──────────────────────────────────────────────────────────────
 function getTradingWindow() {
-  const now=new Date();
-  const et=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"}));
-  const h=et.getHours(),m=et.getMinutes(),t=h+m/60,day=et.getDay();
-  if(day===0||day===6)return{window:"WEEKEND",canTrade:false,msg:"Market closed weekends."};
-  if(t<9.5)return{window:"PRE_MARKET",canTrade:false,msg:"Market opens at 9:30 AM ET."};
-  if(t<9.75)return{window:"OPENING_VOLATILE",canTrade:false,msg:"Too early — wait until 9:45 AM."};
-  if(t<10.0)return{window:"CAUTION",canTrade:false,msg:"Wait until 10:00 AM for cleaner signals."};
-  if(t<11.5)return{window:"BEST_WINDOW",canTrade:true,msg:"Best trading window 10:00-11:30 AM ET."};
-  if(t<12.0)return{window:"GOOD",canTrade:true,msg:"Good window. Fresh setups only."};
-  if(t<13.0)return{window:"LUNCH_DEAD_ZONE",canTrade:false,msg:"Lunch dead zone — wait until 1 PM."};
-  if(t<14.5)return{window:"AFTERNOON",canTrade:true,msg:"Afternoon. High confidence only."};
-  if(t<15.5)return{window:"POWER_HOUR",canTrade:true,msg:"Power hour. Exit by 3:45 PM."};
-  return{window:"HARD_STOP",canTrade:false,msg:"3:30 PM ET — no new trades."};
+  const et = new Date(new Date().toLocaleString("en-US", { timeZone:"America/New_York" }));
+  const h = et.getHours(), m = et.getMinutes(), t = h + m/60, day = et.getDay();
+  if (day===0||day===6) return { canTrade:false, window:"WEEKEND", msg:"Market closed. Come back Monday." };
+  if (t < 9.5)  return { canTrade:false, window:"PRE_MARKET",  msg:"Market opens at 9:30 AM ET. Come back then." };
+  if (t < 10.0) return { canTrade:false, window:"TOO_EARLY",   msg:"Wait until 10:00 AM. First 30 minutes are too volatile." };
+  if (t < 11.5) return { canTrade:true,  window:"BEST_WINDOW", msg:"Best window — 10:00 to 11:30 AM ET." };
+  if (t < 12.0) return { canTrade:true,  window:"GOOD",        msg:"Still good. Fresh setups only." };
+  if (t < 13.0) return { canTrade:false, window:"LUNCH",       msg:"Lunch dead zone. Volume dries up. Wait until 1 PM." };
+  if (t < 15.5) return { canTrade:true,  window:"AFTERNOON",   msg:"Afternoon window. High confidence setups only." };
+  return { canTrade:false, window:"CLOSED", msg:"3:30 PM ET — no new trades. Market closes soon." };
 }
 
-function getEdLevel(data) { const t=data.trades?.length||0,b=data.balance||10; if(t>=60&&b>=1000)return 4; if(t>=30&&b>=200)return 3; if(t>=10&&b>=50)return 2; return 1; }
-const TOPICS={1:["Strike price","Call vs Put","Stop loss","Bid vs Ask","Position sizing","Theta decay","PDT rule","Cash account","Risk reward","What is an option"],2:["Delta explained","MACD crossover","RSI signals","VWAP trading","Opening range breakout","Support resistance","Volume confirmation","Implied volatility","Options chain","Bull flag pattern"],3:["SMC concepts","Fair value gaps","Break of structure","Sector correlation","Unusual options","Greeks overview","Earnings plays","Divergence signals","Backtesting","Risk management"],4:["Iron condors","Straddles","Portfolio hedging","Sector rotation","Dark pools","Order flow","Gamma squeezes","Macro analysis","Position scaling","Advanced Greeks"]};
-function getDailyTopic(lvl) { const t=TOPICS[lvl]||TOPICS[1]; return t[new Date().getDate()%t.length]; }
+// ─── Learning System ──────────────────────────────────────────────────────────
+function updateLearning(tradeData) {
+  const learn = loadLearning();
+  const { symbol, result, pnl, hour, gapPct, spyChange, exhaustion, fvgSize } = tradeData;
 
-function analyzePerf(data) {
-  const trades=(data.trades||[]).filter(t=>t.result!=="skip"&&t.amountRisked>0);
-  if(trades.length<3)return{hasInsights:false,summary:"Complete 3+ trades to unlock insights.",insights:[]};
-  const wins=trades.filter(t=>t.result==="win"),losses=trades.filter(t=>t.result==="loss");
-  const wr=Math.round(wins.length/trades.length*100);
-  const avgW=wins.length?wins.reduce((s,t)=>s+(t.pnl||0),0)/wins.length:0;
-  const avgL=losses.length?Math.abs(losses.reduce((s,t)=>s+(t.pnl||0),0)/losses.length):0;
-  return{hasInsights:true,summary:`${trades.length} trades | ${wr}% win rate | Avg win $${avgW.toFixed(2)} | Avg loss $${avgL.toFixed(2)}`,insights:[{positive:wr>=50,icon:wr>=50?"✅":"📊",title:`${wr}% Win Rate`,message:wr>=50?"Above 50% — keep following the system.":"Below 50% — wait for higher confidence setups only."}],avgWin:avgW,avgLoss:avgL};
+  learn.totalTrades++;
+  if (result === "win") learn.wins++;
+  else if (result === "loss") learn.losses++;
+
+  // Record full setup
+  learn.setupData.push({
+    date: new Date().toISOString(),
+    symbol, result, pnl, hour, gapPct, spyChange, exhaustion
+  });
+
+  // Update per-stock win rate
+  if (!learn.bestStocks[symbol]) learn.bestStocks[symbol] = { wins:0, losses:0, trades:0 };
+  learn.bestStocks[symbol].trades++;
+  if (result==="win") learn.bestStocks[symbol].wins++;
+  else if (result==="loss") learn.bestStocks[symbol].losses++;
+
+  // Update per-hour win rate
+  const hourKey = `${hour}:00`;
+  if (!learn.bestTimes[hourKey]) learn.bestTimes[hourKey] = { wins:0, losses:0, trades:0 };
+  learn.bestTimes[hourKey].trades++;
+  if (result==="win") learn.bestTimes[hourKey].wins++;
+  else if (result==="loss") learn.bestTimes[hourKey].losses++;
+
+  // Track gap sizes that worked
+  if (gapPct) learn.bestGapSizes.push({ gapPct, result });
+
+  // Generate insights after enough trades
+  const insights = [];
+  if (learn.totalTrades >= 5) {
+    const wr = Math.round(learn.wins / learn.totalTrades * 100);
+    insights.push(`Overall win rate: ${wr}% across ${learn.totalTrades} SMC trades`);
+
+    // Best stock
+    const stocks = Object.entries(learn.bestStocks)
+      .filter(([,v]) => v.trades >= 2)
+      .map(([k,v]) => ({ symbol:k, wr: Math.round(v.wins/v.trades*100), trades:v.trades }))
+      .sort((a,b) => b.wr - a.wr);
+    if (stocks.length > 0) insights.push(`Best stock for SMC: ${stocks[0].symbol} (${stocks[0].wr}% win rate over ${stocks[0].trades} trades)`);
+
+    // Best time
+    const times = Object.entries(learn.bestTimes)
+      .filter(([,v]) => v.trades >= 2)
+      .map(([k,v]) => ({ hour:k, wr: Math.round(v.wins/v.trades*100), trades:v.trades }))
+      .sort((a,b) => b.wr - a.wr);
+    if (times.length > 0) insights.push(`Best time for SMC entry: ${times[0].hour} (${times[0].wr}% win rate)`);
+
+    // Gap size insight
+    const goodGaps = learn.bestGapSizes.filter(g => g.result==="win").map(g => g.gapPct);
+    const badGaps  = learn.bestGapSizes.filter(g => g.result==="loss").map(g => g.gapPct);
+    if (goodGaps.length >= 2) {
+      const avgGood = parseFloat((goodGaps.reduce((a,b)=>a+b,0)/goodGaps.length).toFixed(2));
+      insights.push(`Winning FVG gaps average ${avgGood}% — look for gaps this size or larger`);
+    }
+  }
+
+  learn.insights = insights;
+  saveLearning(learn);
+  return insights;
 }
 
-// MAIN ANALYSIS
+// ─── Find best SMC opportunity ────────────────────────────────────────────────
+async function findBestSMCSetup(market) {
+  const learn = loadLearning();
+
+  // Sort watchlist — prioritize stocks that have worked before
+  const sortedWatchlist = [...WATCHLIST].sort((a, b) => {
+    const aData = learn.bestStocks[a];
+    const bData = learn.bestStocks[b];
+    if (!aData && !bData) return 0;
+    if (!aData) return 1;
+    if (!bData) return -1;
+    const aWR = aData.trades >= 2 ? aData.wins/aData.trades : 0.5;
+    const bWR = bData.trades >= 2 ? bData.wins/bData.trades : 0.5;
+    return bWR - aWR;
+  });
+
+  const results = [];
+
+  // Fetch top 6 stocks in parallel
+  const batch = sortedWatchlist.slice(0, 6);
+  await Promise.allSettled(batch.map(async symbol => {
+    try {
+      const [candles, daily] = await Promise.allSettled([
+        get5MinCandles(symbol),
+        getDailyData(symbol)
+      ]);
+
+      const c = candles.status==="fulfilled" ? candles.value : null;
+      const d = daily.status==="fulfilled" ? daily.value : null;
+
+      if (!c || !d) return;
+
+      // Skip exhausted stocks
+      if (["EXTREMELY_EXHAUSTED","VERY_EXHAUSTED"].includes(d.exhaustion)) return;
+
+      // Run SMC detection on 5-minute candles
+      const smc = detectSMCSetup(c.closes, c.highs, c.lows, c.opens, c.volumes);
+
+      // Score this setup
+      let score = smc.step * 20; // Base score from SMC step (max 100)
+
+      // Bonuses
+      if (d.news.label === "BULLISH") score += 15;
+      if (d.exhaustion === "FRESH") score += 10;
+      if (market.isBull && smc.direction === "CALL") score += 10;
+      if (market.isExtreme && d.change < market.spyChange * 0.3) score += 20; // Laggard bonus
+
+      // Penalties
+      if (d.news.label === "BEARISH" && smc.direction === "CALL") score -= 10;
+
+      // Find best affordable option
+      const bestOption = d.options.find(o =>
+        o.strike > d.price &&
+        o.ask <= 0.15 &&
+        o.spreadPct <= 30 &&
+        o.openInterest >= 50
+      ) || d.options.find(o => o.strike > d.price && o.ask <= 0.30);
+
+      results.push({
+        symbol,
+        score: Math.max(0, Math.min(100, score)),
+        smc,
+        daily: d,
+        candles: c,
+        bestOption,
+        learnedWR: learn.bestStocks[symbol]?.trades >= 2
+          ? Math.round(learn.bestStocks[symbol].wins / learn.bestStocks[symbol].trades * 100)
+          : null
+      });
+    } catch(e) { console.error(`Error analyzing ${symbol}:`, e.message); }
+  }));
+
+  // Sort by score
+  results.sort((a,b) => b.score - a.score);
+  return results;
+}
+
+// ─── MAIN ANALYSIS ENDPOINT ───────────────────────────────────────────────────
 app.get("/api/analyze", async (req, res) => {
   try {
-    const data=loadData();
-    const sm=loadSM();
-    const watchlist=getWatchlist(data.balance);
-    const batch=watchlist.slice(0,8);
-    const edLevel=getEdLevel(data);
-    const topic=getDailyTopic(edLevel);
-    const perf=analyzePerf(data);
-    const tw=getTradingWindow();
+    const data = loadData();
+    const learn = loadLearning();
+    const tw = getTradingWindow();
 
-    // Fetch SPY, QQQ, and market overview
-    const [spyR,qqqR,overviewR,...stockResults]=await Promise.allSettled([
-      fetchMarketData("SPY"),
-      fetchMarketData("QQQ"),
-      getMarketOverview(),
-      ...batch.map(s=>fetchMarketData(s))
-    ]);
+    // Get market status
+    const market = await getMarketStatus();
 
-    const spyData=spyR.status==="fulfilled"?spyR.value:null;
-    const qqqData=qqqR.status==="fulfilled"?qqqR.value:null;
-    const overview=overviewR.status==="fulfilled"?overviewR.value:{fearGreed:{score:50,rating:"Neutral"},vix:{value:20,level:"NORMAL"},btc:{change:0,impact:""},trending:[]};
+    // Find best SMC setups
+    const setups = await findBestSMCSetup(market);
+    const best = setups[0];
 
-    const spyChange=spyData?.priceData?.change||0;
-    const qqqChange=qqqData?.priceData?.change||0;
-    const isExtreme=Math.abs(spyChange)>3;
-    const regime=Math.abs(spyChange)>2?(spyChange>0?"STRONG_BULL":"STRONG_BEAR"):Math.abs(spyChange)>0.5?(spyChange>0?"BULL":"BEAR"):"CHOPPY";
+    // Build compact prompt for AI
+    const learnInsights = learn.insights.length > 0
+      ? learn.insights.join(". ")
+      : "No trades yet — building your personal pattern library.";
 
-    // Build market data map
-    const mdMap={};
-    stockResults.forEach((r,i)=>{ if(r.status==="fulfilled"&&r.value)mdMap[batch[i]]=r.value; });
-    const topSyms=Object.keys(mdMap).slice(0,5);
+    const prompt = `You are an SMC (Smart Money Concepts) trading AI. Respond ONLY with valid JSON.
 
-    // Fetch intraday, news, unusual in parallel
-    const [intR,newsR,unusR]=await Promise.allSettled([
-      Promise.allSettled(topSyms.map(s=>getIntraday(s).then(d=>({s,d})))),
-      Promise.allSettled(topSyms.map(s=>getNews(s).then(d=>({s,d})))),
-      Promise.allSettled(topSyms.map(s=>getUnusualOptions(s).then(d=>({s,d}))))
-    ]);
-
-    const iMap={},nMap={},uMap={};
-    if(intR.status==="fulfilled")intR.value.forEach(r=>{if(r.status==="fulfilled"&&r.value?.d)iMap[r.value.s]=r.value.d;});
-    if(newsR.status==="fulfilled")newsR.value.forEach(r=>{if(r.status==="fulfilled"&&r.value?.d)nMap[r.value.s]=r.value.d;});
-    if(unusR.status==="fulfilled")unusR.value.forEach(r=>{if(r.status==="fulfilled"&&r.value?.d)uMap[r.value.s]=r.value.d;});
-
-    // Build summaries and score
-    const summaries=topSyms.map(sym=>{
-      const stock=mdMap[sym];
-      if(!stock)return null;
-      const intra=iMap[sym],news=nMap[sym],unusual=uMap[sym];
-      const rsRatio=spyChange!==0?parseFloat((stock.priceData.change/spyChange).toFixed(2)):1;
-      const rsLabel=rsRatio>3?"EXTREMELY_EXTENDED":rsRatio>1.5?"OUTPERFORMING":rsRatio<0.3?"LAGGING":"WITH_MARKET";
-      const isLaggard=rsRatio<0.3&&Math.abs(spyChange)>2;
-      let score=50;const blocks=[];
-      if(["EXTREMELY_EXHAUSTED","VERY_EXHAUSTED"].includes(stock.momentum.exhaustionLevel)){blocks.push("Already moved too much");score=Math.min(score,20);}
-      if(intra?.realtimeTrend==="SIDEWAYS"){blocks.push("Not moving — sideways");score-=20;}
-      if(rsLabel==="EXTREMELY_EXTENDED"){blocks.push("Moved too far vs market");score=Math.min(score,25);}
-      if(stock.momentum.exhaustionLevel==="FRESH")score+=15;
-      if(intra?.realtimeTrend==="UPTREND"&&spyChange>0)score+=15;
-      if(news?.label==="BULLISH")score+=10;
-      if(unusual?.bigMoney==="BULLISH")score+=10;
-      if(stock.indicators.macd?.bullish)score+=8;
-      if(stock.indicators.rsi>=40&&stock.indicators.rsi<=65)score+=8;
-      if(stock.volume.trend==="HIGH")score+=8;
-      if(isLaggard&&isExtreme)score+=20;
-      if(stock.smcAnalysis?.entrySignal==="ENTER_NOW")score+=25;
-      if(intra?.orbSignal==="BULLISH_BREAKOUT")score+=10;
-      if(intra?.aboveVWAP&&spyChange>0)score+=8;
-      return{symbol:sym,score:Math.max(0,Math.min(100,Math.round(score))),blocks,price:stock.price,change:stock.priceData.change,rsi:stock.indicators.rsi,macdBullish:stock.indicators.macd?.bullish,volume:stock.volume.trend,exhaustion:stock.momentum.exhaustionLevel,realtimeTrend:intra?.realtimeTrend,aboveVWAP:intra?.aboveVWAP,vwap:intra?.vwap,orbSignal:intra?.orbSignal,moveIn30:intra?.moveIn30,isMoving:intra?.isMoving,news:news?.label,newsHeadlines:news?.headlines||[],bigMoney:unusual?.bigMoney,relativeStrength:{label:rsLabel,ratio:rsRatio,isLaggard},smcSignal:stock.smcAnalysis?.entrySignal,smcPlain:stock.smcAnalysis?.plainEnglish,fvgZone:stock.smcAnalysis?.fvgZone,divergence:stock.divergence,affordableStrikes:stock.options.affordableStrikes.slice(0,5),indicators:stock.indicators,levels:stock.levels,atr:calcATR(stock.rawData.highs,stock.rawData.lows,stock.rawData.closes)||stock.price*0.02};
-    }).filter(Boolean).sort((a,b)=>b.score-a.score);
-
-    // PDT and week checks
-    const todayStr=new Date().toDateString();
-    const todayTrades=data.trades.filter(t=>new Date(t.date).toDateString()===todayStr&&t.result!=="skip").length;
-    const pdtWarn=todayTrades>=2?`You made ${todayTrades} day trades today — be careful`:null;
-    const wkStart=new Date();wkStart.setDate(wkStart.getDate()-wkStart.getDay());wkStart.setHours(0,0,0,0);
-    const wkPnl=(data.trades||[]).filter(t=>new Date(t.date)>=wkStart&&t.result!=="skip").reduce((s,t)=>s+(t.pnl||0),0);
-
-    const top=summaries[0];
-    const stopLoss=top?parseFloat((top.price-top.atr).toFixed(2)):0;
-    const target=top?parseFloat((top.price+top.atr*1.5).toFixed(2)):0;
-
-    const prompt=`You are an expert options trading AI. Respond with ONLY valid compact JSON.
+THE STRATEGY: FVG + Liquidity + Break of Structure + Green candle confirmation
+Step 1: Fair Value Gap found
+Step 2: Liquidity levels identified  
+Step 3: Break of Structure confirmed
+Step 4: Price pulls back into FVG zone
+Step 5: Green/Red confirmation candle = ENTER NOW
 
 TODAY: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()} ET
-SPY:${spyChange}% QQQ:${qqqChange}% VIX:${overview.vix.value} Fear:${overview.fearGreed.score}/100
-Bitcoin:${overview.btc.change}% — ${overview.btc.impact}
-Time:${tw.window} ${tw.canTrade?"OPEN":"BLOCKED"} ${tw.msg}
-${isExtreme?"EXTREME DAY — find laggard stocks with own catalyst only":""}
+SPY: ${market.spyChange}% ${market.isExtreme?"EXTREME DAY — laggards with own catalyst only":""}
+Time: ${tw.window} — ${tw.msg}
 
-TOP STOCKS (scored 0-100):
-${summaries.slice(0,5).map((s,i)=>`${i+1}.${s.symbol} score:${s.score} $${s.price} chg:${s.change}% exhaust:${s.exhaustion} trend:${s.realtimeTrend} vwap:${s.aboveVWAP?"above":"below"} news:${s.news} big$:${s.bigMoney||"none"} smc:${s.smcSignal||"none"} blocks:${s.blocks.slice(0,2)}`).join("\n")}
+BEST SETUP FOUND:
+Stock: ${best?.symbol||"NONE"}
+SMC Step: ${best?.smc?.step||0}/5 — ${best?.smc?.plain||"No setup found"}
+Score: ${best?.score||0}/100
+Price: $${best?.daily?.price||0} (${best?.daily?.change||0}% today)
+Exhaustion: ${best?.daily?.exhaustion||"UNKNOWN"}
+News: ${best?.daily?.news?.label||"NEUTRAL"}
+Direction: ${best?.smc?.direction||"CALL"}
+FVG Zone: ${best?.smc?.fvg?`$${best.smc.fvg.bottom.toFixed(2)}-$${best.smc.fvg.top.toFixed(2)}`:"None"}
+BOS Level: ${best?.smc?.bos?`$${best.smc.bos.level.toFixed(2)} (${best.smc.bos.type})`:"Not confirmed yet"}
+Best Option: ${best?.bestOption?`$${best.bestOption.strike} Call Ask $${best.bestOption.ask} ($${best.bestOption.totalCost} total) exp ${best.bestOption.expiration}`:"Check Robinhood"}
 
-BEST STOCK DETAIL:
-${top?`${top.symbol}: $${top.price} RSI:${top.rsi} MACD:${top.macdBullish?"bull":"bear"} Vol:${top.volume} FVG:${top.fvgZone||"none"} Div:${top.divergence?.plain||"none"} SMC:${top.smcPlain||"none"}`:"No stock data"}
+OTHER SETUPS:
+${setups.slice(1,4).map(s=>`${s.symbol}: step ${s.smc?.step||0}/5 score ${s.score}`).join(", ")}
 
-USER: $${data.balance} | max $${(data.balance*0.20).toFixed(2)} per trade | Level ${edLevel}
-${pdtWarn||""} Week P&L: $${wkPnl.toFixed(2)}
+WHAT THE SYSTEM HAS LEARNED:
+${learnInsights}
 
-Return compact JSON with these exact keys. Use real data values — no placeholders:
+USER: $${data.balance} balance | max risk $${(data.balance*0.15).toFixed(2)} | ${data.trades.length} trades logged
+
+RULES:
+- Only recommend if SMC step >= 3
+- If step 5 — ENTER NOW
+- If step 4 — READY (watching for confirmation candle)  
+- If step 1-3 — WAIT with specific next step
+- Never recommend exhausted stocks
+- Extreme days: laggard stocks with own catalyst only
+- Keep response SHORT and CLEAR
+
+Respond with this JSON:
 {
-"ms":{"spy":${spyChange},"qqq":${qqqChange},"regime":"${regime}","fg":${overview.fearGreed.score},"vix":${overview.vix.value},"btcChg":${overview.btc.change},"btcImpact":"${overview.btc.impact}","trending":${JSON.stringify(overview.trending)},"dayType":"${isExtreme?"EXTREME_VOLATILE":Math.abs(spyChange)>0.5?"TRENDING":"CHOPPY"}","extreme":${isExtreme},"canTrade":${tw.canTrade},"timeMsg":"${tw.msg}","pdtWarn":"${pdtWarn||""}","weekPnl":${wkPnl.toFixed(2)},"dayTrades":${todayTrades},"marketComment":"2 sentences about today","tip":"1 beginner tip"},
-"strategy":{"name":"Best strategy name","key":"MOMENTUM_SCALP","why":"Why this strategy today in 2 sentences","education":"Plain English explanation"},
-"trade":{"symbol":"${top?.symbol||"SOUN"}","signal":"${top&&top.score>=50?"BUY":"HOLD"}","entry":"WAIT or READY or ENTER NOW — reason","trigger":"Exact entry trigger","confidence":"${top&&top.score>=65?"HIGH":top&&top.score>=45?"MEDIUM":"LOW"}","late":${(top?.blocks?.length||0)>0},"lateReason":"${top?.blocks?.[0]||""}","rrRatio":1.5,"pattern":"Pattern name on X-minute chart — explanation","patternAction":"What to do","smc":"${(top?.smcPlain||"No SMC setup").replace(/"/g,"'")}","smcState":"${top?.smcSignal==="ENTER_NOW"?"ENTER NOW":top?.smcSignal==="WAIT_PULLBACK"?"WAIT FOR FVG":"NO SETUP"}","fvg":"${top?.fvgZone||"none"}","why":"3 sentences: pattern timeframe entry trigger key risks","news":"${top?.news||"NEUTRAL"}","headlines":${JSON.stringify(top?.newsHeadlines?.slice(0,2)||[])},"bigMoney":"${top?.bigMoney||"None"}","divergence":"${(top?.divergence?.plain||"None").replace(/"/g,"'")}","price":${top?.price||0},"change":${top?.change||0},"rsi":${top?.rsi||0},"entry":${top?.price||0},"stop":${stopLoss},"target":${target},"rr":"1:1.5","prob":${top?.score||50},"verdict":"${top&&top.score>=65?"Good setup":"Wait for better conditions"}","holdTime":"30min-2hrs","exitTime":"3:30 PM ET","optionType":"CALL","strike":${top?parseFloat((top.price*1.02).toFixed(2)):0},"expiry":"5-10 days out","cost":"Check Ask Price on Robinhood","risk":"$${(data.balance*0.15).toFixed(2)}","steps":"1. Search ${top?.symbol||"SYM"}\n2. Trade Options\n3. BUY + CALL (both orange)\n4. Select expiry 5-10 days\n5. Check Ask < $${(data.balance*0.20).toFixed(2)} total\n6. Limit = Ask + $0.01\n7. Submit"},
-"rankings":${JSON.stringify(summaries.slice(0,6).map(s=>({sym:s.symbol,score:s.score,reason:s.blocks.length>0?s.blocks[0]:`${s.exhaustion} ${s.realtimeTrend} ${s.news}`,news:s.news||"NEUTRAL",bigMoney:s.bigMoney||"None",isLaggard:s.relativeStrength.isLaggard,rsLabel:s.relativeStrength.label})))},
-"lesson":{"level":${edLevel},"topic":"${topic}","explain":"Explain ${topic} in 2 sentences","matters":"Why it matters","watch":"What to watch today"},
-"coach":{"insights":${perf.hasInsights},"summary":"${perf.summary.replace(/"/g,"'")}"}
+  "shouldTrade": true or false,
+  "marketStatus": "one sentence about today",
+  "timeStatus": "${tw.msg}",
+  "canTrade": ${tw.canTrade},
+  "symbol": "${best?.symbol||"NONE"}",
+  "step": ${best?.smc?.step||0},
+  "stepPlain": "Which step of the 5-step SMC strategy are we on right now",
+  "entrySignal": "ENTER NOW or WAIT — CANDLE CONFIRMATION or WAIT — PRICE NEEDS TO REACH FVG or WAIT — NEED BOS or WAIT — NO SETUP",
+  "entryTrigger": "The exact thing that needs to happen to enter — 1 sentence",
+  "fvgZone": "${best?.smc?.fvg?`$${best.smc.fvg.bottom.toFixed(2)}-$${best.smc.fvg.top.toFixed(2)}`:"Not found yet"}",
+  "bosLevel": "${best?.smc?.bos?`$${best.smc.bos.level.toFixed(2)}`:"Not confirmed"}",
+  "direction": "${best?.smc?.direction||"CALL"}",
+  "smcExplanation": "Explain in plain English exactly what the 5-minute chart is showing right now for ${best?.symbol||"this stock"} — which step are we on and what needs to happen next",
+  "strike": ${best?.bestOption?.strike||0},
+  "expiration": "${best?.bestOption?.expiration||"5-10 days out"}",
+  "askPrice": ${best?.bestOption?.ask||0},
+  "totalCost": ${best?.bestOption?.totalCost||0},
+  "stopLoss": ${best?.daily?.price?parseFloat((best.daily.price - (best.daily.atr||best.daily.price*0.02)).toFixed(2)):0},
+  "target": ${best?.daily?.price?parseFloat((best.daily.price + (best.daily.atr||best.daily.price*0.02)*1.5).toFixed(2)):0},
+  "news": "${best?.daily?.news?.label||"NEUTRAL"}",
+  "newsHeadline": "${best?.daily?.news?.headlines?.[0]||""}",
+  "exhaustion": "${best?.daily?.exhaustion||"UNKNOWN"}",
+  "learnedInsight": "${learn.totalTrades >= 3 ? learnInsights.split(".")[0] : "Keep trading to unlock your personal insights"}",
+  "otherStocks": ${JSON.stringify(setups.slice(1,4).map(s=>({symbol:s.symbol,step:s.smc?.step||0,score:s.score,plain:s.smc?.plain||""})))}
 }`;
 
-    const ai=await anthropic.messages.create({model:"claude-sonnet-4-5",max_tokens:4000,messages:[{role:"user",content:prompt}]});
-    const raw=ai.content[0]?.text||"";
-    console.log("[Analysis] Response:",raw.length,"chars");
+    const ai = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 1500,
+      messages: [{ role:"user", content:prompt }]
+    });
+
+    const raw = ai.content[0]?.text || "";
+    console.log("[Analysis] Response:", raw.length, "chars");
+
     let analysis;
     try {
-      const match=raw.match(/\{[\s\S]*\}/);
-      if(!match)throw new Error("No JSON found");
-      analysis=JSON.parse(match[0]);
-    }catch(e){
-      console.error("[Analysis] Parse error:",e.message,"— Raw:",raw.substring(0,200));
-      try{
-        const start=raw.indexOf("{");
-        if(start>=0){let p=raw.substring(start);const o=(p.match(/\{/g)||[]).length,c=(p.match(/\}/g)||[]).length,ao=(p.match(/\[/g)||[]).length,ac=(p.match(/\]/g)||[]).length;for(let i=0;i<ao-ac;i++)p+="]";for(let i=0;i<o-c;i++)p+="}";analysis=JSON.parse(p);analysis._truncated=true;}
-        else throw new Error("No JSON");
-      }catch(e2){throw new Error("Analysis failed — please try again");}
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No JSON found");
+      analysis = JSON.parse(match[0]);
+    } catch(e) {
+      console.error("[Parse error]", e.message, "Raw:", raw.substring(0,200));
+      throw new Error("Analysis failed — please try again");
     }
-    // Convert compact format to expected format
-    const ms = analysis.ms || {};
-    const tr = analysis.trade || {};
-    const expanded = {
-      marketSummary: {
-        spyChange: ms.spy||spyChange, qqqChange: ms.qqq||qqqChange,
-        marketTrend: ms.regime||regime, fearGreedScore: ms.fg||50,
-        fearGreedRating: overview.fearGreed.rating,
-        trendingStocks: ms.trending||overview.trending,
-        preferredDirection: spyChange<-1.5?"PUT":spyChange>1.5?"CALL":"EITHER",
-        marketRegime: ms.regime||regime,
-        dayType: ms.dayType||"CHOPPY",
-        dayPlainEnglish: ms.marketComment||"",
-        dayTradingAdvice: tw.msg,
-        isExtremelyVolatile: ms.extreme||false,
-        volatileWarning: ms.extreme?`Market moving ${Math.abs(spyChange).toFixed(1)}% today`:"",
-        pdtWarning: ms.pdtWarn||"",
-        shouldStopTrading: false,
-        weekPnl: ms.weekPnl||0,
-        todayTradeCount: ms.dayTrades||0,
-        vix: {value:ms.vix||overview.vix.value, level:overview.vix.level, advice:"Check VIX level", optionCost:overview.vix.value>25?"Options expensive":"Options normal"},
-        crypto: {btcChange:ms.btcChg||overview.btc.change, mood:overview.btc.change>0?"BULLISH":"BEARISH", impact:ms.btcImpact||overview.btc.impact},
-        trendStrength: {score:Math.min(100,Math.round(Math.abs(spyChange)*20)), label:Math.abs(spyChange)>1.5?"STRONG":Math.abs(spyChange)>0.5?"MODERATE":"WEAK", plainEnglish:"Trend strength today"},
-        timeWindow: {window:tw.window, canTrade:tw.canTrade, message:tw.msg},
-        marketContext: {weekTrend:"UNKNOWN",weekChange:0,catalyst:"GENERAL",catalystExplanation:"Market moving",moveAlreadyDone:isExtreme,contextRecommendation:isExtreme?"Find laggards with own catalyst":"Follow the trend",headlines:[],plainEnglish:ms.marketComment||""},
-        topPatternStock: top?.symbol||"",
-        topPatternScore: top?.score||0,
-        topPatternStep: tr.pattern||"Analyzing",
-        topPatternReady: tr.smcState==="ENTER NOW",
-        marketComment: ms.marketComment||"",
-        beginnerTip: ms.tip||""
-      },
-      activeStrategy: {
-        name: analysis.strategy?.name||"Momentum Scalp",
-        key: analysis.strategy?.key||"MOMENTUM_SCALP",
-        score: 70,
-        description: analysis.strategy?.education||"",
-        whyToday: analysis.strategy?.why||"",
-        whyNotOthers: "Other strategies scored lower today",
-        shouldAdapt: false,
-        adaptationAdvice: "No adaptation needed",
-        strategyEducation: analysis.strategy?.education||"",
-        allStrategiesRanked: [{key:"MOMENTUM_SCALP",name:"Momentum Scalp",score:70,breakdown:{}},{key:"OVERSOLD_BOUNCE",name:"Oversold Bounce",score:55,breakdown:{}},{key:"SMC",name:"SMC Entry",score:tr.smcState==="ENTER NOW"?90:50,breakdown:{}}]
-      },
-      positionSizing: {
-        totalBudgetToRisk:`$${(data.balance*0.15).toFixed(2)} maximum`,
-        reserveAmount:`$${(data.balance*0.85).toFixed(2)}`,
-        reasoning:"Keep position small at this balance level"
-      },
-      trades: [{
-        rank:1, symbol:tr.symbol||top?.symbol||"SOUN",
-        signal:tr.signal||"HOLD",
-        entryState:tr.entry||"WAIT — analyzing setup",
-        entryTrigger:tr.trigger||"Wait for confirmation",
-        confidence:tr.confidence||"MEDIUM",
-        accuracyScore:top?.score||50,
-        tooLate:tr.late||false, tooLateReason:tr.lateReason||"",
-        rewardRiskRatio:tr.rrRatio||1.5, rewardRiskBlocked:false, spreadPercent:20,
-        patternStep:tr.pattern||"Analyzing on 5-minute chart",
-        timeframe:"5-minute", resolutionTime:"1-4 hours",
-        chartPattern:tr.pattern||"No clear pattern",
-        chartPatternAction:tr.patternAction||"Wait for setup",
-        smcSetup:tr.smc||"No SMC setup",
-        smcEntryState:tr.smcState||"NO SETUP",
-        fvgZone:tr.fvg||null,
-        signalExplanation:tr.why||"",
-        analysis:tr.why||"",
-        newsSentiment:tr.news||"NEUTRAL",
-        newsHeadlines:tr.headlines||[],
-        unusualActivity:tr.bigMoney||"None",
-        earningsRisk:"None",
-        divergence:tr.divergence||"None",
-        thetaWarning:"Option loses value daily — act promptly",
-        correlationInsight:"Check correlated stocks",
-        correlatedLaggards:null,
-        strategyFit:"Fits based on current conditions",
-        currentPrice:tr.price||top?.price||0,
-        priceChange:tr.change||top?.change||0,
-        indicatorConsensus:{bullish:top?.macdBullish?3:1,bearish:top?.realtimeTrend==="DOWNTREND"?2:0,neutral:4},
-        indicators:[
-          {name:"RSI",signal:(top?.rsi||50)>=40&&(top?.rsi||50)<=65?"BULLISH":"NEUTRAL",value:String(top?.rsi||50),meaning:`RSI ${top?.rsi||50} — ${(top?.rsi||50)>=40&&(top?.rsi||50)<=65?"momentum zone":"outside ideal range"}`,color:(top?.rsi||50)>=40&&(top?.rsi||50)<=65?"green":"yellow"},
-          {name:"MACD",signal:top?.macdBullish?"BULLISH":"BEARISH",value:top?.macdBullish?"Bullish":"Bearish",meaning:`MACD is ${top?.macdBullish?"bullish":"bearish"}`,color:top?.macdBullish?"green":"red"},
-          {name:"Real-Time Trend",signal:top?.realtimeTrend==="UPTREND"?"BULLISH":top?.realtimeTrend==="DOWNTREND"?"BEARISH":"NEUTRAL",value:top?.realtimeTrend||"UNKNOWN",meaning:top?.realtimeTrend==="UPTREND"?"Moving up — good":top?.realtimeTrend==="SIDEWAYS"?"Flat — avoid":"Moving down",color:top?.realtimeTrend==="UPTREND"?"green":top?.realtimeTrend==="DOWNTREND"?"red":"yellow"},
-          {name:"VWAP",signal:top?.aboveVWAP?"BULLISH":"BEARISH",value:`${top?.aboveVWAP?"Above":"Below"} $${top?.vwap||0}`,meaning:top?.aboveVWAP?"Above VWAP — bullish":"Below VWAP — bearish",color:top?.aboveVWAP?"green":"red"},
-          {name:"Volume",signal:top?.volume==="HIGH"?"BULLISH":top?.volume==="LOW"?"CAUTION":"NEUTRAL",value:top?.volume||"AVERAGE",meaning:`Volume is ${top?.volume||"average"}`,color:top?.volume==="HIGH"?"green":"yellow"},
-          {name:"Exhaustion",signal:top?.exhaustion==="FRESH"?"BULLISH":"CAUTION",value:top?.exhaustion||"UNKNOWN",meaning:top?.exhaustion==="FRESH"?"Fresh — room to run":"Extended — careful",color:top?.exhaustion==="FRESH"?"green":"yellow"}
-        ],
-        support:(top?mdMap[top.symbol]?.levels?.supports||[]:[]).slice(0,3).map(l=>({level:l,strength:"Strong"})),
-        resistance:(top?mdMap[top.symbol]?.levels?.resistances||[]:[]).slice(0,3).map(l=>({level:l,strength:"Moderate"})),
-        entryPrice:tr.entry||top?.price||0,
-        entryNote:"Enter when signal confirms",
-        stopLoss:stopLoss, stopNote:"1 ATR below — cut loss here",
-        profitTarget:target, targetNote:"1.5x ATR target",
-        riskReward:"1:1.5", atrNote:"ATR-based levels",
-        probability:{overallPercent:tr.prob||top?.score||50,factors:[{label:"Pattern",score:tr.smcState==="ENTER NOW"?90:50,note:tr.smcState||"None"},{label:"Trend",score:top?.realtimeTrend==="UPTREND"?75:30,note:top?.realtimeTrend||"Unknown"},{label:"News",score:top?.news==="BULLISH"?75:top?.news==="BEARISH"?25:50,note:top?.news||"Neutral"},{label:"Volume",score:top?.volume==="HIGH"?75:top?.volume==="LOW"?30:50,note:top?.volume||"Average"}],verdict:tr.verdict||"Moderate setup"},
-        scenarios:[{type:"bull",label:"Bull Case",probability:"25%",target:top?parseFloat((top.price*1.05).toFixed(2)):0,result:"+50-80% gain"},{type:"base",label:"Base Case",probability:"40%",target:top?parseFloat((top.price*1.02).toFixed(2)):0,result:"+20-40% gain"},{type:"bear",label:"Bear Case",probability:"25%",target:top?parseFloat((top.price*0.98).toFixed(2)):0,result:"-20-40% loss"},{type:"worst",label:"Worst Case",probability:"10%",target:top?parseFloat((top.price*0.95).toFixed(2)):0,result:"-80% loss"}],
-        exitStrategy:{recommendedHoldTime:tr.holdTime||"1-2hrs",latestExitTime:tr.exitTime||"3:30 PM ET",sellSignals:["Up 50% — take profit","Down 30% — cut loss","RSI above 75","Trend reverses"],doNotHoldIf:["Below stop loss","After 3:30 PM"],dayTradingTips:"Take profits fast. Real money."},
-        budget:{suggestedOptionType:tr.optionType||"CALL",strikePrice:tr.strike||0,expiration:tr.expiry||"5-10 days out",estimatedOptionCost:tr.cost||"Check Robinhood",amountToRisk:tr.risk||`$${(data.balance*0.15).toFixed(2)}`,maxLoss:tr.risk||`$${(data.balance*0.15).toFixed(2)}`,estimatedGain:`$${(data.balance*0.15*0.5).toFixed(2)}-$${(data.balance*0.15).toFixed(2)}`,robinhoodSteps:tr.steps||"1. Search SYMBOL\n2. Trade Options\n3. BUY + CALL\n4. Select expiry\n5. Check Ask Price\n6. Limit = Ask + $0.01\n7. Submit"},
-        volume:top?.volume||"AVERAGE"
-      }],
-      stockRankings:(analysis.rankings||[]).map(r=>({symbol:r.sym,score:r.score,reason:r.reason,newsSentiment:r.news,unusualActivity:r.bigMoney,relativeStrength:{label:r.rsLabel,description:"",isLaggard:r.isLaggard,isExtended:r.rsLabel==="EXTREMELY_EXTENDED",score:1,stockChange:0,spyChange}})),
-      educationLesson:{level:analysis.lesson?.level||edLevel,topic:analysis.lesson?.topic||topic,explanation:analysis.lesson?.explain||"",whyItMatters:analysis.lesson?.matters||"",actionable:analysis.lesson?.watch||""},
-      performanceCoach:{hasInsights:analysis.coach?.insights||false,summary:analysis.coach?.summary||"Complete more trades",insights:[]},
-      challengeContext:`From $${data.balance} to $10000 — keep going!`
+
+    // Add computed data
+    analysis._balance   = data.balance;
+    analysis._trades    = data.trades.length;
+    analysis._milestones = data.milestones || [];
+    analysis._learning  = {
+      totalTrades: learn.totalTrades,
+      wins: learn.wins,
+      losses: learn.losses,
+      winRate: learn.totalTrades > 0 ? Math.round(learn.wins/learn.totalTrades*100) : 0,
+      insights: learn.insights,
+      bestStock: Object.entries(learn.bestStocks).sort((a,b) => {
+        const aWR = a[1].trades>=2?a[1].wins/a[1].trades:0;
+        const bWR = b[1].trades>=2?b[1].wins/b[1].trades:0;
+        return bWR - aWR;
+      })[0]?.[0] || null
     };
-    expanded._fetchedAt=new Date().toISOString();
-    expanded._balance=data.balance;
-    expanded._edLevel=edLevel;
-    expanded._trades=data.trades.slice(-10);
-    expanded._milestones=data.milestones;
-    res.json({success:true,data:expanded});
-  }catch(err){
-    console.error("[Analysis] Error:",err.message);
-    res.status(500).json({success:false,error:err.message});
+    analysis._currentPrice = best?.daily?.price || 0;
+    analysis._allSetups = setups.slice(0,6).map(s => ({
+      symbol: s.symbol,
+      score: s.score,
+      step: s.smc?.step || 0,
+      plain: s.smc?.plain || "",
+      learnedWR: s.learnedWR
+    }));
+
+    res.json({ success:true, data:analysis });
+
+  } catch(err) {
+    console.error("[Analysis Error]", err.message);
+    res.status(500).json({ success:false, error:err.message });
   }
 });
 
-// Standard endpoints
-app.get("/api/challenge",(req,res)=>{ const data=loadData(); res.json({success:true,data}); });
-app.post("/api/balance/update",(req,res)=>{ const{balance}=req.body; if(isNaN(balance)||balance<0)return res.status(400).json({success:false,error:"Invalid"}); const data=loadData(); const old=data.balance; data.balance=parseFloat(balance.toFixed(2)); const m=checkMilestone(old,data.balance,data.milestones||[]); if(m)(data.milestones=data.milestones||[]).push(m); saveData(data); res.json({success:true,balance:data.balance,milestone:m}); });
-app.post("/api/reset",(req,res)=>{ const bal=parseFloat(req.body.startingBalance)||10; const fresh={balance:bal,startingBalance:bal,goal:10000,trades:[],milestones:[],createdAt:new Date().toISOString(),consecutiveWins:0,consecutiveLosses:0}; saveData(fresh); saveSM({patterns:[],strategyPerformance:{},lastAdaptation:null}); res.json({success:true,message:`Reset to $${bal}`}); });
-app.post("/api/trade/log",(req,res)=>{ const{symbol,optionType,entryPrice,exitPrice,amount,result,notes,strategy,marketRegime}=req.body; const data=loadData(); const sm=loadSM(); const pnl=result==="win"?parseFloat((exitPrice-amount).toFixed(2)):result==="skip"?0:parseFloat((-amount).toFixed(2)); const old=data.balance; if(result!=="skip")data.balance=parseFloat(Math.max(0,data.balance+pnl).toFixed(2)); if(result==="win"){data.consecutiveWins=(data.consecutiveWins||0)+1;data.consecutiveLosses=0;}else if(result==="loss"){data.consecutiveLosses=(data.consecutiveLosses||0)+1;data.consecutiveWins=0;} const m=checkMilestone(old,data.balance,data.milestones||[]); if(m)(data.milestones=data.milestones||[]).push(m); const trade={id:Date.now(),date:new Date().toISOString(),symbol,optionType,entryPrice,exitPrice,amountRisked:amount,pnl,result,balanceAfter:data.balance,notes:notes||"",strategy:strategy||"MOMENTUM_SCALP",marketRegime:marketRegime||"UNKNOWN"}; data.trades.unshift(trade); const strat=strategy||"MOMENTUM_SCALP"; if(!sm.strategyPerformance[strat])sm.strategyPerformance[strat]={wins:0,losses:0,totalPnl:0}; if(result==="win")sm.strategyPerformance[strat].wins++;else if(result==="loss")sm.strategyPerformance[strat].losses++; sm.strategyPerformance[strat].totalPnl=parseFloat((sm.strategyPerformance[strat].totalPnl+pnl).toFixed(2)); sm.patterns=(sm.patterns||[]); sm.patterns.unshift({id:Date.now(),date:new Date().toISOString(),symbol,optionType,strategy:strat,result,pnl}); if(sm.patterns.length>100)sm.patterns=sm.patterns.slice(0,100); saveData(data); saveSM(sm); res.json({success:true,trade,newBalance:data.balance,milestone:m,consecutiveWins:data.consecutiveWins,consecutiveLosses:data.consecutiveLosses}); });
-app.post("/api/trade/manual",(req,res)=>{ const{symbol,optionType,amount,exitValue,result,date,notes,strategy}=req.body; const data=loadData(); const sm=loadSM(); const pnl=result==="win"?parseFloat((exitValue-amount).toFixed(2)):result==="loss"?parseFloat((-amount).toFixed(2)):0; const trade={id:Date.now(),date:date?new Date(date).toISOString():new Date().toISOString(),symbol,optionType,entryPrice:amount,exitPrice:exitValue,amountRisked:amount,pnl,result,balanceAfter:data.balance,notes:notes||"",strategy:strategy||"MOMENTUM_SCALP",marketRegime:"UNKNOWN",manualEntry:true}; data.trades.push(trade); const strat=strategy||"MOMENTUM_SCALP"; if(!sm.strategyPerformance[strat])sm.strategyPerformance[strat]={wins:0,losses:0,totalPnl:0}; if(result==="win")sm.strategyPerformance[strat].wins++;else if(result==="loss")sm.strategyPerformance[strat].losses++; sm.strategyPerformance[strat].totalPnl=parseFloat((sm.strategyPerformance[strat].totalPnl+pnl).toFixed(2)); saveData(data); saveSM(sm); res.json({success:true,trade}); });
-app.get("/api/performance",(req,res)=>{ res.json({success:true,data:analyzePerf(loadData())}); });
-app.get("/api/strategy",(req,res)=>{ const data=loadData(); const sm=loadSM(); const lvl=getEdLevel(data); res.json({success:true,data:{availableStrategies:["MOMENTUM_SCALP","OVERSOLD_BOUNCE","SMC","CONTINUATION","BREAKOUT","VOLUME_SPIKE","VWAP_RECLAIM","GAP_FILL","TREND_FOLLOWING","SUPPORT_BOUNCE"].slice(0,lvl>=3?10:lvl>=2?8:6).map(k=>({key:k,name:k.replace(/_/g," ")})),strategyPerformance:sm.strategyPerformance,educationLevel:lvl}}); });
-app.get("/api/price/:symbol",async(req,res)=>{ try{const r=await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${req.params.symbol}?interval=1m&range=1d`,{headers:{"User-Agent":"Mozilla/5.0"}});const d=await r.json();const p=d.chart?.result?.[0]?.meta?.regularMarketPrice;res.json(p?{success:true,price:p}:{success:false});}catch(e){res.json({success:false});} });
-app.get("/api/export",(req,res)=>{ const data=loadData();const sm=loadSM(); res.setHeader("Content-Disposition","attachment; filename=backup-"+new Date().toISOString().split("T")[0]+".json"); res.json({exportedAt:new Date().toISOString(),version:"4.0",challenge:data,strategyMemory:sm}); });
-app.post("/api/import",(req,res)=>{ try{const{challenge,strategyMemory}=req.body;if(challenge)saveData(challenge);if(strategyMemory)saveSM(strategyMemory);res.json({success:true,message:"Restored!"});}catch(e){res.status(500).json({success:false,error:e.message});} });
-app.post("/api/monitor/start",async(req,res)=>{ const{email,symbol,entryPrice,stopLoss,profitTarget,signal,optionType}=req.body; const id=`${symbol}_${Date.now()}`; activeMonitors[id]={email,symbol,stopLoss,profitTarget,active:true}; const interval=setInterval(async()=>{ if(!activeMonitors[id]?.active){clearInterval(interval);return;} try{const r=await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`,{headers:{"User-Agent":"Mozilla/5.0"}});const d=await r.json();const cp=d.chart?.result?.[0]?.meta?.regularMarketPrice;if(!cp)return;const win=cp>=profitTarget,stop=cp<=stopLoss;if(win||stop){clearInterval(interval);activeMonitors[id].active=false;await sendEmail(email,win?"🟢 TAKE PROFIT!":"🔴 STOP LOSS!",`<div style="padding:20px"><h2>${win?"PROFIT HIT":"STOP LOSS HIT"} — ${symbol}</h2><p>Current: $${cp}. Open Robinhood NOW!</p></div>`);}}catch(e){}},180000); activeMonitors[id].intervalId=interval; await sendEmail(email,`Watching ${symbol}`,`<div style="padding:20px"><h2>Monitoring ${symbol}</h2><p>Stop:$${stopLoss} Target:$${profitTarget}</p></div>`); res.json({success:true,monitorId:id}); });
-app.post("/api/monitor/stop",(req,res)=>{ const{monitorId}=req.body; if(activeMonitors[monitorId]){clearInterval(activeMonitors[monitorId].intervalId);activeMonitors[monitorId].active=false;} res.json({success:true}); });
-app.post("/api/setup/save",(req,res)=>{ const setups=loadPending().filter(s=>s.symbol!==req.body.symbol); setups.push({...req.body,id:Date.now(),createdAt:new Date().toISOString(),status:"WAITING",expiresAt:new Date(Date.now()+4*60*60*1000).toISOString()}); savePending(setups); res.json({success:true}); });
-app.get("/api/setup/pending",(req,res)=>{ res.json({success:true,setups:loadPending().filter(s=>s.status==="WAITING")}); });
-app.get("/api/alerts/latest",(req,res)=>{ const f=path.join(__dirname,"latest_alerts.json"); try{if(fs.existsSync(f)){const d=JSON.parse(fs.readFileSync(f,"utf8"));if(new Date(d.timestamp)>new Date(Date.now()-30*60*1000))return res.json({success:true,...d});}}catch(e){} res.json({success:true,alerts:[],timestamp:new Date().toISOString()}); });
-app.post("/api/scanner/subscribe",(req,res)=>{ res.json({success:true,message:"Subscribed"}); });
-app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
+// ─── Standard Endpoints ───────────────────────────────────────────────────────
+app.get("/api/challenge", (req,res) => { res.json({ success:true, data:loadData() }); });
 
-// Scanner
-async function runScanner() {
+app.post("/api/balance/update", (req,res) => {
+  const { balance } = req.body;
+  if (isNaN(balance) || balance < 0) return res.status(400).json({ success:false, error:"Invalid balance" });
+  const data = loadData();
+  const old = data.balance;
+  data.balance = parseFloat(parseFloat(balance).toFixed(2));
+  const m = checkMilestone(old, data.balance, data.milestones||[]);
+  if (m) (data.milestones=data.milestones||[]).push(m);
+  saveData(data);
+  res.json({ success:true, balance:data.balance, milestone:m });
+});
+
+app.post("/api/reset", (req,res) => {
+  const bal = parseFloat(req.body.startingBalance) || 10;
+  saveData({ balance:bal, startingBalance:bal, trades:[], milestones:[], createdAt:new Date().toISOString() });
+  res.json({ success:true, message:`Reset to $${bal}` });
+});
+
+app.post("/api/trade/log", (req,res) => {
+  const { symbol, optionType, entryPrice, exitPrice, amount, result, notes, gapPct, spyChange, exhaustion } = req.body;
+  const data = loadData();
+  const pnl = result==="win" ? parseFloat((exitPrice-amount).toFixed(2)) : result==="skip" ? 0 : parseFloat((-amount).toFixed(2));
+  const old = data.balance;
+  if (result !== "skip") data.balance = parseFloat(Math.max(0, data.balance+pnl).toFixed(2));
+  const m = checkMilestone(old, data.balance, data.milestones||[]);
+  if (m) (data.milestones=data.milestones||[]).push(m);
+  const trade = {
+    id:Date.now(), date:new Date().toISOString(),
+    symbol, optionType, entryPrice, exitPrice,
+    amountRisked:amount, pnl, result,
+    balanceAfter:data.balance, notes:notes||""
+  };
+  data.trades.unshift(trade);
+  saveData(data);
+
+  // Update learning system
+  const hour = new Date().getHours();
+  const insights = updateLearning({ symbol, result, pnl, hour, gapPct, spyChange, exhaustion });
+
+  res.json({ success:true, trade, newBalance:data.balance, milestone:m, insights });
+});
+
+app.post("/api/trade/manual", (req,res) => {
+  const { symbol, optionType, amount, exitValue, result, date, notes } = req.body;
+  const data = loadData();
+  const pnl = result==="win" ? parseFloat((exitValue-amount).toFixed(2)) : result==="loss" ? parseFloat((-amount).toFixed(2)) : 0;
+  const trade = {
+    id:Date.now(), date:date?new Date(date).toISOString():new Date().toISOString(),
+    symbol, optionType, entryPrice:amount, exitPrice:exitValue,
+    amountRisked:amount, pnl, result, balanceAfter:data.balance,
+    notes:notes||"", manualEntry:true
+  };
+  data.trades.push(trade);
+  saveData(data);
+  res.json({ success:true, trade });
+});
+
+app.get("/api/learning", (req,res) => { res.json({ success:true, data:loadLearning() }); });
+
+app.get("/api/export", (req,res) => {
+  res.setHeader("Content-Disposition", "attachment; filename=smc-backup-"+new Date().toISOString().split("T")[0]+".json");
+  res.json({ exportedAt:new Date().toISOString(), challenge:loadData(), learning:loadLearning() });
+});
+
+app.post("/api/import", (req,res) => {
   try {
-    const et=new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"}));
-    const h=et.getHours(),day=et.getDay();
-    if(day===0||day===6||h<9||h>=16)return;
-    const alerts=[];
-    try{const r=await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true",{headers:{"User-Agent":"Mozilla/5.0"}});const d=await r.json();const ch=parseFloat((d.bitcoin?.usd_24h_change||0).toFixed(2));if(Math.abs(ch)>3)alerts.push({type:"CRYPTO",symbol:ch>0?"MARA":"RIOT",message:`Bitcoin ${ch>0?"UP":"DOWN"} ${Math.abs(ch).toFixed(1)}% — ${ch>0?"MARA/RIOT calls likely":"avoid MARA/RIOT"}`,urgency:"HIGH"});}catch(e){}
-    const setups=loadPending().filter(s=>s.status==="WAITING");
-    for(const setup of setups){
-      try{
-        if(new Date(setup.expiresAt)<new Date()){setup.status="EXPIRED";continue;}
-        const r=await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${setup.symbol}?interval=2m&range=1d`,{headers:{"User-Agent":"Mozilla/5.0"}});
-        const d=await r.json();const cp=d.chart?.result?.[0]?.meta?.regularMarketPrice;if(!cp)continue;
-        if(setup.direction==="CALL"&&cp>=setup.triggerPrice){setup.status="TRIGGERED";alerts.push({type:"ENTRY",symbol:setup.symbol,message:`ENTER NOW — ${setup.symbol} hit $${cp.toFixed(2)}`,urgency:"HIGH"});if(setup.email)await sendEmail(setup.email,`ENTER NOW — ${setup.symbol}`,`<div style="padding:20px"><h2>ENTER NOW — ${setup.symbol}</h2><p>Price: $${cp.toFixed(2)}</p></div>`).catch(()=>{});}
-      }catch(e){}
+    const { challenge, learning } = req.body;
+    if (challenge) saveData(challenge);
+    if (learning) saveLearning(learning);
+    res.json({ success:true, message:"Data restored!" });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+app.get("/api/price/:symbol", async (req,res) => {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${req.params.symbol}?interval=1m&range=1d`, { headers:{"User-Agent":"Mozilla/5.0"} });
+    const d = await r.json();
+    const price = d.chart?.result?.[0]?.meta?.regularMarketPrice;
+    res.json(price ? { success:true, price } : { success:false });
+  } catch(e) { res.json({ success:false }); }
+});
+
+// Monitor
+app.post("/api/monitor/start", async (req,res) => {
+  const { email, symbol, stopLoss, profitTarget } = req.body;
+  const id = `${symbol}_${Date.now()}`;
+  activeMonitors[id] = { email, symbol, stopLoss, profitTarget, active:true };
+  const interval = setInterval(async () => {
+    if (!activeMonitors[id]?.active) { clearInterval(interval); return; }
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`, { headers:{"User-Agent":"Mozilla/5.0"} });
+      const d = await r.json();
+      const cp = d.chart?.result?.[0]?.meta?.regularMarketPrice;
+      if (!cp) return;
+      if (cp >= profitTarget || cp <= stopLoss) {
+        clearInterval(interval);
+        activeMonitors[id].active = false;
+        const win = cp >= profitTarget;
+        await sendEmail(email, win?"🟢 TAKE PROFIT!":"🔴 STOP LOSS!", `<div style="padding:20px;font-family:monospace"><h2>${win?"🟢 PROFIT HIT":"🔴 STOP HIT"} — ${symbol}</h2><p>Price: $${cp}. Open Robinhood NOW and ${win?"sell to lock profit!":"cut the loss!"}</p></div>`);
+      }
+    } catch(e) {}
+  }, 180000);
+  activeMonitors[id].intervalId = interval;
+  await sendEmail(email, `👁 Watching ${symbol}`, `<div style="padding:20px"><h2>Monitoring ${symbol}</h2><p>Stop: $${stopLoss} | Target: $${profitTarget}</p><p>Checking every 3 minutes.</p></div>`);
+  res.json({ success:true, monitorId:id });
+});
+
+app.post("/api/monitor/stop", (req,res) => {
+  const { monitorId } = req.body;
+  if (activeMonitors[monitorId]) { clearInterval(activeMonitors[monitorId].intervalId); activeMonitors[monitorId].active = false; }
+  res.json({ success:true });
+});
+
+app.get("*", (req,res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+
+
+// ─── Paper Trading System ─────────────────────────────────────────────────────
+// Runs automatically in background — practices the SMC strategy 24/7
+const PAPER_FILE = path.join(__dirname, "paper_trades.json");
+
+function loadPaperTrades() {
+  if (!fs.existsSync(PAPER_FILE)) {
+    const d = { balance:1000, trades:[], openPositions:[], totalTrades:0, wins:0, losses:0 };
+    fs.writeFileSync(PAPER_FILE, JSON.stringify(d,null,2));
+    return d;
+  }
+  try { return JSON.parse(fs.readFileSync(PAPER_FILE,"utf8")); }
+  catch(e) { return { balance:1000, trades:[], openPositions:[], totalTrades:0, wins:0, losses:0 }; }
+}
+function savePaperTrades(d) { fs.writeFileSync(PAPER_FILE, JSON.stringify(d,null,2)); }
+
+async function runPaperTrading() {
+  try {
+    const et = new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"}));
+    const h = et.getHours(), m = et.getMinutes(), t = h+m/60, day = et.getDay();
+    
+    // Only run during market hours 10am-3:30pm ET on weekdays
+    if (day===0||day===6||t<10||t>15.5) return;
+
+    const paper = loadPaperTrades();
+    const learn = loadLearning();
+    const market = await getMarketStatus().catch(()=>({spyChange:0,isExtreme:false,isBull:true}));
+
+    // Step 1 — Check open positions for exits
+    const stillOpen = [];
+    for (const pos of (paper.openPositions||[])) {
+      try {
+        const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${pos.symbol}?interval=5m&range=1d`,{headers:{"User-Agent":"Mozilla/5.0"}});
+        const d = await r.json();
+        const cp = d.chart?.result?.[0]?.meta?.regularMarketPrice;
+        if (!cp) { stillOpen.push(pos); continue; }
+
+        const hitTarget = cp >= pos.target;
+        const hitStop   = cp <= pos.stopLoss;
+        const expired   = new Date() - new Date(pos.entryTime) > 4*60*60*1000; // 4 hour max hold
+
+        if (hitTarget || hitStop || expired) {
+          // Close the position
+          const result = hitTarget ? "win" : "loss";
+          const pnl = hitTarget
+            ? parseFloat((pos.contracts * (pos.target - pos.entryPrice) * 100).toFixed(2))
+            : parseFloat((-pos.amountRisked).toFixed(2));
+
+          paper.totalTrades++;
+          if (result==="win") paper.wins++;
+          else paper.losses++;
+          paper.balance = parseFloat((paper.balance + pnl).toFixed(2));
+
+          const closedTrade = {
+            id: pos.id,
+            symbol: pos.symbol,
+            entryPrice: pos.entryPrice,
+            exitPrice: cp,
+            entryTime: pos.entryTime,
+            exitTime: new Date().toISOString(),
+            result,
+            pnl,
+            amountRisked: pos.amountRisked,
+            smcStep: pos.smcStep,
+            fvgZone: pos.fvgZone,
+            reason: hitTarget?"Target hit":hitStop?"Stop hit":"Time expired",
+            spyChange: pos.spyChange,
+            hour: new Date(pos.entryTime).getHours()
+          };
+
+          paper.trades.unshift(closedTrade);
+          if (paper.trades.length > 200) paper.trades = paper.trades.slice(0,200);
+
+          // Feed into learning system
+          updateLearning({
+            symbol: pos.symbol,
+            result,
+            pnl,
+            hour: new Date(pos.entryTime).getHours(),
+            gapPct: pos.gapPct || 0,
+            spyChange: pos.spyChange || 0,
+            exhaustion: pos.exhaustion || "UNKNOWN"
+          });
+
+          console.log(`[Paper] CLOSED ${pos.symbol} — ${result} $${pnl} (${closedTrade.reason})`);
+        } else {
+          stillOpen.push(pos);
+        }
+      } catch(e) { stillOpen.push(pos); }
     }
-    savePending(setups);
-    if(alerts.length>0)fs.writeFileSync(path.join(__dirname,"latest_alerts.json"),JSON.stringify({alerts,timestamp:new Date().toISOString()},null,2));
-  }catch(e){console.error("[Scanner]",e.message);}
+    paper.openPositions = stillOpen;
+
+    // Step 2 — Look for new SMC ENTER NOW signals
+    // Max 2 open positions at once
+    if (paper.openPositions.length < 2) {
+      const batch = WATCHLIST.slice(0,8);
+
+      for (const symbol of batch) {
+        // Skip if already in a position
+        if (paper.openPositions.find(p=>p.symbol===symbol)) continue;
+
+        try {
+          const c = await get5MinCandles(symbol);
+          if (!c) continue;
+
+          const smc = detectSMCSetup(c.closes, c.highs, c.lows, c.opens, c.volumes);
+
+          // Only paper trade confirmed ENTER NOW signals
+          if (smc.entrySignal !== "ENTER_NOW") continue;
+
+          // Get daily data for exhaustion and ATR
+          const daily = await getDailyData(symbol).catch(()=>null);
+          if (!daily) continue;
+
+          // Skip exhausted stocks
+          if (["EXTREMELY_EXHAUSTED","VERY_EXHAUSTED"].includes(daily.exhaustion)) continue;
+
+          const currentPrice = c.currentPrice;
+          const atr = daily.atr || currentPrice * 0.02;
+          const stopLoss = parseFloat((currentPrice - atr).toFixed(2));
+          const target = parseFloat((currentPrice + atr * 1.5).toFixed(2));
+          const amountRisked = 50; // Paper trade $50 per position
+          const contracts = Math.floor(amountRisked / (atr * 100)) || 1;
+
+          const position = {
+            id: Date.now(),
+            symbol,
+            entryPrice: currentPrice,
+            stopLoss,
+            target,
+            amountRisked,
+            contracts,
+            entryTime: new Date().toISOString(),
+            smcStep: smc.step,
+            fvgZone: smc.fvg ? `${smc.fvg.bottom.toFixed(2)}-${smc.fvg.top.toFixed(2)}` : null,
+            gapPct: smc.fvg?.gapPct || 0,
+            spyChange: market.spyChange,
+            exhaustion: daily.exhaustion,
+            direction: smc.direction
+          };
+
+          paper.openPositions.push(position);
+          console.log(`[Paper] ENTERED ${symbol} at $${currentPrice} — Stop $${stopLoss} Target $${target} (SMC step ${smc.step}/5)`);
+
+          // Max 2 positions
+          if (paper.openPositions.length >= 2) break;
+
+        } catch(e) { console.error(`[Paper] Error scanning ${symbol}:`, e.message); }
+
+        // Small delay between stocks
+        await new Promise(r=>setTimeout(r,500));
+      }
+    }
+
+    savePaperTrades(paper);
+
+    // Log summary every 10 trades
+    if (paper.totalTrades > 0 && paper.totalTrades % 10 === 0) {
+      const wr = Math.round(paper.wins/paper.totalTrades*100);
+      console.log(`[Paper] Summary: ${paper.totalTrades} trades | ${wr}% win rate | Balance: $${paper.balance}`);
+    }
+
+  } catch(e) { console.error("[Paper Trading]", e.message); }
 }
 
-const PORT=process.env.PORT||3000;
-app.listen(PORT,()=>{
-  console.log(`Challenge AI v4 on port ${PORT}`);
-  setTimeout(()=>{ setInterval(()=>runScanner().catch(e=>console.error("[Scanner]",e.message)),90000); console.log("[Scanner] Started"); },15000);
+// Paper trading endpoint
+app.get("/api/paper", (req,res) => {
+  const paper = loadPaperTrades();
+  const wr = paper.totalTrades > 0 ? Math.round(paper.wins/paper.totalTrades*100) : 0;
+  res.json({
+    success: true,
+    data: {
+      balance: paper.balance,
+      startingBalance: 1000,
+      totalTrades: paper.totalTrades,
+      wins: paper.wins,
+      losses: paper.losses,
+      winRate: wr,
+      openPositions: paper.openPositions || [],
+      recentTrades: paper.trades.slice(0,20),
+      pnl: parseFloat((paper.balance - 1000).toFixed(2))
+    }
+  });
+});
+
+
+// ─── Scanner ──────────────────────────────────────────────────────────────────
+async function runScanner() {
+  try {
+    const et = new Date(new Date().toLocaleString("en-US", { timeZone:"America/New_York" }));
+    const h = et.getHours(), day = et.getDay();
+    if (day===0||day===6||h<9||h>=16) return;
+
+    // Check for SMC entries on watchlist
+    const market = await getMarketStatus().catch(() => ({ spyChange:0, isExtreme:false, isBull:true }));
+    const alerts = [];
+
+    // Quick BTC check for MARA/RIOT
+    try {
+      const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true", { headers:{"User-Agent":"Mozilla/5.0"} });
+      const d = await r.json();
+      const ch = parseFloat((d.bitcoin?.usd_24h_change||0).toFixed(2));
+      if (Math.abs(ch) > 3) alerts.push({ type:"CRYPTO", symbol:ch>0?"MARA":"RIOT", message:`Bitcoin ${ch>0?"UP":"DOWN"} ${Math.abs(ch).toFixed(1)}% — ${ch>0?"MARA/RIOT calls likely":"avoid MARA/RIOT"}`, urgency:"HIGH" });
+    } catch(e) {}
+
+    // Check top 3 stocks for SMC ENTER NOW signals
+    const quickBatch = ["SOUN","MARA","SOFI"];
+    for (const sym of quickBatch) {
+      try {
+        const c = await get5MinCandles(sym);
+        if (!c) continue;
+        const smc = detectSMCSetup(c.closes, c.highs, c.lows, c.opens, c.volumes);
+        if (smc.entrySignal === "ENTER_NOW") {
+          alerts.push({ type:"SMC_ENTRY", symbol:sym, message:`🟢 SMC ENTER NOW — ${sym}: ${smc.plain}`, urgency:"HIGH" });
+        }
+      } catch(e) {}
+    }
+
+    if (alerts.length > 0) {
+      fs.writeFileSync(path.join(__dirname, "latest_alerts.json"), JSON.stringify({ alerts, timestamp:new Date().toISOString() }, null, 2));
+    }
+  } catch(e) { console.error("[Scanner]", e.message); }
+}
+
+app.get("/api/alerts/latest", (req,res) => {
+  const f = path.join(__dirname, "latest_alerts.json");
+  try {
+    if (fs.existsSync(f)) {
+      const d = JSON.parse(fs.readFileSync(f,"utf8"));
+      if (new Date(d.timestamp) > new Date(Date.now()-30*60*1000)) return res.json({ success:true, ...d });
+    }
+  } catch(e) {}
+  res.json({ success:true, alerts:[], timestamp:new Date().toISOString() });
+});
+
+// ─── Start ────────────────────────────────────────────────────────────────────
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`SMC Trading AI v5 on port ${PORT}`);
+  setTimeout(() => {
+    // Background scanner — checks for alerts
+    setInterval(() => runScanner().catch(e => console.error("[Scanner]", e.message)), 90000);
+    console.log("[Scanner] Started");
+    
+    // Paper trading — practices SMC strategy 24/7
+    setInterval(() => runPaperTrading().catch(e => console.error("[Paper]", e.message)), 120000); // Every 2 minutes
+    console.log("[Paper Trading] Started — practicing SMC strategy automatically");
+  }, 15000);
 });
