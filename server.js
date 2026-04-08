@@ -1959,7 +1959,6 @@ app.get("/api/analyze", async (req, res) => {
     const intradayMap={};
     if(intradayR.status==="fulfilled")intradayR.value.forEach(i=>{intradayMap[i.symbol]=i.intraday;});
     const socialMap = socialR.status==="fulfilled" ? socialR.value : {};
-    const afterHoursList = afterHoursR.status==="fulfilled" ? afterHoursR.value : [];
     const finnhubMap = {};
     if(finnhubR.status==="fulfilled"&&Array.isArray(finnhubR.value)) finnhubR.value.forEach(f=>{ if(f&&f.finnhub) finnhubMap[f.symbol]=f.finnhub; });
     
