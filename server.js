@@ -2818,321 +2818,71 @@ app.get("/api/analyze", async (req, res) => {
     // Trading time window
     const timeWindow = getTradingTimeWindow();
 
-    const prompt=`You are an elite adaptive options trading AI. You have LIVE data fetched at ${new Date().toLocaleTimeString()} ET.
-    
-MARKET SAFETY CHECK:
-- Should sit out today: ${shouldSitOut}
-- Extreme volatility: ${isExtremelyVolatile} (SPY: ${spyChange}%)
-- Stocks up 20%+: ${allStocksUpBig}
-${shouldSitOut ? `
-⚠️ EXTREME MARKET: SPY moving ${spyChange}% AND most stocks already moved 15%+.
-Focus ONLY on the 1-2 stocks that have NOT moved much yet (true laggards with own catalyst).
-If no laggards exist recommend sitting out and explain why clearly.` : ""}
-${extremeDayMode ? `
-⚡ VOLATILE DAY PROTOCOL: SPY moving ${spyChange}% but not all stocks exhausted.
-Find stocks with independent catalysts that are lagging the market.
-Use ONLY Momentum Scalp, SMC, or Volume Spike strategies.
-Ignore stocks up 15%+ — focus on stocks up less than ${(Math.abs(spyChange)*0.3).toFixed(1)}% that have specific news.` : ""}
+    const prompt=`You are an expert options trading AI. Respond ONLY with valid JSON.
 
-USER PROFILE:
-- Balance: $${data.balance} | Goal: $10,000
-- Total Trades: ${data.trades.length} | Win Rate: ${data.trades.length>0?Math.round((data.trades.filter(t=>t.result==="win").length/data.trades.length)*100):0}%
-- Education Level: ${edLevel}/4 (${edLevel===1?"Beginner":edLevel===2?"Intermediate":edLevel===3?"Advanced":"Expert"})
-- Current Strategy: ${bestStrategy.name}
-- Should Adapt Strategy: ${shouldAdapt}
-- Consecutive Wins: ${data.consecutiveWins||0} | Consecutive Losses: ${data.consecutiveLosses||0}
-- Recently Lost On These Stocks (avoid recommending): ${recentLosingStocks.join(", ")||"None"}
-- Yesterday's Traded Stocks (deprioritize): ${yesterdayStocks.join(", ")||"None"}
+TODAY: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()} ET
+SPY: ${spyChange}% | VIX: ${vix.value} | Day: ${dayClassification.dayType} | Window: ${timeWindow.window} (${timeWindow.canTrade?"OPEN":"BLOCKED"})
+Strategy: ${bestStrategy.name}
+${!timeWindow.canTrade?"TIME BLOCK ACTIVE - still provide analysis but warn user":""} 
+${extremeDayMode?"EXTREME DAY - focus on laggard stocks with own catalyst":""}
 
-STOCK ROTATION RULES:
-- If a stock lost money in the last 2 days — rank it LAST. Do not recommend it as primary trade.
-- Rotate to fresh stocks the user hasn't traded recently
-- Never recommend the exact same stock 3 days in a row
-- If all stocks in watchlist have been traded recently — pick the one with the best current setup regardless
+TOP STOCKS BY PATTERN SCORE:
+${patternScores.slice(0,5).map((ps,i)=>`${i+1}. ${ps.symbol} score:${ps.totalScore} ${ps.entryReady?"READY":"WAIT"} pattern:${ps.path?.name||"none"} step:${ps.path?.step||0}/${ps.path?.totalSteps||0} timeframe:${ps.path?.timeframe||"daily"} dir:${ps.direction} fvg:${ps.fvgZone||"none"} blocks:${ps.blocks.slice(0,2).join(",")}`).join("\n")}
 
-MARKET CONDITIONS:
-- SPY: ${spyChange}% | QQQ: ${qqqChange}% | Regime: ${marketRegime}
-- Fear & Greed: ${fearGreed.score}/100 — ${fearGreed.rating}
-- Preferred Direction: ${preferredDir}
+STOCK DATA:
+${patternScores.slice(0,3).map(ps=>{const s=enrichedSummaries.find(x=>x.symbol===ps.symbol)||{};return `${ps.symbol}: $${s.priceData?.current||0} chg:${s.change||0}% rsi:${s.rsi||0} vol:${s.volume} trend:${s.intraday?.realtimeTrend} news:${s.socialSentiment?.label} bigmoney:${s.unusualActivity?.bigMoney||"none"} exhaust:${s.momentum?.exhaustionLevel}`;}).join("\n")}
 
-TODAY'S MARKET DAY TYPE: ${dayClassification.dayType}
-Day Description: ${dayClassification.description}
-Plain English: ${dayClassification.plainEnglish}
-Trading Advice: ${dayClassification.tradingAdvice}
-Best Strategy For This Day Type: ${dayClassification.bestStrategy}
-Confidence: ${dayClassification.confidence}
+USER: $${data.balance} balance | max risk $${(data.balance*0.20).toFixed(2)}
 
-DAY TYPE RULES:
-- CHOPPY day (SPY < 0.5%): DO NOT use Momentum Scalp. Use Oversold Bounce. Find stocks with their OWN catalyst.
-- TRENDING day (SPY 0.5-1.5%): Momentum Scalp and Trend Following work well. Follow the direction.
-- NEWS_DRIVEN day (SPY 1.5-3%): Trade carefully, reduce size, wait for 10:30 AM.
-- EXTREME_VOLATILE day (SPY 3%+): Recommend sitting out entirely.
-
-TOP STRATEGIES TODAY:
-${(allStrategyScores||[]).slice(0,4).map(s=>`${s.name}: ${s.score}/100`).join(" | ")}
-WINNER: ${bestStrategy.name} (${bestStrategy.score||0}/100)
-
-ACTIVE STRATEGY: ${bestStrategy.name}
-Strategy Description: ${bestStrategy.description}
-Best Conditions: ${bestStrategy.bestConditions}
-Risk Level: ${bestStrategy.riskLevel}
-Target Hold Time: ${bestStrategy.holdTime}
-${bestStrategy.sitOut ? "⚠️ RECOMMEND SITTING OUT TODAY: " + bestStrategy.sitOutReason : ""}
-
-STRATEGY SELECTION RULES:
-- The scoring engine ran ALL strategies against today's conditions
-- The winning strategy scored highest across: day type match, stock conditions, historical performance, win rate
-- ALWAYS explain in plain English why this strategy won and what conditions it needs to work
-- Show the user which strategies scored second and third so they understand the decision
-- If top strategy scored below 40 — warn the user conditions are not ideal today
-
-MATCHING PAST WINNING PATTERNS:
-${matchingPatterns.length>0?JSON.stringify(matchingPatterns):("No matching patterns yet — building pattern library as you trade.")}
-
-PERFORMANCE INSIGHTS:
-${perfAnalysis.hasInsights?perfAnalysis.summary:"Not enough trades for insights yet."}
-
-EDUCATION TOPIC TODAY: "${todayTopic}" (Level ${edLevel} — ${edLevel===1?"Beginner":edLevel===2?"Intermediate":edLevel===3?"Advanced":"Expert"})
-
-MARKET DIRECTION RULES:
-- SPY down >2%: ONLY PUT options
-- SPY up >2%: Prefer CALL options
-- NEVER recommend options costing more than $${data.balance}
-- Under $100 balance: options must cost $0.10/share or less ($10 or less per contract)
-- Avoid stocks with earnings in 1-2 days
-
-TOP STOCKS SUMMARY (condensed):
-${JSON.stringify(summaries.slice(0,5).map(s=>({
-  sym:s.symbol,chg:s.change,rsi:s.rsi,macd:s.macdBullish?"bull":"bear",
-  vol:s.volume,exhaust:s.momentum?.exhaustionLevel,
-  trend:s.intraday?.realtimeTrend,vwap:s.intraday?.aboveVWAP?"above":"below",
-  rs:s.relativeStrength?.label,pattern:s.primaryPattern?.name,
-  smc:s.smcAnalysis?.entrySignal?.type,news:s.socialSentiment?.label
-})),null,2)}
-
-UNUSUAL OPTIONS (top 3 stocks only):
-${JSON.stringify(Object.fromEntries(Object.entries(unusualMap).slice(0,3).map(([k,v])=>[k,{bigMoney:v?.bigMoney,putCallRatio:v?.putCallRatio,unusualVolume:v?.unusualVolume}])),null,2)}
-
-EARNINGS RISKS:
-${JSON.stringify(earningsMap,null,2)}
-
-Suggest ${numTrades} trade(s) using the ${bestStrategy.name} strategy adapted to today's conditions.
-${shouldAdapt?"IMPORTANT: Also recommend whether to switch strategies and why, based on recent performance.":""}
-
-Return ONLY valid JSON:
+Respond with this JSON only - fill in real values, no placeholders:
 {
-  "marketSummary":{
-    "spyChange":${spyChange},"qqqChange":${qqqChange},"marketTrend":"${marketTrend}",
-    "fearGreedScore":${fearGreed.score},"fearGreedRating":"${fearGreed.rating}",
-    "trendingStocks":${JSON.stringify(trending.slice(0,5))},
-    "preferredDirection":"${preferredDir}","marketRegime":"${marketRegime}",
-    "dayType":"${dayClassification.dayType}",
-    "dayPlainEnglish":"${dayClassification.plainEnglish}",
-    "dayTradingAdvice":"${dayClassification.tradingAdvice}",
-    "dayBestStrategy":"${dayClassification.bestStrategy}",
-    "isExtremelyVolatile":${isExtremelyVolatile},
-    "trendStrength":{"score":${trendStrength.score},"label":"${trendStrength.label}","plainEnglish":"${trendStrength.plainEnglish}"},
-    "timeWindow":{"window":"${timeWindow.window}","canTrade":${timeWindow.canTrade},"message":"${timeWindow.message}"},
-    "volatileWarning":"${volatileWarning||""}",
-    "pdtWarning":"${pdtWarning||""}",
-    "balanceWarning":"${balanceWarning||""}",
-    "weeklyLimitWarning":"${weeklyLimitWarning||""}",
-    "shouldStopTrading":${shouldStopTrading},
-    "weekPnl":${weekPnl.toFixed(2)},
-    "todayTradeCount":${todayTrades},
-    "vix":{"value":${vix.value},"level":"${vix.level}","advice":"${vix.tradingAdvice}","optionCost":"${vix.optionCost}"},
-    "crypto":{"btcChange":${crypto.btcChange},"mood":"${crypto.cryptoMood}","impact":"${crypto.impact}"},
-    "futures":{
-      "esChange":${futures.esChange},
-      "tomorrowBias":"${futures.tomorrowBias}",
-      "tradingImplication":"${futures.tradingImplication}",
-      "plainEnglish":"${futures.plainEnglish}"
-    },
-    "breadth":{
-      "score":${breadth.breadthScore},
-      "label":"${breadth.breadthLabel}",
-      "advancing":${breadth.advancing||0},
-      "declining":${breadth.declining||0},
-      "plainEnglish":"${breadth.plainEnglish}",
-      "tomorrowImplication":"${breadth.tomorrowImplication}",
-      "leadingSector":"${breadth.leadingSector?.sector||"—"} ${breadth.leadingSector?.change||0}%",
-      "laggingSector":"${breadth.laggingSector?.sector||"—"} ${breadth.laggingSector?.change||0}%"
-    },
-    "afterHoursMovers":${JSON.stringify(afterHoursMovers.slice(0,3))},
-    "tomorrowEvents":${JSON.stringify(tomorrowEvents)},
-    "marketContext":{
-      "weekTrend":"${marketContext.weekTrend}",
-      "weekChange":${marketContext.weekChange},
-      "catalyst":"${marketContext.catalyst}",
-      "catalystExplanation":"${marketContext.catalystExplanation}",
-      "moveAlreadyDone":${marketContext.moveAlreadyDone},
-      "contextRecommendation":"${marketContext.contextRecommendation}",
-      "headlines":${JSON.stringify(marketContext.headlines.slice(0,3))},
-      "plainEnglish":"${marketContext.plainEnglish}"
-    },
-    "marketComment":"2 plain English sentences about today's market. If extremely volatile warn beginner traders strongly.",
-    "beginnerTip":"1 sentence of the most important thing a beginner should know about trading TODAY specifically",
-    "topPatternStock":"${patternScores[0]?.symbol||""}",
-    "topPatternScore":${patternScores[0]?.totalScore||0},
-    "topPatternStep":"${patternScores[0]?.stepInfo||""}",
-    "topPatternReady":${patternScores[0]?.entryReady||false}
-  },
-  "activeStrategy":{
-    "name":"${bestStrategy.name}","key":"${bestStrategy.key}",
-    "score":${bestStrategy.score||0},
-    "description":"${bestStrategy.description}",
-    "whyToday":"2-3 sentences explaining WHY this strategy won the scoring engine today — what specific conditions made it the best choice",
-    "whyNotOthers":"1 sentence explaining why the second and third ranked strategies lost",
-    "shouldAdapt":${shouldAdapt},
-    "adaptationAdvice":"${shouldAdapt?"Specific advice on whether to switch strategies":"No adaptation needed"}",
-    "strategyEducation":"Plain English explanation of this strategy for a beginner — what does it mean and how does it work today",
-    "allStrategiesRanked":${JSON.stringify(allStrategyScores.slice(0,4))}
-  },
-  "patternMatch":{
-    "found":${matchingPatterns.length>0},
-    "count":${matchingPatterns.length},
-    "message":"${matchingPatterns.length>0?"Similar past setups found":"No matching patterns yet — this trade will be added to your pattern library"}"
-  },
-  "educationLesson":{
-    "topic":"${todayTopic}",
-    "level":${edLevel},
-    "explanation":"Clear explanation of ${todayTopic} written for education level ${edLevel}. Start simple. Use an analogy if helpful.",
-    "whyItMatters":"1 sentence on why this concept matters for your trading",
-    "actionable":"1 specific thing to watch for in today's trade that relates to this lesson"
-  },
-  "numberOfTrades":${numTrades},
-  "trades":[
-    {
-      "rank":1,
-      "symbol":string,
-      "symbolReason":string,
-      "newsSentiment":"BULLISH" or "BEARISH" or "NEUTRAL",
-      "newsHeadlines":[string,string],
-      "unusualActivity":string,
-      "earningsRisk":"None" or warning,
-      "chartPattern":"Name and plain English explanation of the PRIMARY chart pattern detected — what would a trader see on TradingView right now?",
-      "chartPatternAction":"Specific action based on the pattern — buy calls, avoid, wait for breakout etc",
-      "smcSetup":"Plain English explanation of the FVG + BOS + Liquidity setup for this stock. Is there an active SMC entry signal?",
-      "smcEntryState":"ENTER NOW (green candle in FVG after BOS)" or "WAIT FOR PULLBACK TO FVG" or "WAIT FOR BOS" or "NO SETUP",
-      "fvgZone":"The exact price zone to watch e.g. $3.45 - $3.62",
-      "divergence":"Explain any divergence detected in plain English",
-      "thetaWarning":"Plain English warning about time decay — how much is this option losing per day just from time passing?",
-      "strategyFit":"How this specific stock fits the ${bestStrategy.name} strategy today",
-      "correlationGroup":"What sector/group this stock belongs to and how connected stocks are moving",
-      "correlatedLaggards":"List any stocks in the same group that haven't moved yet — laggard opportunities",
-      "correlationInsight":"Plain English explanation of how this stock connects to others and what that means for the trade",
-      "signal":"BUY" or "SELL" or "HOLD",
-      "entryState":"WAIT — Setup building, watch for [trigger]" or "READY — Enter when [specific condition]" or "ENTER NOW — All conditions met",
-      "entryTrigger":"The EXACT thing that needs to happen before entering. Example: Price must close above $13.50 with volume above 500k. Or: Price holds above VWAP for 2 consecutive minutes.",
-      "confidence":"LOW" or "MEDIUM" or "HIGH",
-      "tooLate":true or false,
-      "tooLateReason":"Why it is too late if applicable",
-      "rewardRiskRatio":number,
-      "rewardRiskBlocked":true or false,
-      "spreadPercent":number,
-      "accuracyScore":number,
-      "indicatorConsensus":{"bullish":number,"bearish":number,"neutral":number},
-      "signalExplanation":string,
-      "currentPrice":number,"priceChange":number,"weekHigh":number,"weekLow":number,
-      "volume":string,"avgVolume":string,
-      "exitStrategy":{
-        "recommendedHoldTime":string,"latestExitTime":string,
-        "sellSignals":[string,string,string,string,string],
-        "doNotHoldIf":[string,string],
-        "dayTradingTips":string
-      },
-      "probability":{
-        "overallPercent":number,
-        "factors":[
-          {"label":"Trend Alignment","score":number,"note":string},
-          {"label":"Momentum (MACD/RSI/Stoch)","score":number,"note":string},
-          {"label":"Volume & OBV","score":number,"note":string},
-          {"label":"News Sentiment","score":number,"note":string},
-          {"label":"Unusual Options Activity","score":number,"note":string},
-          {"label":"Pattern Match","score":number,"note":string},
-          {"label":"Fear & Greed","score":number,"note":string}
-        ],
-        "verdict":string
-      },
-      "scenarios":[
-        {"type":"bull","label":"Bull Case","probability":string,"target":number,"result":string},
-        {"type":"base","label":"Base Case","probability":string,"target":number,"result":string},
-        {"type":"bear","label":"Bear Case","probability":string,"target":number,"result":string},
-        {"type":"worst","label":"Worst Case","probability":string,"target":number,"result":string}
-      ],
-      "entryPrice":number,"entryNote":string,"stopLoss":number,"stopNote":string,
-      "profitTarget":number,"targetNote":string,"riskReward":string,"atrNote":string,
-      "budget":{
-        "suggestedOptionType":"CALL" or "PUT","strikePrice":number,
-        "expiration":string,"estimatedOptionCost":string,
-        "amountToRisk":string,"maxLoss":string,"estimatedGain":string,
-        "robinhoodSteps":"STEP BY STEP — OPENING THE TRADE:\n\n1. Open Robinhood and search [SYMBOL]\n\n2. Tap Trade → Trade Options\n\n3. You will see 4 buttons — tap BUY (orange, left) and tap CALL (orange, right). Do NOT tap Sell or Put.\n\n4. Select expiration date: [exact expiration date]\n\n5. Find the exact option — look for strike price $[strike]. The option name will look like: [SYMBOL] $[strike] Call [date]. If you cannot find it scroll up or down the list.\n\n6. Check the Ask Price column — it should be close to [estimated cost] per share. If it is much higher than expected scroll UP to find a cheaper strike.\n\n7. Tap the + button next to your chosen strike.\n\n8. Set quantity to 1 contract. Change order type to Limit. Set limit price to $0.01 ABOVE the current ask price — this guarantees your order fills faster. Example: if ask shows $0.08 set limit to $0.09.\n\n9. Tap Review Order → Submit.\n\n10. If it shows Queued wait up to 3 minutes. If still not filled after 3 minutes cancel and try again — the price may have moved.\n\n11. If you see Partial Fill — that means only some filled. Cancel the rest and work with what you have.\n\nOPENING DECISION RULE: If the option drops 20% within the first 10 minutes of buying — sell immediately. The setup failed. Do not hope it comes back.\n\nCLOSING THE TRADE:\n\n12. Go to Portfolio (graph icon at bottom of Robinhood) → find [SYMBOL] → tap it → tap Sell to Close\n\n13. Set quantity to 1 contract\n\n14. Change to Limit order. Set limit price to $0.01 BELOW the current Bid price — this guarantees a fast fill. Example: if Bid shows $0.12 set limit to $0.11.\n\n15. Tap Review → Submit → wait for Filled confirmation\n\n16. Come back to this app and log the result immediately."
-      },
-      "indicators":[
-        {"name":"RSI (14)","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"MACD","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"EMA 20","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"EMA 50","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"EMA 200","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"Bollinger Bands","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"Stochastic","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"Williams %R","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"OBV Trend","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"ATR (14)","value":string,"signal":"VOLATILITY","color":"yellow","meaning":string},
-        {"name":"Volume Trend","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string},
-        {"name":"Implied Volatility","value":string,"signal":string,"color":"green" or "red" or "yellow","meaning":string}
-      ],
-      "support":[{"level":number,"strength":string},{"level":number,"strength":string},{"level":number,"strength":string}],
-      "resistance":[{"level":number,"strength":string},{"level":number,"strength":string},{"level":number,"strength":string}],
-      "analysis":string
-    }
-  ],
-  "stockRankings":[{"symbol":string,"score":number,"reason":string,"newsSentiment":string,"unusualActivity":string}],
-  "positionSizing":{
-    "totalBudgetToRisk":string,"perTradeBreakdown":[{"trade":number,"symbol":string,"amount":string,"reasoning":string}],
-    "reserveAmount":string,"reasoning":string
-  },
-  "challengeContext":string,
-  "performanceCoach":{
-    "hasInsights":${perfAnalysis.hasInsights},
-    "insights":${JSON.stringify(perfAnalysis.insights||[])},
-    "summary":"${perfAnalysis.hasInsights?perfAnalysis.summary:"Complete more trades to unlock your personal performance analysis!"}"
-  }
+  "marketSummary":{"spyChange":${spyChange},"qqqChange":${qqqChange},"marketTrend":"${marketTrend}","fearGreedScore":${fearGreed.score},"fearGreedRating":"${fearGreed.rating}","trendingStocks":${JSON.stringify(trending.slice(0,5))},"preferredDirection":"${preferredDir}","marketRegime":"${marketRegime}","dayType":"${dayClassification.dayType}","dayPlainEnglish":"${dayClassification.plainEnglish}","dayTradingAdvice":"${dayClassification.tradingAdvice}","dayBestStrategy":"${dayClassification.bestStrategy}","isExtremelyVolatile":${isExtremelyVolatile},"volatileWarning":"${volatileWarning||""}","pdtWarning":"${pdtWarning||""}","balanceWarning":"${balanceWarning||""}","weeklyLimitWarning":"${weeklyLimitWarning||""}","shouldStopTrading":${shouldStopTrading},"weekPnl":${weekPnl.toFixed(2)},"todayTradeCount":${todayTrades},"vix":{"value":${vix.value},"level":"${vix.level}","advice":"${vix.tradingAdvice}","optionCost":"${vix.optionCost}"},"crypto":{"btcChange":${coinGecko.btcChange24h||0},"mood":"${coinGecko.mood||"NEUTRAL"}","impact":"${coinGecko.miningStockImpact||""}"},"trendStrength":{"score":${trendStrength.score},"label":"${trendStrength.label}","plainEnglish":"${trendStrength.plainEnglish}"},"timeWindow":{"window":"${timeWindow.window}","canTrade":${timeWindow.canTrade},"message":"${timeWindow.message}"},"marketContext":{"weekTrend":"${marketContext.weekTrend}","weekChange":${marketContext.weekChange},"catalyst":"${marketContext.catalyst}","catalystExplanation":"${marketContext.catalystExplanation}","moveAlreadyDone":${marketContext.moveAlreadyDone},"contextRecommendation":"${marketContext.contextRecommendation}","headlines":${JSON.stringify(marketContext.headlines.slice(0,3))},"plainEnglish":"${marketContext.plainEnglish}"},"topPatternStock":"${patternScores[0]?.symbol||""}","topPatternScore":${patternScores[0]?.totalScore||0},"topPatternStep":"${patternScores[0]?.stepInfo||""}","topPatternReady":${patternScores[0]?.entryReady||false},"marketComment":"2 sentences about market","beginnerTip":"1 tip for today"},
+  "activeStrategy":{"name":"${bestStrategy.name}","key":"${bestStrategy.key}","score":${bestStrategy.score||0},"description":"${bestStrategy.description}","whyToday":"Why this strategy fits today","whyNotOthers":"Why others scored lower","shouldAdapt":${shouldAdapt},"adaptationAdvice":"advice","strategyEducation":"Plain English explanation","allStrategiesRanked":${JSON.stringify((allStrategyScores||[]).slice(0,4))}},
+  "positionSizing":{"totalBudgetToRisk":"$${(data.balance*0.15).toFixed(2)} max","reserveAmount":"$${(data.balance*0.85).toFixed(2)}","reasoning":"Keep position small to survive losses"},
+  "trades":[{"rank":1,"symbol":"BEST_SYMBOL","signal":"BUY","entryState":"WAIT or READY or ENTER NOW with reason","entryTrigger":"Exact trigger","confidence":"MEDIUM","accuracyScore":60,"tooLate":false,"tooLateReason":"","rewardRiskRatio":2.0,"rewardRiskBlocked":false,"spreadPercent":20,"patternStep":"Pattern Step X/Y timeframe","timeframe":"5-minute","resolutionTime":"1-4 hours","chartPattern":"Pattern + 1 sentence","chartPatternAction":"Action","smcSetup":"SMC setup or NO SETUP","smcEntryState":"NO SETUP","fvgZone":null,"signalExplanation":"2 sentences why","analysis":"3 sentences: pattern timeframe entry risks","newsSentiment":"NEUTRAL","newsHeadlines":["headline"],"unusualActivity":"none","earningsRisk":"None","divergence":"none","thetaWarning":"Loses X per day","correlationInsight":"Connected stocks","correlatedLaggards":null,"strategyFit":"Fits because","currentPrice":0,"priceChange":0,"indicatorConsensus":{"bullish":5,"bearish":3,"neutral":4},"indicators":[{"name":"RSI","signal":"BULLISH","value":"52","meaning":"Good zone","color":"green"},{"name":"MACD","signal":"BULLISH","value":"Cross","meaning":"Momentum up","color":"green"},{"name":"Volume","signal":"CAUTION","value":"LOW","meaning":"Low volume","color":"yellow"},{"name":"EMA 20","signal":"BULLISH","value":"Above","meaning":"Uptrend","color":"green"},{"name":"Stochastic","signal":"NEUTRAL","value":"55","meaning":"Neutral","color":"yellow"},{"name":"OBV","signal":"BULLISH","value":"Rising","meaning":"Buying","color":"green"}],"support":[{"level":0,"strength":"Strong"}],"resistance":[{"level":0,"strength":"Moderate"}],"entryPrice":0,"entryNote":"Enter here","stopLoss":0,"stopNote":"Stop here","profitTarget":0,"targetNote":"Target","riskReward":"1:2","atrNote":"ATR note","probability":{"overallPercent":60,"factors":[{"label":"Trend","score":70,"note":"Up"},{"label":"Momentum","score":60,"note":"Building"},{"label":"Volume","score":50,"note":"Average"},{"label":"News","score":55,"note":"Neutral"}],"verdict":"Moderate setup"},"scenarios":[{"type":"bull","label":"Bull","probability":"25%","target":0,"result":"+50%"},{"type":"base","label":"Base","probability":"40%","target":0,"result":"+20%"},{"type":"bear","label":"Bear","probability":"25%","target":0,"result":"-30%"},{"type":"worst","label":"Worst","probability":"10%","target":0,"result":"-80%"}],"exitStrategy":{"recommendedHoldTime":"1-2 hrs","latestExitTime":"3:30 PM ET","sellSignals":["Up 50% take profit","Down 30% cut loss"],"doNotHoldIf":["Below stop loss","After 3:30 PM"],"dayTradingTips":"Take profits fast"},"budget":{"suggestedOptionType":"CALL","strikePrice":0,"expiration":"Date here","estimatedOptionCost":"$0.05-0.08","amountToRisk":"$5","maxLoss":"$5","estimatedGain":"$3-6","robinhoodSteps":"1. Search SYMBOL\n2. Trade Options\n3. BUY + CALL\n4. Select expiration\n5. Check Ask Price\n6. Limit = Ask + $0.01\n7. Submit"},"volume":"AVERAGE"}],
+  "stockRankings":[{"symbol":"SYM","score":70,"reason":"reason","newsSentiment":"NEUTRAL","unusualActivity":"none","relativeStrength":{"label":"WITH_MARKET","description":"desc","isLaggard":false,"isExtended":false,"score":1.0,"stockChange":0,"spyChange":${spyChange}}}],
+  "educationLesson":{"level":${edLevel},"topic":"${todayTopic}","explanation":"2 sentences","whyItMatters":"1 sentence","actionable":"1 sentence"},
+  "performanceCoach":{"hasInsights":${perfAnalysis.hasInsights},"summary":"${perfAnalysis.hasInsights?perfAnalysis.summary.replace(/"/g,"'"):"Complete more trades"}","insights":[]},
+  "challengeContext":"Journey from $${data.balance} to $10000"
 }`;
-
-    const ai = await anthropic.messages.create({ model:"claude-sonnet-4-5", max_tokens:8000, messages:[{role:"user",content:prompt}] });
+    const ai = await anthropic.messages.create({ 
+      model:"claude-sonnet-4-5", 
+      max_tokens:4000,
+      messages:[{role:"user",content:prompt}] 
+    });
     const raw = ai.content[0].text;
     
-    // Robust JSON extraction with truncation recovery
     let analysis;
     try {
+      // Extract JSON from response
       const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("No JSON in response");
+      if (!match) throw new Error("No JSON found in AI response");
       analysis = JSON.parse(match[0]);
     } catch(parseErr) {
-      // JSON was truncated — attempt repair by closing open brackets
-      console.error("JSON truncated, attempting repair...");
-      let partial = raw;
-      // Find last complete field by trimming from last complete comma+quote
-      const lastGood = partial.lastIndexOf('","');
-      if (lastGood > 0) partial = partial.substring(0, lastGood + 1) + '"truncated":true}]}]}';
+      console.error("JSON parse error:", parseErr.message);
+      console.error("Raw response length:", raw.length);
+      console.error("Raw preview:", raw.substring(0, 500));
+      
+      // Try to find partial JSON and repair it
       try {
-        // Try a minimal fallback parse
-        const match2 = partial.match(/\{[\s\S]*/);
-        if (match2) {
-          // Count open brackets and close them
-          let opens = (match2[0].match(/\{/g)||[]).length;
-          let closes = (match2[0].match(/\}/g)||[]).length;
-          let arrOpens = (match2[0].match(/\[/g)||[]).length;
-          let arrCloses = (match2[0].match(/\]/g)||[]).length;
-          let repaired = match2[0];
-          for(let i=0;i<arrOpens-arrCloses;i++) repaired += ']';
-          for(let i=0;i<opens-closes;i++) repaired += '}';
-          analysis = JSON.parse(repaired);
+        const jsonStart = raw.indexOf("{");
+        if (jsonStart >= 0) {
+          let partial = raw.substring(jsonStart);
+          // Close any open structures
+          const opens = (partial.match(/\{/g)||[]).length;
+          const closes = (partial.match(/\}/g)||[]).length;
+          const arrOpens = (partial.match(/\[/g)||[]).length;
+          const arrCloses = (partial.match(/\]/g)||[]).length;
+          for(let i=0;i<arrOpens-arrCloses;i++) partial += "]";
+          for(let i=0;i<opens-closes;i++) partial += "}";
+          analysis = JSON.parse(partial);
           analysis._truncated = true;
+          console.log("JSON repaired successfully");
+        } else {
+          throw new Error("No JSON structure found");
         }
-      } catch(e2) {
-        throw new Error("AI response was too long and could not be parsed. Try again.");
+      } catch(repairErr) {
+        throw new Error("Analysis failed — please try again in 30 seconds");
       }
     }
 
