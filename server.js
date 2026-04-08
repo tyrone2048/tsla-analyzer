@@ -2868,11 +2868,9 @@ DAY TYPE RULES:
 - NEWS_DRIVEN day (SPY 1.5-3%): Trade carefully, reduce size, wait for 10:30 AM.
 - EXTREME_VOLATILE day (SPY 3%+): Recommend sitting out entirely.
 
-STRATEGY SCORING ENGINE RESULTS — ALL STRATEGIES RANKED:
-${JSON.stringify(allStrategyScores, null, 2)}
-
-WINNER: ${bestStrategy.name} (Score: ${bestStrategy.score}/100)
-Score Breakdown: Historical performance: ${bestStrategy.scoreBreakdown?.historical||0} | Market conditions: ${bestStrategy.scoreBreakdown?.conditions||0} | Recent trades: ${bestStrategy.scoreBreakdown?.recent||0} | Win rate target: ${bestStrategy.scoreBreakdown?.target||0}
+TOP STRATEGIES TODAY:
+${(allStrategyScores||[]).slice(0,4).map(s=>`${s.name}: ${s.score}/100`).join(" | ")}
+WINNER: ${bestStrategy.name} (${bestStrategy.score||0}/100)
 
 ACTIVE STRATEGY: ${bestStrategy.name}
 Strategy Description: ${bestStrategy.description}
@@ -2903,11 +2901,17 @@ MARKET DIRECTION RULES:
 - Under $100 balance: options must cost $0.10/share or less ($10 or less per contract)
 - Avoid stocks with earnings in 1-2 days
 
-LIVE STOCK DATA:
-${JSON.stringify(summaries,null,2)}
+TOP STOCKS SUMMARY (condensed):
+${JSON.stringify(summaries.slice(0,5).map(s=>({
+  sym:s.symbol,chg:s.change,rsi:s.rsi,macd:s.macdBullish?"bull":"bear",
+  vol:s.volume,exhaust:s.momentum?.exhaustionLevel,
+  trend:s.intraday?.realtimeTrend,vwap:s.intraday?.aboveVWAP?"above":"below",
+  rs:s.relativeStrength?.label,pattern:s.primaryPattern?.name,
+  smc:s.smcAnalysis?.entrySignal?.type,news:s.socialSentiment?.label
+})),null,2)}
 
-UNUSUAL OPTIONS ACTIVITY:
-${JSON.stringify(unusualMap,null,2)}
+UNUSUAL OPTIONS (top 3 stocks only):
+${JSON.stringify(Object.fromEntries(Object.entries(unusualMap).slice(0,3).map(([k,v])=>[k,{bigMoney:v?.bigMoney,putCallRatio:v?.putCallRatio,unusualVolume:v?.unusualVolume}])),null,2)}
 
 EARNINGS RISKS:
 ${JSON.stringify(earningsMap,null,2)}
