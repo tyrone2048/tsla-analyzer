@@ -782,8 +782,9 @@ async function runPaperTrading() {
     const et = new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"}));
     const h = et.getHours(), m = et.getMinutes(), t = h+m/60, day = et.getDay();
     
-    // Only run during market hours 10am-3:30pm ET on weekdays
-    if (day===0||day===6||t<10||t>15.5) return;
+    // Run during market hours 9:30am-4pm ET on weekdays
+    if (day===0||day===6||t<9.5||t>16) return;
+    console.log(`[Paper] Running scan at ${et.toLocaleTimeString()} ET`);
 
     const paper = loadPaperTrades();
     const learn = loadLearning();
@@ -868,16 +869,23 @@ async function runPaperTrading() {
 
           const smc = detectSMCSetup(c.closes, c.highs, c.lows, c.opens, c.volumes);
 
-          // Only paper trade confirmed ENTER NOW signals
-          if (smc.entrySignal !== "ENTER_NOW") continue;
+          // Paper trade step 4+ setups
+          if (smc.step < 4) continue;
+          // For step 4 — log as pending, step 5 — log as entered
+          const isPending = smc.step === 4;
+          console.log(`[Paper] ${symbol} ${isPending?"WATCHING (step 4)":"ENTERING (step 5)"}`);
 
           // Get daily data for exhaustion and ATR
           const daily = await getDailyData(symbol).catch(()=>null);
           if (!daily) continue;
 
           // Skip exhausted stocks
-          if (["EXTREMELY_EXHAUSTED","VERY_EXHAUSTED"].includes(daily.exhaustion)) continue;
+          if (["EXTREMELY_EXHAUSTED","VERY_EXHAUSTED"].includes(daily.exhaustion)) {
+            console.log(`[Paper] ${symbol} skipped — ${daily.exhaustion}`);
+            continue;
+          }
 
+          console.log(`[Paper] ${symbol} SMC step ${smc.step}/5 — ${smc.plain?.substring(0,60)}`);
           const currentPrice = c.currentPrice;
           const atr = daily.atr || currentPrice * 0.02;
           const stopLoss = parseFloat((currentPrice - atr).toFixed(2));
@@ -911,7 +919,11 @@ async function runPaperTrading() {
         } catch(e) { console.error(`[Paper] Error scanning ${symbol}:`, e.message); }
 
         // Small delay between stocks
-        await new Promise(r=>setTimeout(r,500));
+        await new Promise(r=>setTimeout(r,300));
+      }
+
+      if (paper.openPositions.length === 0) {
+        console.log(`[Paper] No ENTER NOW signals found this scan — waiting for next scan`);
       }
     }
 
