@@ -96,7 +96,7 @@ function calcATR(h, l, c, p=14) {
 // ─── SMC Core Detection ───────────────────────────────────────────────────────
 // THE STRATEGY: FVG + Liquidity + BOS + Green candle confirmation
 function detectSMCSetup(closes, highs, lows, opens, volumes) {
-  if (!closes || closes.length < 15) return null;
+  if (!closes || closes.length < 15) return { step:0, fvg:null, liquidity:null, bos:null, entrySignal:null, plain:"Not enough candle data yet.", direction:"CALL" };
 
   const result = {
     step: 0,           // 1=FVG found, 2=Liquidity identified, 3=BOS confirmed, 4=Price in FVG, 5=ENTER NOW
@@ -869,8 +869,11 @@ async function runPaperTrading() {
 
           const smc = detectSMCSetup(c.closes, c.highs, c.lows, c.opens, c.volumes);
 
+          // Skip if SMC returned null
+          if (!smc) { console.log(`[Paper] ${symbol} — no SMC data`); continue; }
+
           // Paper trade step 4+ setups
-          if (smc.step < 4) continue;
+          if (smc.step < 4) { console.log(`[Paper] ${symbol} step ${smc.step}/5 — not ready`); continue; }
           // For step 4 — log as pending, step 5 — log as entered
           const isPending = smc.step === 4;
           console.log(`[Paper] ${symbol} ${isPending?"WATCHING (step 4)":"ENTERING (step 5)"}`);
