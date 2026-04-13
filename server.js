@@ -59,7 +59,14 @@ function checkMilestone(old, nw, existing) {
 }
 
 // ─── Watchlist ────────────────────────────────────────────────────────────────
-const WATCHLIST = ["SOUN","SOFI","MARA","RIOT","PLTR","HOOD","AAL","NIO","XPEV","PLUG","BBAI","SAVE","CLSK","VALE","SPCE"];
+// LOW PRICE stocks (under $20) — good for small balance
+const CHEAP_WATCHLIST = ["LWM","SOUN","SOFI","MARA","RIOT","PLTR","HOOD","NIO","PLUG","BBAI"];
+
+// HIGHER PRICE stocks (for bigger balance)
+const PREMIUM_WATCHLIST = ["QQQ","TSLA","NVDA","AMD","AAPL","SPY","META","AMZN"];
+
+// Combined watchlist — cheap stocks first since balance is small
+const WATCHLIST = [...CHEAP_WATCHLIST, ...PREMIUM_WATCHLIST];
 
 // ─── Email ────────────────────────────────────────────────────────────────────
 const activeMonitors = {};
@@ -232,6 +239,229 @@ function detectSMCSetup(closes, highs, lows, opens, volumes) {
   return result;
 }
 
+// ─── Top-Down Multi-Timeframe Analysis (TradesBySci Method) ──────────────────
+// Step 1: 4-hour chart → Daily Bias (bullish or bearish)
+// Step 2: 1-hour chart → Indication (swing high/low break)
+// Step 3: 15-min chart → Confirmation zone (pullback forming)
+// Step 4: 5-min chart  → Exact entry (ICC candle confirmation)
+
+async function getCandles(symbol, interval, range) {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=${range}`, { headers:{"User-Agent":"Mozilla/5.0"} });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const result = d.chart?.result?.[0];
+    if (!result) return null;
+    const q = result.indicators?.quote?.[0] || {};
+    const ts = result.timestamp || [];
+    const bars = ts.map((t,i) => ({
+      time: new Date(t*1000),
+      open:  q.open?.[i],
+      high:  q.high?.[i],
+      low:   q.low?.[i],
+      close: q.close?.[i],
+      volume:q.volume?.[i] || 0
+    })).filter(b => b.close != null && b.open != null);
+    if (bars.length < 5) return null;
+    return {
+      bars,
+      closes:  bars.map(b => b.close),
+      opens:   bars.map(b => b.open),
+      highs:   bars.map(b => b.high),
+      lows:    bars.map(b => b.low),
+      volumes: bars.map(b => b.volume),
+      current: bars[bars.length-1].close
+    };
+  } catch(e) { return null; }
+}
+
+function getSwings(highs, lows, lookback=3) {
+  const swingHighs = [], swingLows = [];
+  for (let i=lookback; i<highs.length-lookback; i++) {
+    let isHigh = true, isLow = true;
+    for (let j=1; j<=lookback; j++) {
+      if (highs[i] <= highs[i-j] || highs[i] <= highs[i+j]) isHigh = false;
+      if (lows[i] >= lows[i-j] || lows[i] >= lows[i+j]) isLow = false;
+    }
+    if (isHigh) swingHighs.push({ price: highs[i], idx: i });
+    if (isLow)  swingLows.push({ price: lows[i], idx: i });
+  }
+  return { swingHighs, swingLows };
+}
+
+async function topDownAnalysis(symbol) {
+  const result = {
+    symbol,
+    // Step 1 — 4H Bias
+    bias4H: null,
+    biasDirection: "NEUTRAL",
+    biasReason: "",
+    // Step 2 — 1H Indication
+    indication1H: null,
+    indicationConfirmed: false,
+    // Step 3 — 15min Confirmation
+    confirmation15m: null,
+    pullbackForming: false,
+    // Step 4 — 5min Entry
+    entry5m: null,
+    entryReady: false,
+    // Overall
+    overallStep: 0,
+    totalSteps: 4,
+    readyToTrade: false,
+    plain: "",
+    direction: "CALL"
+  };
+
+  try {
+    // STEP 1 — 4-Hour chart: determine bias
+    const c4h = await getCandles(symbol, "1h", "1mo"); // Yahoo doesn't have 4h, use 1h as proxy
+    if (!c4h) { result.plain = "Could not fetch higher timeframe data."; return result; }
+
+    const { swingHighs: sh4h, swingLows: sl4h } = getSwings(c4h.highs, c4h.lows, 4);
+    const current = c4h.current;
+
+    // Check for uptrend: recent swing highs and lows both going up
+    let bullCount = 0, bearCount = 0;
+    const recentHighs = sh4h.slice(-4);
+    const recentLows  = sl4h.slice(-4);
+    for (let i=1; i<recentHighs.length; i++) {
+      if (recentHighs[i].price > recentHighs[i-1].price) bullCount++;
+      else bearCount++;
+    }
+    for (let i=1; i<recentLows.length; i++) {
+      if (recentLows[i].price > recentLows[i-1].price) bullCount++;
+      else bearCount++;
+    }
+
+    const bias = bullCount > bearCount ? "BULLISH" : bearCount > bullCount ? "BEARISH" : "NEUTRAL";
+    result.biasDirection = bias;
+    result.bias4H = {
+      direction: bias,
+      bullCount,
+      bearCount,
+      lastSwingHigh: recentHighs[recentHighs.length-1]?.price,
+      lastSwingLow:  recentLows[recentLows.length-1]?.price
+    };
+    result.biasReason = bias === "BULLISH"
+      ? `1H chart shows higher highs and higher lows — bias is UP. Only look for CALL setups.`
+      : bias === "BEARISH"
+      ? `1H chart shows lower highs and lower lows — bias is DOWN. Only look for PUT setups.`
+      : `Mixed structure — no clear bias. Be selective and wait for cleaner setup.`;
+    result.direction = bias === "BEARISH" ? "PUT" : "CALL";
+    result.overallStep = 1;
+
+    // STEP 2 — 1-Hour chart: find indication (swing high/low break)
+    const c1h = await getCandles(symbol, "1h", "5d");
+    if (!c1h) { result.plain = `Step 1 ✅ Bias: ${bias}. Could not fetch 1H data for indication.`; return result; }
+
+    const { swingHighs: sh1h, swingLows: sl1h } = getSwings(c1h.highs, c1h.lows, 3);
+    const cur1h = c1h.current;
+
+    let indication = null;
+    if (bias === "BULLISH" && sh1h.length >= 1) {
+      const lastHigh = sh1h[sh1h.length-1].price;
+      if (cur1h > lastHigh) {
+        indication = { type:"BULLISH", level: parseFloat(lastHigh.toFixed(2)), 
+          plain: `Price broke above swing high at $${lastHigh.toFixed(2)} on 1H chart — bullish indication confirmed` };
+      }
+    } else if (bias === "BEARISH" && sl1h.length >= 1) {
+      const lastLow = sl1h[sl1h.length-1].price;
+      if (cur1h < lastLow) {
+        indication = { type:"BEARISH", level: parseFloat(lastLow.toFixed(2)),
+          plain: `Price broke below swing low at $${lastLow.toFixed(2)} on 1H chart — bearish indication confirmed` };
+      }
+    }
+
+    if (!indication) {
+      // Find what level needs to break
+      const watchLevel = bias === "BULLISH"
+        ? sh1h[sh1h.length-1]?.price
+        : sl1h[sl1h.length-1]?.price;
+      result.indication1H = null;
+      result.plain = `Step 1 ✅ Bias: ${bias}. Step 2 ⏳ Waiting for price to break ${bias==="BULLISH"?"above":"below"} $${watchLevel?.toFixed(2)||"key level"} on 1H chart.`;
+      return result;
+    }
+
+    result.indication1H = indication;
+    result.indicationConfirmed = true;
+    result.overallStep = 2;
+
+    // STEP 3 — 15-min chart: confirmation (pullback to key zone)
+    const c15m = await getCandles(symbol, "15m", "5d");
+    if (!c15m) { result.plain = `Step 1 ✅ Step 2 ✅ Indication confirmed. Could not fetch 15M data.`; return result; }
+
+    const cur15m = c15m.current;
+    const recentCloses15m = c15m.closes.slice(-10);
+
+    // Check if price is pulling back toward the indication level
+    const indLevel = indication.level;
+    const distFromLevel = Math.abs(cur15m - indLevel) / indLevel * 100;
+    const pullbackForming = distFromLevel < 3; // Within 3% of indication level
+
+    // Also check 15-min SMC for FVG
+    const smc15m = detectSMCSetup(c15m.closes, c15m.highs, c15m.lows, c15m.opens, c15m.volumes);
+
+    result.confirmation15m = {
+      currentPrice: cur15m,
+      indLevel,
+      distFromLevel: parseFloat(distFromLevel.toFixed(2)),
+      pullbackForming,
+      fvg: smc15m?.fvg || null,
+      fvgZone: smc15m?.fvgZone || null
+    };
+    result.pullbackForming = pullbackForming;
+
+    if (!pullbackForming && smc15m?.step < 3) {
+      result.plain = `Step 1 ✅ Bias: ${bias}. Step 2 ✅ Indication at $${indLevel}. Step 3 ⏳ Wait for pullback — price needs to return to $${indLevel.toFixed(2)} zone before entry.`;
+      result.overallStep = 2;
+      return result;
+    }
+
+    result.overallStep = 3;
+
+    // STEP 4 — 5-min chart: exact entry (ICC confirmation candle)
+    const c5m = await getCandles(symbol, "5m", "5d");
+    if (!c5m) { result.plain = `Step 1 ✅ Step 2 ✅ Step 3 ✅ Pullback confirmed. Could not fetch 5M data.`; return result; }
+
+    const smc5m = detectSMCSetup(c5m.closes, c5m.highs, c5m.lows, c5m.opens, c5m.volumes);
+    const cur5m = c5m.current;
+    const lastOpen5m = c5m.opens[c5m.opens.length-1];
+    const isGreenCandle = cur5m > lastOpen5m;
+    const isRedCandle = cur5m < lastOpen5m;
+
+    const confirmationCandle = (bias === "BULLISH" && isGreenCandle) || (bias === "BEARISH" && isRedCandle);
+
+    result.entry5m = {
+      currentPrice: cur5m,
+      isGreenCandle,
+      confirmationCandle,
+      smc5mStep: smc5m?.step || 0,
+      fvgZone: smc5m?.fvgZone || null,
+      entrySignal: smc5m?.entrySignal || null
+    };
+
+    if (confirmationCandle && (smc5m?.entrySignal === "ENTER_NOW" || pullbackForming)) {
+      result.overallStep = 4;
+      result.readyToTrade = true;
+      result.entryReady = true;
+      result.plain = `🟢 ALL 4 STEPS CONFIRMED: Bias ${bias} ✅ → Indication at $${indLevel} ✅ → Pullback ✅ → ${isGreenCandle?"Green":"Red"} candle confirmed ✅. ENTER NOW on 5-minute chart.`;
+    } else if (smc5m?.entrySignal === "WAIT_CANDLE" || pullbackForming) {
+      result.overallStep = 3;
+      result.plain = `Step 1 ✅ Bias ${bias}. Step 2 ✅ Indication $${indLevel}. Step 3 ✅ Pullback forming. Step 4 ⏳ Waiting for ${bias==="BULLISH"?"green":"red"} confirmation candle on 5-minute chart.`;
+    } else {
+      result.plain = `Step 1 ✅ Bias ${bias}. Step 2 ✅ Indication $${indLevel}. Step 3 ⏳ Price not at pullback zone yet — wait.`;
+      result.overallStep = 2;
+    }
+
+  } catch(e) {
+    console.error(`[TopDown] ${symbol}:`, e.message);
+    result.plain = `Analysis error for ${symbol}: ${e.message}`;
+  }
+
+  return result;
+}
+
 // ─── Fetch 5-minute candles ───────────────────────────────────────────────────
 async function get5MinCandles(symbol) {
   try {
@@ -350,14 +580,50 @@ async function getMarketStatus() {
 function getTradingWindow() {
   const et = new Date(new Date().toLocaleString("en-US", { timeZone:"America/New_York" }));
   const h = et.getHours(), m = et.getMinutes(), t = h + m/60, day = et.getDay();
-  if (day===0||day===6) return { canTrade:false, window:"WEEKEND", msg:"Market closed. Come back Monday." };
-  if (t < 9.5)  return { canTrade:false, window:"PRE_MARKET",  msg:"Market opens at 9:30 AM ET. Come back then." };
-  if (t < 10.0) return { canTrade:false, window:"TOO_EARLY",   msg:"Wait until 10:00 AM. First 30 minutes are too volatile." };
-  if (t < 11.5) return { canTrade:true,  window:"BEST_WINDOW", msg:"Best window — 10:00 to 11:30 AM ET." };
-  if (t < 12.0) return { canTrade:true,  window:"GOOD",        msg:"Still good. Fresh setups only." };
-  if (t < 13.0) return { canTrade:false, window:"LUNCH",       msg:"Lunch dead zone. Volume dries up. Wait until 1 PM." };
-  if (t < 15.5) return { canTrade:true,  window:"AFTERNOON",   msg:"Afternoon window. High confidence setups only." };
-  return { canTrade:false, window:"CLOSED", msg:"3:30 PM ET — no new trades. Market closes soon." };
+  if (day===0||day===6) return { canTrade:false, window:"WEEKEND", msg:"Market closed. Come back Monday.", killZone:false };
+  if (t < 9.5)  return { canTrade:false, window:"PRE_MARKET", msg:"Market opens at 9:30 AM ET.", killZone:false };
+  if (t < 10.0) return { canTrade:false, window:"TOO_EARLY", msg:"Wait until 10:00 AM — first 30 min too volatile.", killZone:false };
+  // New York Kill Zone — ICT concept — best SMC entries happen here
+  if (t >= 10.0 && t < 11.0) return { canTrade:true, window:"NY_KILL_ZONE", msg:"🎯 NEW YORK KILL ZONE — 10:00 to 11:00 AM. This is the BEST time for SMC setups. Institutional orders fire here.", killZone:true };
+  if (t < 11.5) return { canTrade:true, window:"BEST_WINDOW", msg:"Still a good window. Fresh SMC setups only.", killZone:false };
+  if (t < 12.0) return { canTrade:true, window:"GOOD", msg:"Good window ending soon. High confidence only.", killZone:false };
+  if (t < 13.0) return { canTrade:false, window:"LUNCH", msg:"Lunch dead zone 12-1 PM. Volume dries up. Wait.", killZone:false };
+  // New York PM Kill Zone
+  if (t >= 13.3 && t < 14.0) return { canTrade:true, window:"NY_PM_KILL_ZONE", msg:"🎯 PM KILL ZONE — 1:30 to 2:00 PM. Second best window for SMC. Watch for afternoon setups.", killZone:true };
+  if (t < 15.5) return { canTrade:true, window:"AFTERNOON", msg:"Afternoon window. High confidence setups only.", killZone:false };
+  return { canTrade:false, window:"CLOSED", msg:"3:30 PM ET — no new trades. Close everything.", killZone:false };
+}
+
+// Daily Bias — determines if today is a BUY or SELL day
+// Based on higher timeframe structure (ICT concept)
+async function getDailyBias() {
+  try {
+    const r = await fetch("https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1h&range=5d", { headers:{"User-Agent":"Mozilla/5.0"} });
+    const d = await r.json();
+    const result = d.chart?.result?.[0];
+    if (!result) return { bias:"NEUTRAL", reason:"Could not determine bias" };
+    const q = result.indicators?.quote?.[0] || {};
+    const closes = (q.close||[]).filter(Boolean);
+    const highs  = (q.high||[]).filter(Boolean);
+    const lows   = (q.low||[]).filter(Boolean);
+    if (closes.length < 10) return { bias:"NEUTRAL", reason:"Not enough data" };
+
+    // Check if making higher highs and higher lows (bullish) or lower highs/lows (bearish)
+    const recentHighs = highs.slice(-8);
+    const recentLows  = lows.slice(-8);
+    let bullPoints = 0, bearPoints = 0;
+    for (let i=1; i<recentHighs.length; i++) {
+      if (recentHighs[i] > recentHighs[i-1]) bullPoints++;
+      else bearPoints++;
+      if (recentLows[i] > recentLows[i-1]) bullPoints++;
+      else bearPoints++;
+    }
+    const bias = bullPoints > bearPoints*1.5 ? "BULLISH" : bearPoints > bullPoints*1.5 ? "BEARISH" : "NEUTRAL";
+    const reason = bias==="BULLISH" ? "SPY making higher highs and higher lows on 1-hour chart — bias is UP today" :
+                   bias==="BEARISH" ? "SPY making lower highs and lower lows on 1-hour chart — bias is DOWN today" :
+                   "SPY structure mixed — no clear bias today, be selective";
+    return { bias, reason, bullPoints, bearPoints };
+  } catch(e) { return { bias:"NEUTRAL", reason:"Bias check failed" }; }
 }
 
 // ─── Learning System ──────────────────────────────────────────────────────────
@@ -425,7 +691,7 @@ function updateLearning(tradeData) {
   return insights;
 }
 
-// ─── Find best SMC opportunity ────────────────────────────────────────────────
+// ─── Find best setup using top-down analysis ─────────────────────────────────
 async function findBestSMCSetup(market) {
   const learn = loadLearning();
 
@@ -443,61 +709,74 @@ async function findBestSMCSetup(market) {
 
   const results = [];
 
-  // Fetch top 6 stocks in parallel
-  const batch = sortedWatchlist.slice(0, 6);
+  // Analyze top 5 stocks with full top-down analysis
+  const batch = sortedWatchlist.slice(0, 5);
+  
   await Promise.allSettled(batch.map(async symbol => {
     try {
-      const [candles, daily] = await Promise.allSettled([
-        get5MinCandles(symbol),
+      // Run full top-down analysis (4H bias → 1H indication → 15m confirm → 5m entry)
+      const [tdAnalysis, daily] = await Promise.allSettled([
+        topDownAnalysis(symbol),
         getDailyData(symbol)
       ]);
 
-      const c = candles.status==="fulfilled" ? candles.value : null;
-      const d = daily.status==="fulfilled" ? daily.value : null;
+      const td = tdAnalysis.status==="fulfilled" ? tdAnalysis.value : null;
+      const d  = daily.status==="fulfilled" ? daily.value : null;
 
-      if (!c || !d) return;
+      if (!td || !d) return;
 
       // Skip exhausted stocks
       if (["EXTREMELY_EXHAUSTED","VERY_EXHAUSTED"].includes(d.exhaustion)) return;
 
-      // Run SMC detection on 5-minute candles
-      const smc = detectSMCSetup(c.closes, c.highs, c.lows, c.opens, c.volumes);
-
-      // Score this setup
-      let score = smc.step * 20; // Base score from SMC step (max 100)
+      // Score based on top-down steps completed
+      let score = td.overallStep * 25; // 25 points per step, max 100
 
       // Bonuses
-      if (d.news.label === "BULLISH") score += 15;
-      if (d.exhaustion === "FRESH") score += 10;
-      if (market.isBull && smc.direction === "CALL") score += 10;
-      if (market.isExtreme && d.change < market.spyChange * 0.3) score += 20; // Laggard bonus
+      if (d.news.label === "BULLISH" && td.direction === "CALL") score += 10;
+      if (d.news.label === "BEARISH" && td.direction === "PUT") score += 10;
+      if (d.exhaustion === "FRESH") score += 8;
+      if (market.isBull && td.direction === "CALL") score += 7;
+      if (market.isExtreme && d.change < market.spyChange * 0.3) score += 15;
+      if (td.readyToTrade) score += 20; // Big bonus for all 4 steps confirmed
 
       // Penalties
-      if (d.news.label === "BEARISH" && smc.direction === "CALL") score -= 10;
+      if (td.biasDirection === "NEUTRAL") score -= 10;
+      if (d.news.label === "BEARISH" && td.direction === "CALL") score -= 15;
 
       // Find best affordable option
+      const isCall = td.direction === "CALL";
       const bestOption = d.options.find(o =>
-        o.strike > d.price &&
-        o.ask <= 0.15 &&
-        o.spreadPct <= 30 &&
-        o.openInterest >= 50
-      ) || d.options.find(o => o.strike > d.price && o.ask <= 0.30);
+        (isCall ? o.strike > d.price : o.strike < d.price) &&
+        o.ask <= 0.15 && o.spreadPct <= 30 && o.openInterest >= 50
+      ) || d.options.find(o =>
+        (isCall ? o.strike > d.price : o.strike <= d.price) && o.ask <= 0.30
+      );
 
       results.push({
         symbol,
-        score: Math.max(0, Math.min(100, score)),
-        smc,
+        score: Math.max(0, Math.min(100, Math.round(score))),
+        topDown: td,
+        smc: { // Keep smc format for backwards compat
+          step: td.overallStep,
+          plain: td.plain,
+          entrySignal: td.readyToTrade ? "ENTER_NOW" : td.overallStep >= 3 ? "WAIT_CANDLE" : null,
+          fvgZone: td.entry5m?.fvgZone || td.confirmation15m?.fvgZone || null,
+          direction: td.direction,
+          bos: td.indication1H ? { type: td.biasDirection, level: td.indication1H.level } : null,
+          fvg: td.confirmation15m?.fvg || null
+        },
         daily: d,
-        candles: c,
         bestOption,
         learnedWR: learn.bestStocks[symbol]?.trades >= 2
           ? Math.round(learn.bestStocks[symbol].wins / learn.bestStocks[symbol].trades * 100)
           : null
       });
-    } catch(e) { console.error(`Error analyzing ${symbol}:`, e.message); }
+
+      console.log(`[TopDown] ${symbol}: Step ${td.overallStep}/4 Score ${score} — ${td.plain?.substring(0,60)}`);
+
+    } catch(e) { console.error(`[TopDown] Error ${symbol}:`, e.message); }
   }));
 
-  // Sort by score
   results.sort((a,b) => b.score - a.score);
   return results;
 }
@@ -509,8 +788,9 @@ app.get("/api/analyze", async (req, res) => {
     const learn = loadLearning();
     const tw = getTradingWindow();
 
-    // Get market status
+    // Get market status and daily bias
     const market = await getMarketStatus();
+    const dailyBias = await getDailyBias().catch(() => ({ bias:"NEUTRAL", reason:"Bias unavailable" }));
 
     // Find best SMC setups
     const setups = await findBestSMCSetup(market);
@@ -521,9 +801,15 @@ app.get("/api/analyze", async (req, res) => {
       ? learn.insights.join(". ")
       : "No trades yet — building your personal pattern library.";
 
-    const prompt = `You are an SMC (Smart Money Concepts) trading AI. Respond ONLY with valid JSON.
+    const prompt = `You are an SMC/ICT trading AI. Respond ONLY with valid JSON.
 
-THE STRATEGY: FVG + Liquidity + Break of Structure + Green candle confirmation
+THE STRATEGY (ICT/SMC): FVG + Liquidity + Break of Structure + Green candle confirmation
+EXTRA ICT CONCEPTS TO APPLY:
+- Kill Zone: 10-11 AM and 1:30-2 PM ET are best entry times
+- Daily Bias: Only take CALL trades on bullish days, PUT trades on bearish days
+- Order Block: Last bearish candle before a big bullish move — price returns here
+- Inducement: Fake move that sweeps stops before real move
+- Only trade WITH the daily bias direction
 Step 1: Fair Value Gap found
 Step 2: Liquidity levels identified  
 Step 3: Break of Structure confirmed
@@ -532,7 +818,9 @@ Step 5: Green/Red confirmation candle = ENTER NOW
 
 TODAY: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()} ET
 SPY: ${market.spyChange}% ${market.isExtreme?"EXTREME DAY — laggards with own catalyst only":""}
-Time: ${tw.window} — ${tw.msg}
+Time: ${tw.window} — ${tw.msg} ${tw.killZone?"🎯 KILL ZONE ACTIVE":""}
+Daily Bias: ${dailyBias.bias} — ${dailyBias.reason}
+Only recommend ${dailyBias.bias==="BEARISH"?"PUT":"CALL"} options today unless bias is NEUTRAL
 
 BEST SETUP FOUND:
 Stock: ${best?.symbol||"NONE"}
@@ -611,6 +899,17 @@ Respond with this JSON:
     }
 
     // Add computed data
+    // Add topDown data to response for frontend
+    if (best?.topDown) {
+      analysis.topDown = best.topDown;
+      analysis.biasDirection = best.topDown.biasDirection;
+      analysis.biasReason = best.topDown.biasReason;
+      analysis.killZone = tw.killZone;
+      analysis.orderBlock = best.topDown.entry5m?.fvgZone ? { 
+        top: 0, bottom: 0, 
+        plain: best.topDown.plain 
+      } : null;
+    }
     analysis._balance   = data.balance;
     analysis._trades    = data.trades.length;
     analysis._milestones = data.milestones || [];
