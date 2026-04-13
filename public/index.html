@@ -352,26 +352,58 @@ function renderAnalysis(d) {
   const box = document.getElementById('resultBox');
   const step = d.step || 0;
   const canTrade = d.canTrade;
-  const isEnterNow = safeStr(d.entrySignal).includes('ENTER NOW');
-  const isReady = step >= 4 && !isEnterNow;
+  const isEnterNow = safeStr(d.entrySignal).includes('ENTER NOW') || d.topDown?.readyToTrade;
+  const isReady = (d.topDown?.overallStep >= 3 || step >= 4) && !isEnterNow;
 
-  // Build step indicators
-  const steps = [
-    { title:'Fair Value Gap Found', desc: step >= 1 ? `FVG zone: ${d.fvgZone || 'identified'}` : 'Looking for a fast candle move that leaves a gap' },
-    { title:'Liquidity Identified', desc: step >= 2 ? 'Swing highs/lows with clustered stop losses found' : 'Waiting for clear swing highs and lows' },
-    { title:'Break of Structure', desc: step >= 3 ? `BOS confirmed at ${d.bosLevel || 'level'}` : `Waiting for price to break above previous high` },
-    { title:'Price Returns to FVG', desc: step >= 4 ? `Price inside zone ${d.fvgZone || ''}` : `Wait for pullback into ${d.fvgZone || 'the FVG zone'}` },
-    { title:'Green Candle = ENTER', desc: step >= 5 ? '🟢 Green candle confirmed inside FVG — ENTER NOW' : 'Waiting for green confirmation candle inside FVG' }
+  // Build top-down 4-step indicators (TradesBySci method)
+  const td = d.topDown || {};
+  const step4 = td.overallStep || step || 0;
+  
+  const steps4 = [
+    { 
+      title:'Step 1 — 4H/1H Bias', 
+      timeframe:'1-hour chart',
+      done: step4 >= 1,
+      active: step4 === 0,
+      desc: step4 >= 1 
+        ? `${td.biasDirection||"NEUTRAL"} bias — ${td.biasReason||d.biasReason||"Higher timeframe analyzed"}` 
+        : 'Analyzing higher timeframe for bullish or bearish direction'
+    },
+    { 
+      title:'Step 2 — 1H Indication', 
+      timeframe:'1-hour chart',
+      done: step4 >= 2,
+      active: step4 === 1,
+      desc: step4 >= 2 
+        ? `Indication confirmed at $${td.indication1H?.level||d.bosLevel||"key level"} — ${td.biasDirection} break of swing ${td.biasDirection==="BULLISH"?"high":"low"}` 
+        : `Waiting for price to break the key swing ${td.biasDirection==="BEARISH"?"low":"high"} on 1-hour chart`
+    },
+    { 
+      title:'Step 3 — 15min Pullback', 
+      timeframe:'15-minute chart',
+      done: step4 >= 3,
+      active: step4 === 2,
+      desc: step4 >= 3 
+        ? `Pullback confirmed — price returned to entry zone ${td.confirmation15m?.fvgZone||d.fvgZone||""}` 
+        : `Wait for price to pull back toward $${td.indication1H?.level?.toFixed(2)||"the indication level"} — don't chase`
+    },
+    { 
+      title:'Step 4 — 5min ICC Candle', 
+      timeframe:'5-minute chart',
+      done: step4 >= 4,
+      active: step4 === 3,
+      desc: step4 >= 4 
+        ? `🟢 ${td.biasDirection==="BULLISH"?"Green":"Red"} confirmation candle formed — ALL 4 STEPS COMPLETE` 
+        : `Watch 5-minute chart for ${td.biasDirection==="BULLISH"?"green":"red"} candle inside pullback zone — that is your ENTER signal`
+    }
   ];
 
-  const stepsHTML = steps.map((s, i) => {
-    const n = i + 1;
-    const cls = n < step ? 'done' : n === step ? 'active' : n <= step ? 'done' : 'waiting';
-    const actualCls = n <= step ? 'done' : n === step + 1 ? 'active' : 'waiting';
-    return `<div class="step ${n<=step?'done':n===step+1&&step<5?'active':'waiting'}">
-      <div class="step-num">${n<=step?'✓':n}</div>
+  const stepsHTML = steps4.map((s, i) => {
+    const cls = s.done ? 'done' : s.active ? 'active' : 'waiting';
+    return `<div class="step ${cls}">
+      <div class="step-num">${s.done?'✓':i+1}</div>
       <div class="step-content">
-        <div class="step-title">${s.title}</div>
+        <div class="step-title">${s.title} <span style="font-size:9px;opacity:0.6">(${s.timeframe})</span></div>
         <div class="step-desc">${s.desc}</div>
       </div>
     </div>`;
@@ -500,14 +532,41 @@ function renderAnalysis(d) {
     <!-- Status -->
     <div class="status-bar">
       <div class="status-dot ${!canTrade?'red':step>=5?'green':'yellow'}"></div>
-      <div class="status-text">${d.marketStatus || 'Market analysis complete'}</div>
+      <div style="flex:1">
+        <div class="status-text">${d.marketStatus || 'Market analysis complete'}</div>
+        ${d.killZone?`<div style="font-size:11px;color:#ffd600;margin-top:2px">🎯 KILL ZONE ACTIVE — Best time for SMC entries</div>`:''}
+      </div>
     </div>
+    
+    <!-- Daily Bias from top-down -->
+    ${(d.topDown?.biasDirection||d.dailyBias)?`
+    <div style="background:${(d.topDown?.biasDirection||d.dailyBias)==='BULLISH'?'rgba(0,255,136,0.08)':(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'rgba(255,59,92,0.08)':'rgba(255,214,0,0.06)'};border:1px solid ${(d.topDown?.biasDirection||d.dailyBias)==='BULLISH'?'#00ff88':(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'#ff3b5c':'#ffd600'};border-radius:3px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+      <div style="font-size:18px">${(d.topDown?.biasDirection||d.dailyBias)==='BULLISH'?'📈':(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'📉':'➡️'}</div>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:${(d.topDown?.biasDirection||d.dailyBias)==='BULLISH'?'#00ff88':(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'#ff3b5c':'#ffd600'}">TODAY'S BIAS: ${d.topDown?.biasDirection||d.dailyBias} — Only take ${(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'PUT':'CALL'} trades today</div>
+        <div style="font-size:11px;color:#4a6b85">${d.topDown?.biasReason||d.biasReason||''}</div>
+      </div>
+    </div>`:''}
 
     ${entryHTML}
 
-    <!-- SMC Steps -->
+    <!-- TradingView Link -->
+    ${d.symbol && d.symbol !== 'NONE' ? `
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <a href="https://www.tradingview.com/chart/?symbol=${d.symbol}&interval=5" target="_blank" 
+         style="flex:1;background:rgba(0,229,255,0.1);border:1px solid #00e5ff;color:#00e5ff;padding:12px;border-radius:3px;text-align:center;text-decoration:none;font-size:13px;font-weight:700">
+        📊 CONFIRM ON TRADINGVIEW (5-min)
+      </a>
+      <a href="https://www.tradingview.com/chart/?symbol=${d.symbol}&interval=15" target="_blank"
+         style="flex:1;background:rgba(0,229,255,0.05);border:1px solid #1a2d45;color:#4a6b85;padding:12px;border-radius:3px;text-align:center;text-decoration:none;font-size:13px">
+        📊 15-min chart
+      </a>
+    </div>` : ''}
+
+    <!-- Top-Down Steps -->
     <div class="card">
-      <div class="card-title">SMC SETUP — ${d.symbol || 'SCANNING'} — 5-MINUTE CHART</div>
+      <div class="card-title">TOP-DOWN ANALYSIS — ${d.symbol || 'SCANNING'} (TradesBySci Method)</div>
+      <div style="font-size:10px;color:#4a6b85;margin-bottom:10px">4H Bias → 1H Indication → 15m Pullback → 5m Entry Candle</div>
       <div class="steps">${stepsHTML}</div>
     </div>
 
