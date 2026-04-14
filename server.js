@@ -1154,9 +1154,11 @@ async function runPaperTrading() {
     paper.openPositions = stillOpen;
 
     // Step 2 — Look for new SMC ENTER NOW signals
-    // Max 2 open positions at once
-    if (paper.openPositions.length < 2) {
-      const batch = WATCHLIST.slice(0,8);
+    // Paper trading uses ALL stocks — both cheap and premium
+    // Real money uses cheap only. Paper money learns from everything.
+    if (paper.openPositions.length < 3) {
+      const allStocks = [...CHEAP_WATCHLIST, ...PREMIUM_WATCHLIST];
+      const batch = allStocks;
 
       for (const symbol of batch) {
         // Skip if already in a position
@@ -1215,8 +1217,8 @@ async function runPaperTrading() {
           paper.openPositions.push(position);
           console.log(`[Paper] ENTERED ${symbol} at $${currentPrice} — Stop $${stopLoss} Target $${target} (SMC step ${smc.step}/5)`);
 
-          // Max 2 positions
-          if (paper.openPositions.length >= 2) break;
+          // Max 3 positions for paper trading (1 cheap, 1 mid, 1 premium)
+          if (paper.openPositions.length >= 3) break;
 
         } catch(e) { console.error(`[Paper] Error scanning ${symbol}:`, e.message); }
 
