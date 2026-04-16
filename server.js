@@ -638,7 +638,10 @@ function updateLearning(tradeData) {
   // Record full setup
   learn.setupData.push({
     date: new Date().toISOString(),
-    symbol, result, pnl, hour, gapPct, spyChange, exhaustion
+    symbol, result, pnl, hour, gapPct, spyChange, exhaustion,
+    topDownStep: tradeData.topDownStep || 0,
+    biasDirection: tradeData.biasDirection || "NEUTRAL",
+    wasReadyToTrade: tradeData.wasReadyToTrade || false
   });
 
   // Update per-stock win rate
@@ -659,30 +662,51 @@ function updateLearning(tradeData) {
 
   // Generate insights after enough trades
   const insights = [];
-  if (learn.totalTrades >= 5) {
+  if (learn.totalTrades >= 3) {
     const wr = Math.round(learn.wins / learn.totalTrades * 100);
-    insights.push(`Overall win rate: ${wr}% across ${learn.totalTrades} SMC trades`);
+    insights.push(`Overall win rate: ${wr}% across ${learn.totalTrades} top-down trades`);
 
     // Best stock
     const stocks = Object.entries(learn.bestStocks)
       .filter(([,v]) => v.trades >= 2)
       .map(([k,v]) => ({ symbol:k, wr: Math.round(v.wins/v.trades*100), trades:v.trades }))
       .sort((a,b) => b.wr - a.wr);
-    if (stocks.length > 0) insights.push(`Best stock for SMC: ${stocks[0].symbol} (${stocks[0].wr}% win rate over ${stocks[0].trades} trades)`);
+    if (stocks.length > 0) {
+      insights.push(`Best stock: ${stocks[0].symbol} (${stocks[0].wr}% win rate, ${stocks[0].trades} trades)`);
+    }
+    if (stocks.length > 1 && stocks[stocks.length-1].wr < 40) {
+      insights.push(`Avoid: ${stocks[stocks.length-1].symbol} (only ${stocks[stocks.length-1].wr}% win rate)`);
+    }
 
     // Best time
     const times = Object.entries(learn.bestTimes)
       .filter(([,v]) => v.trades >= 2)
       .map(([k,v]) => ({ hour:k, wr: Math.round(v.wins/v.trades*100), trades:v.trades }))
       .sort((a,b) => b.wr - a.wr);
-    if (times.length > 0) insights.push(`Best time for SMC entry: ${times[0].hour} (${times[0].wr}% win rate)`);
+    if (times.length > 0) insights.push(`Best entry time: ${times[0].hour} (${times[0].wr}% win rate)`);
+    if (times.length > 1) {
+      const worst = times[times.length-1];
+      if (worst.wr < 40) insights.push(`Avoid trading at ${worst.hour} (${worst.wr}% win rate)`);
+    }
 
-    // Gap size insight
-    const goodGaps = learn.bestGapSizes.filter(g => g.result==="win").map(g => g.gapPct);
-    const badGaps  = learn.bestGapSizes.filter(g => g.result==="loss").map(g => g.gapPct);
-    if (goodGaps.length >= 2) {
-      const avgGood = parseFloat((goodGaps.reduce((a,b)=>a+b,0)/goodGaps.length).toFixed(2));
-      insights.push(`Winning FVG gaps average ${avgGood}% — look for gaps this size or larger`);
+    // Step 4 vs Step 3 win rate
+    const step4trades = learn.setupData.filter(s => s.wasReadyToTrade);
+    const step3trades = learn.setupData.filter(s => !s.wasReadyToTrade);
+    if (step4trades.length >= 3) {
+      const s4wr = Math.round(step4trades.filter(s=>s.result==="win").length/step4trades.length*100);
+      insights.push(`Step 4 ENTER NOW setups: ${s4wr}% win rate (${step4trades.length} trades) — ${s4wr>=55?"RELIABLE":"needs more data"}`);
+    }
+    if (step3trades.length >= 3) {
+      const s3wr = Math.round(step3trades.filter(s=>s.result==="win").length/step3trades.length*100);
+      insights.push(`Step 3 WATCHING setups: ${s3wr}% win rate — ${s3wr>=55?"also works":"wait for Step 4 only"}`);
+    }
+
+    // Bias accuracy
+    const bullTrades = learn.setupData.filter(s => s.biasDirection==="BULLISH");
+    const bearTrades = learn.setupData.filter(s => s.biasDirection==="BEARISH");
+    if (bullTrades.length >= 3) {
+      const bwr = Math.round(bullTrades.filter(s=>s.result==="win").length/bullTrades.length*100);
+      insights.push(`Bullish bias trades: ${bwr}% win rate`);
     }
   }
 
@@ -1142,7 +1166,10 @@ async function runPaperTrading() {
             hour: new Date(pos.entryTime).getHours(),
             gapPct: pos.gapPct || 0,
             spyChange: pos.spyChange || 0,
-            exhaustion: pos.exhaustion || "UNKNOWN"
+            exhaustion: pos.exhaustion || "UNKNOWN",
+            topDownStep: pos.topDownStep || 0,
+            biasDirection: pos.biasDirection || "NEUTRAL",
+            wasReadyToTrade: pos.readyToTrade || false
           });
 
           console.log(`[Paper] CLOSED ${pos.symbol} — ${result} $${pnl} (${closedTrade.reason})`);
@@ -1165,33 +1192,29 @@ async function runPaperTrading() {
         if (paper.openPositions.find(p=>p.symbol===symbol)) continue;
 
         try {
-          const c = await get5MinCandles(symbol);
-          if (!c) continue;
+          // Use top-down analysis — same system as real trades
+          const [td, daily] = await Promise.allSettled([
+            topDownAnalysis(symbol),
+            getDailyData(symbol)
+          ]);
 
-          const smc = detectSMCSetup(c.closes, c.highs, c.lows, c.opens, c.volumes);
+          const topDown = td.status==="fulfilled" ? td.value : null;
+          const dailyData = daily.status==="fulfilled" ? daily.value : null;
 
-          // Skip if SMC returned null
-          if (!smc) { console.log(`[Paper] ${symbol} — no SMC data`); continue; }
-
-          // Paper trade step 4+ setups
-          if (smc.step < 4) { console.log(`[Paper] ${symbol} step ${smc.step}/5 — not ready`); continue; }
-          // For step 4 — log as pending, step 5 — log as entered
-          const isPending = smc.step === 4;
-          console.log(`[Paper] ${symbol} ${isPending?"WATCHING (step 4)":"ENTERING (step 5)"}`);
-
-          // Get daily data for exhaustion and ATR
-          const daily = await getDailyData(symbol).catch(()=>null);
-          if (!daily) continue;
+          if (!topDown || !dailyData) continue;
 
           // Skip exhausted stocks
-          if (["EXTREMELY_EXHAUSTED","VERY_EXHAUSTED"].includes(daily.exhaustion)) {
-            console.log(`[Paper] ${symbol} skipped — ${daily.exhaustion}`);
+          if (["EXTREMELY_EXHAUSTED","VERY_EXHAUSTED"].includes(dailyData.exhaustion)) {
+            console.log(`[Paper] ${symbol} skipped — ${dailyData.exhaustion}`);
             continue;
           }
 
-          console.log(`[Paper] ${symbol} SMC step ${smc.step}/5 — ${smc.plain?.substring(0,60)}`);
-          const currentPrice = c.currentPrice;
-          const atr = daily.atr || currentPrice * 0.02;
+          console.log(`[Paper] ${symbol} top-down step ${topDown.overallStep}/4 — ${topDown.plain?.substring(0,60)}`);
+
+          // Only paper trade when step 3+ complete (pullback forming or ready)
+          if (topDown.overallStep < 3) continue;
+          const currentPrice = dailyData.price;
+          const atr = dailyData.atr || currentPrice * 0.02;
           const stopLoss = parseFloat((currentPrice - atr).toFixed(2));
           const target = parseFloat((currentPrice + atr * 1.5).toFixed(2));
           const amountRisked = 50; // Paper trade $50 per position
@@ -1206,16 +1229,18 @@ async function runPaperTrading() {
             amountRisked,
             contracts,
             entryTime: new Date().toISOString(),
-            smcStep: smc.step,
-            fvgZone: smc.fvg ? `${smc.fvg.bottom.toFixed(2)}-${smc.fvg.top.toFixed(2)}` : null,
-            gapPct: smc.fvg?.gapPct || 0,
+            topDownStep: topDown.overallStep,
+            biasDirection: topDown.biasDirection,
+            fvgZone: topDown.confirmation15m?.fvgZone || null,
+            gapPct: 0,
             spyChange: market.spyChange,
-            exhaustion: daily.exhaustion,
-            direction: smc.direction
+            exhaustion: dailyData.exhaustion,
+            direction: topDown.direction,
+            readyToTrade: topDown.readyToTrade
           };
 
           paper.openPositions.push(position);
-          console.log(`[Paper] ENTERED ${symbol} at $${currentPrice} — Stop $${stopLoss} Target $${target} (SMC step ${smc.step}/5)`);
+          console.log(`[Paper] ENTERED ${symbol} at $${currentPrice} — Stop $${stopLoss} Target $${target} (Top-Down step ${topDown.overallStep}/4 ${topDown.readyToTrade?"ENTER NOW":"WATCHING"})`);
 
           // Max 3 positions for paper trading (1 cheap, 1 mid, 1 premium)
           if (paper.openPositions.length >= 3) break;
