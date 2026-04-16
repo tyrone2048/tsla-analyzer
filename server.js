@@ -1091,12 +1091,24 @@ const PAPER_FILE = path.join(__dirname, "paper_trades.json");
 
 function loadPaperTrades() {
   if (!fs.existsSync(PAPER_FILE)) {
-    const d = { balance:1000, trades:[], openPositions:[], totalTrades:0, wins:0, losses:0 };
+    const d = { balance:1000, startBalance:1000, trades:[], openPositions:[], totalTrades:0, wins:0, losses:0, created:new Date().toISOString() };
     fs.writeFileSync(PAPER_FILE, JSON.stringify(d,null,2));
+    console.log("[Paper] Created new paper trading account with $1000");
     return d;
   }
-  try { return JSON.parse(fs.readFileSync(PAPER_FILE,"utf8")); }
-  catch(e) { return { balance:1000, trades:[], openPositions:[], totalTrades:0, wins:0, losses:0 }; }
+  try { 
+    const d = JSON.parse(fs.readFileSync(PAPER_FILE,"utf8"));
+    // Migrate old format
+    if (!d.startBalance) d.startBalance = 1000;
+    if (!d.openPositions) d.openPositions = [];
+    if (!d.trades) d.trades = [];
+    console.log(`[Paper] Loaded existing account: ${d.totalTrades} trades, $${d.balance} balance`);
+    return d;
+  }
+  catch(e) { 
+    console.error("[Paper] Error loading paper trades:", e.message);
+    return { balance:1000, startBalance:1000, trades:[], openPositions:[], totalTrades:0, wins:0, losses:0 }; 
+  }
 }
 function savePaperTrades(d) { fs.writeFileSync(PAPER_FILE, JSON.stringify(d,null,2)); }
 
@@ -1124,9 +1136,13 @@ async function runPaperTrading() {
 
         const hitTarget = cp >= pos.target;
         const hitStop   = cp <= pos.stopLoss;
-        const expired   = new Date() - new Date(pos.entryTime) > 4*60*60*1000; // 4 hour max hold
+        const entryAge = new Date() - new Date(pos.entryTime);
+        const expired = entryAge > 6*60*60*1000; // 6 hour max hold
+        // Also close at end of day (after 3:30 PM ET)
+        const endOfDay = et.getHours() >= 15 && et.getMinutes() >= 30;
 
-        if (hitTarget || hitStop || expired) {
+        if (hitTarget || hitStop || expired || endOfDay) {
+          const closeReason = hitTarget?"Target hit":hitStop?"Stop hit":endOfDay?"End of day":"Time expired";
           // Close the position
           const result = hitTarget ? "win" : "loss";
           const pnl = hitTarget
@@ -1150,7 +1166,7 @@ async function runPaperTrading() {
             amountRisked: pos.amountRisked,
             smcStep: pos.smcStep,
             fvgZone: pos.fvgZone,
-            reason: hitTarget?"Target hit":hitStop?"Stop hit":"Time expired",
+            reason: closeReason,
             spyChange: pos.spyChange,
             hour: new Date(pos.entryTime).getHours()
           };
@@ -1172,7 +1188,7 @@ async function runPaperTrading() {
             wasReadyToTrade: pos.readyToTrade || false
           });
 
-          console.log(`[Paper] CLOSED ${pos.symbol} — ${result} $${pnl} (${closedTrade.reason})`);
+          console.log(`[Paper] ✅ CLOSED ${pos.symbol} — ${result.toUpperCase()} $${pnl} (${closedTrade.reason}) | Total: ${paper.totalTrades} trades | W:${paper.wins} L:${paper.losses}`);
         } else {
           stillOpen.push(pos);
         }
@@ -1258,10 +1274,10 @@ async function runPaperTrading() {
 
     savePaperTrades(paper);
 
-    // Log summary every 10 trades
-    if (paper.totalTrades > 0 && paper.totalTrades % 10 === 0) {
+    // Log summary after every trade
+    if (paper.totalTrades > 0) {
       const wr = Math.round(paper.wins/paper.totalTrades*100);
-      console.log(`[Paper] Summary: ${paper.totalTrades} trades | ${wr}% win rate | Balance: $${paper.balance}`);
+      console.log(`[Paper] 📊 Summary: ${paper.totalTrades} trades | ${wr}% WR | $${paper.balance} balance | ${paper.openPositions.length} open`);
     }
 
   } catch(e) { console.error("[Paper Trading]", e.message); }
