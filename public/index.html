@@ -3,157 +3,113 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SMC Trading — $10 to $10,000</title>
+<title>Candle Pattern Trading — $10 to $10,000</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#060a0f; color:#c8dff0; font-family:'Segoe UI',sans-serif; min-height:100vh; }
-  
-  .header { background:#0a1520; border-bottom:1px solid #1a2d45; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; }
-  .header h1 { font-size:16px; font-weight:700; color:#00e5ff; letter-spacing:1px; }
-  .balance-display { font-size:24px; font-weight:700; color:#00ff88; }
-  .balance-sub { font-size:11px; color:#4a6b85; }
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#060a0f;color:#c8dff0;font-family:'Segoe UI',sans-serif;min-height:100vh;}
+.header{background:#0a1520;border-bottom:1px solid #1a2d45;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;}
+.logo{font-size:14px;font-weight:700;color:#00e5ff;letter-spacing:1px;}
+.bal{font-size:22px;font-weight:700;color:#00ff88;}
+.bal-sub{font-size:10px;color:#4a6b85;}
+.nav{display:flex;background:#0a1520;border-bottom:1px solid #1a2d45;}
+.nav-btn{flex:1;padding:11px;border:none;background:transparent;color:#4a6b85;font-size:11px;cursor:pointer;border-bottom:2px solid transparent;letter-spacing:0.5px;}
+.nav-btn.active{color:#00e5ff;border-bottom-color:#00e5ff;}
+.page{display:none;}.page.active{display:block;}
+.container{max-width:600px;margin:0 auto;padding:14px;}
+.card{background:#0a1520;border:1px solid #1a2d45;border-radius:4px;padding:18px;margin-bottom:12px;}
+.card-title{font-size:9px;color:#4a6b85;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;}
+.btn-main{width:100%;background:linear-gradient(135deg,#0066ff,#00e5ff);border:none;color:#fff;font-size:14px;font-weight:700;padding:15px;border-radius:4px;cursor:pointer;letter-spacing:1px;margin-bottom:12px;}
+.btn-main:disabled{opacity:0.5;cursor:not-allowed;}
+.error-box{background:rgba(255,59,92,0.1);border:1px solid #ff3b5c;border-radius:4px;padding:12px;font-size:12px;color:#ff3b5c;margin-bottom:12px;}
+.loading{text-align:center;padding:30px;color:#4a6b85;font-size:13px;}
 
-  .container { max-width:600px; margin:0 auto; padding:16px; }
+/* Signal boxes */
+.signal-enter{background:rgba(0,255,136,0.08);border:2px solid #00ff88;border-radius:4px;padding:16px;margin-bottom:12px;text-align:center;}
+.signal-ready{background:rgba(255,214,0,0.06);border:2px solid #ffd600;border-radius:4px;padding:16px;margin-bottom:12px;text-align:center;}
+.signal-wait{background:rgba(0,229,255,0.04);border:1px solid #1a2d45;border-radius:4px;padding:16px;margin-bottom:12px;text-align:center;}
+.signal-blocked{background:rgba(255,59,92,0.06);border:2px solid #ff3b5c;border-radius:4px;padding:16px;margin-bottom:12px;text-align:center;}
+.signal-title{font-size:26px;font-weight:700;letter-spacing:2px;margin-bottom:6px;}
+.signal-desc{font-size:12px;color:#8ab4cc;line-height:1.7;}
 
-  /* Status bar */
-  .status-bar { background:#0a1520; border:1px solid #1a2d45; border-radius:4px; padding:12px 16px; margin-bottom:12px; display:flex; align-items:center; gap:12px; }
-  .status-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-  .status-dot.green { background:#00ff88; box-shadow:0 0 8px #00ff88; }
-  .status-dot.yellow { background:#ffd600; box-shadow:0 0 8px #ffd600; }
-  .status-dot.red { background:#ff3b5c; box-shadow:0 0 8px #ff3b5c; }
-  .status-text { font-size:13px; }
+/* Pattern display */
+.pattern-card{background:#060a0f;border:1px solid;border-radius:3px;padding:14px;margin-bottom:10px;}
+.pattern-name{font-size:15px;font-weight:700;margin-bottom:4px;}
+.pattern-tf{font-size:9px;color:#4a6b85;letter-spacing:1px;margin-bottom:8px;}
+.pattern-plain{font-size:12px;color:#8ab4cc;line-height:1.7;}
 
-  /* Main card */
-  .card { background:#0a1520; border:1px solid #1a2d45; border-radius:4px; padding:20px; margin-bottom:12px; }
-  .card-title { font-size:10px; color:#4a6b85; letter-spacing:2px; text-transform:uppercase; margin-bottom:12px; }
+/* Candle visualization */
+.candle-vis{display:flex;align-items:flex-end;gap:3px;height:60px;margin:12px 0;}
+.candle{display:flex;flex-direction:column;align-items:center;flex:1;}
+.candle-body{border-radius:1px;min-height:4px;width:70%;}
+.candle-wick{width:1px;background:#4a6b85;}
 
-  /* SMC Steps */
-  .steps { display:flex; flex-direction:column; gap:8px; }
-  .step { display:flex; align-items:flex-start; gap:12px; padding:10px; border-radius:3px; border:1px solid transparent; }
-  .step.done { background:rgba(0,255,136,0.05); border-color:rgba(0,255,136,0.2); }
-  .step.active { background:rgba(255,214,0,0.05); border-color:rgba(255,214,0,0.3); }
-  .step.waiting { background:rgba(10,21,32,0.5); border-color:#1a2d45; opacity:0.5; }
-  .step-num { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
-  .step.done .step-num { background:#00ff88; color:#000; }
-  .step.active .step-num { background:#ffd600; color:#000; }
-  .step.waiting .step-num { background:#1a2d45; color:#4a6b85; }
-  .step-content { flex:1; }
-  .step-title { font-size:13px; font-weight:600; margin-bottom:3px; }
-  .step.done .step-title { color:#00ff88; }
-  .step.active .step-title { color:#ffd600; }
-  .step.waiting .step-title { color:#4a6b85; }
-  .step-desc { font-size:11px; color:#4a6b85; line-height:1.6; }
+/* Price levels */
+.levels{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0;}
+.level{background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:10px;text-align:center;}
+.level-label{font-size:9px;color:#4a6b85;letter-spacing:1px;margin-bottom:4px;}
+.level-price{font-size:17px;font-weight:700;}
 
-  /* Entry signal */
-  .entry-now { background:rgba(0,255,136,0.08); border:2px solid #00ff88; border-radius:4px; padding:16px; text-align:center; margin-bottom:12px; }
-  .entry-now-title { font-size:28px; font-weight:700; color:#00ff88; letter-spacing:2px; margin-bottom:8px; }
-  .entry-wait { background:rgba(255,214,0,0.06); border:2px solid #ffd600; border-radius:4px; padding:16px; text-align:center; margin-bottom:12px; }
-  .entry-wait-title { font-size:22px; font-weight:700; color:#ffd600; letter-spacing:2px; margin-bottom:8px; }
-  .entry-blocked { background:rgba(255,59,92,0.06); border:2px solid #ff3b5c; border-radius:4px; padding:16px; text-align:center; margin-bottom:12px; }
-  .entry-blocked-title { font-size:18px; font-weight:700; color:#ff3b5c; letter-spacing:2px; margin-bottom:8px; }
+/* Rankings */
+.rank-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #0f1e2e;}
+.rank-item:last-child{border-bottom:none;}
+.rank-sym{font-size:13px;font-weight:700;width:45px;}
+.rank-bar{flex:1;height:5px;background:#0f1e2e;border-radius:2px;overflow:hidden;}
+.rank-fill{height:100%;border-radius:2px;}
+.rank-pat{font-size:10px;color:#4a6b85;width:140px;text-align:right;}
 
-  /* Option card */
-  .option-card { background:#060a0f; border:1px solid #1a2d45; border-radius:3px; padding:14px; margin-top:12px; }
-  .option-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #0f1e2e; font-size:13px; }
-  .option-row:last-child { border-bottom:none; }
-  .option-label { color:#4a6b85; }
-  .option-value { color:#c8dff0; font-weight:600; }
-  .option-value.green { color:#00ff88; }
-  .option-value.yellow { color:#ffd600; }
-  .option-value.red { color:#ff3b5c; }
+/* Candle patterns legend */
+.pattern-legend{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.pl-item{background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:10px;}
+.pl-name{font-size:11px;font-weight:700;margin-bottom:3px;}
+.pl-desc{font-size:10px;color:#4a6b85;line-height:1.5;}
 
-  /* Price levels */
-  .levels { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:12px; }
-  .level { background:#060a0f; border:1px solid #1a2d45; border-radius:3px; padding:10px; text-align:center; }
-  .level-label { font-size:9px; color:#4a6b85; letter-spacing:1px; margin-bottom:4px; }
-  .level-price { font-size:18px; font-weight:700; }
-  .level-note { font-size:9px; color:#4a6b85; margin-top:3px; }
-
-  /* Analyze button */
-  .analyze-btn { width:100%; background:linear-gradient(135deg,#0066ff,#00e5ff); border:none; color:#fff; font-size:15px; font-weight:700; padding:16px; border-radius:4px; cursor:pointer; letter-spacing:1px; margin-bottom:12px; }
-  .analyze-btn:hover { opacity:0.9; }
-  .analyze-btn:disabled { opacity:0.5; cursor:not-allowed; }
-
-  /* Rankings */
-  .ranking-item { display:flex; align-items:center; gap:12px; padding:10px; border-bottom:1px solid #0f1e2e; }
-  .ranking-item:last-child { border-bottom:none; }
-  .ranking-sym { font-size:14px; font-weight:700; width:50px; }
-  .ranking-bar { flex:1; height:6px; background:#0f1e2e; border-radius:3px; overflow:hidden; }
-  .ranking-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,#0066ff,#00e5ff); }
-  .ranking-step { font-size:11px; color:#4a6b85; width:60px; text-align:right; }
-  .ranking-plain { font-size:10px; color:#4a6b85; margin-top:3px; }
-
-  /* Learning */
-  .insight { background:#060a0f; border-left:3px solid #00e5ff; padding:10px 12px; margin-bottom:8px; font-size:12px; line-height:1.6; color:#8ab4cc; }
-  .insight strong { color:#00e5ff; }
-
-  /* Trade log */
-  .trade-btn { flex:1; padding:12px; border:1px solid #1a2d45; background:#060a0f; color:#c8dff0; border-radius:3px; cursor:pointer; font-size:12px; font-weight:600; }
-  .trade-btn:hover { background:#0a1520; }
-  .trade-btn.win { border-color:#00ff88; color:#00ff88; }
-  .trade-btn.loss { border-color:#ff3b5c; color:#ff3b5c; }
-  .trade-btn.skip { border-color:#4a6b85; color:#4a6b85; }
-
-  /* Journal */
-  .trade-entry { padding:12px; border-bottom:1px solid #0f1e2e; font-size:12px; }
-  .trade-entry:last-child { border-bottom:none; }
-  .trade-win { color:#00ff88; }
-  .trade-loss { color:#ff3b5c; }
-
-  /* Nav */
-  .nav { display:flex; background:#0a1520; border-bottom:1px solid #1a2d45; }
-  .nav-btn { flex:1; padding:12px; border:none; background:transparent; color:#4a6b85; font-size:12px; cursor:pointer; border-bottom:2px solid transparent; }
-  .nav-btn.active { color:#00e5ff; border-bottom-color:#00e5ff; }
-
-  /* Pages */
-  .page { display:none; }
-  .page.active { display:block; }
-
-  /* Misc */
-  .rule { display:flex; align-items:flex-start; gap:8px; padding:8px 0; border-bottom:1px solid #0f1e2e; font-size:12px; }
-  .rule:last-child { border-bottom:none; }
-  .progress-bar { background:#0f1e2e; border-radius:2px; height:6px; margin:8px 0; overflow:hidden; }
-  .progress-fill { height:100%; background:linear-gradient(90deg,#0066ff,#00ff88); border-radius:2px; transition:width 0.5s; }
-  .milestone { display:inline-block; padding:3px 8px; font-size:10px; border-radius:2px; margin:2px; }
-  .milestone.done { background:rgba(0,255,136,0.15); color:#00ff88; border:1px solid rgba(0,255,136,0.3); }
-  .milestone.next { background:rgba(0,229,255,0.1); color:#00e5ff; border:1px solid rgba(0,229,255,0.3); }
-  .milestone.future { background:#0f1e2e; color:#4a6b85; border:1px solid #1a2d45; }
-  input, select { background:#060a0f; border:1px solid #1a2d45; color:#c8dff0; padding:10px 12px; border-radius:3px; font-size:13px; width:100%; margin-bottom:8px; }
-  .error-box { background:rgba(255,59,92,0.1); border:1px solid #ff3b5c; border-radius:4px; padding:12px 16px; font-size:13px; color:#ff3b5c; margin-bottom:12px; }
-  .loading { text-align:center; padding:40px; color:#4a6b85; }
+/* Paper/journal */
+.trade-entry{padding:10px;border-bottom:1px solid #0f1e2e;font-size:12px;}
+.trade-entry:last-child{border-bottom:none;}
+.tw{color:#00ff88;}.tl{color:#ff3b5c;}
+input,select{background:#060a0f;border:1px solid #1a2d45;color:#c8dff0;padding:10px;border-radius:3px;font-size:12px;width:100%;margin-bottom:8px;}
+.trade-btn{flex:1;padding:11px;border:1px solid #1a2d45;background:#060a0f;color:#c8dff0;border-radius:3px;cursor:pointer;font-size:12px;font-weight:600;}
+.trade-btn.win{border-color:#00ff88;color:#00ff88;}
+.trade-btn.loss{border-color:#ff3b5c;color:#ff3b5c;}
+.trade-btn.skip{border-color:#4a6b85;color:#4a6b85;}
+.milestone{display:inline-block;padding:3px 7px;font-size:9px;border-radius:2px;margin:2px;}
+.milestone.done{background:rgba(0,255,136,0.15);color:#00ff88;border:1px solid rgba(0,255,136,0.3);}
+.milestone.next{background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);}
+.milestone.future{background:#0f1e2e;color:#4a6b85;border:1px solid #1a2d45;}
+.progress-bar{background:#0f1e2e;border-radius:2px;height:5px;margin:8px 0;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,#0066ff,#00ff88);border-radius:2px;}
+.insight{background:#060a0f;border-left:3px solid #00e5ff;padding:9px 12px;margin-bottom:7px;font-size:11px;line-height:1.6;color:#8ab4cc;}
+.killzone-badge{background:rgba(255,214,0,0.1);border:1px solid #ffd600;border-radius:2px;padding:3px 8px;font-size:10px;color:#ffd600;display:inline-block;margin-bottom:10px;}
 </style>
 </head>
 <body>
 
 <div class="header">
   <div>
-    <div class="header h1">📈 SMC TRADING</div>
-    <div class="balance-sub">$10 → $10,000 Challenge</div>
+    <div class="logo">📊 CANDLE PATTERN TRADING</div>
+    <div class="bal-sub">$10 → $10,000 Challenge</div>
   </div>
   <div style="text-align:right">
-    <div class="balance-display" id="balDisplay">$10.00</div>
-    <div class="balance-sub" id="goalPct">0.10% to $10,000</div>
+    <div class="bal" id="balDisplay">$10.00</div>
+    <div class="bal-sub" id="goalPct">0.10% to $10,000</div>
   </div>
 </div>
 
 <div class="nav">
-  <button class="nav-btn active" onclick="showPage('trade')">📊 TRADE</button>
-  <button class="nav-btn" onclick="showPage('learn')">🧠 LEARNING</button>
-  <button class="nav-btn" onclick="showPage('journal')">📒 JOURNAL</button>
-  <button class="nav-btn" onclick="showPage('paper')">🤖 PAPER</button>
-  <button class="nav-btn" onclick="showPage('settings')">⚙️ SETTINGS</button>
+  <button class="nav-btn active" onclick="showPage('trade',this)">📊 TRADE</button>
+  <button class="nav-btn" onclick="showPage('learn',this)">🧠 LEARNING</button>
+  <button class="nav-btn" onclick="showPage('paper',this)">🤖 PAPER</button>
+  <button class="nav-btn" onclick="showPage('journal',this)">📒 JOURNAL</button>
+  <button class="nav-btn" onclick="showPage('settings',this)">⚙️ SETTINGS</button>
 </div>
 
 <!-- TRADE PAGE -->
 <div class="page active" id="page-trade">
 <div class="container">
-
-  <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">▶ FIND MY SMC SETUP TODAY</button>
-
+  <button class="btn-main" id="analyzeBtn" onclick="runAnalysis()">▶ FIND MY BEST CANDLE SETUP</button>
   <div id="errorBox" style="display:none"></div>
-  <div id="loadingBox" style="display:none" class="loading">🔍 Scanning 5-minute charts for SMC setups...<br><small style="color:#4a6b85">Checking FVG + BOS + Candle confirmation</small></div>
+  <div id="loadingBox" style="display:none" class="loading">🕯 Reading 5-minute and 15-minute candles on 8 stocks...<br><small style="color:#4a6b85">Looking for Engulfing, Pin Bar, Inside Bar, Three Soldiers, Morning Star</small></div>
   <div id="resultBox" style="display:none"></div>
-
 </div>
 </div>
 
@@ -162,50 +118,72 @@
 <div class="container">
   <div class="card">
     <div class="card-title">🧠 WHAT THE SYSTEM HAS LEARNED</div>
-    <div id="learnContent">
-      <div class="loading">Run your first trade to start building your personal SMC pattern library.</div>
-    </div>
+    <div id="learnContent"><div class="loading">Run trades to start building your personal pattern library.</div></div>
   </div>
 
   <div class="card">
-    <div class="card-title">📖 THE SMC STRATEGY — 5 STEPS</div>
-    <div class="steps">
-      <div class="step done">
-        <div class="step-num">1</div>
-        <div class="step-content">
-          <div class="step-title">Fair Value Gap (FVG)</div>
-          <div class="step-desc">Three candles where the wicks of candle 1 and candle 3 do NOT overlap. That empty space is the gap. Price always returns to fill it.</div>
-        </div>
+    <div class="card-title">📖 THE 10 CANDLE PATTERNS</div>
+    <div class="pattern-legend">
+      <div class="pl-item">
+        <div class="pl-name" style="color:#00ff88">Bullish Engulfing</div>
+        <div class="pl-desc">Big green candle swallows previous red. Strong buy signal.</div>
       </div>
-      <div class="step done">
-        <div class="step-num">2</div>
-        <div class="step-content">
-          <div class="step-title">Liquidity Identified</div>
-          <div class="step-desc">Previous swing highs where stop losses cluster. Big money deliberately pushes to these levels to grab liquidity before reversing.</div>
-        </div>
+      <div class="pl-item">
+        <div class="pl-name" style="color:#ff3b5c">Bearish Engulfing</div>
+        <div class="pl-desc">Big red candle swallows previous green. Strong sell signal.</div>
       </div>
-      <div class="step done">
-        <div class="step-num">3</div>
-        <div class="step-content">
-          <div class="step-title">Break of Structure (BOS)</div>
-          <div class="step-desc">Price breaks ABOVE the previous swing high. This confirms the trend is now bullish. Do not enter before this happens.</div>
-        </div>
+      <div class="pl-item">
+        <div class="pl-name" style="color:#00ff88">Bullish Pin Bar</div>
+        <div class="pl-desc">Long lower wick — price rejected lower levels. Buyers stepped in hard.</div>
       </div>
-      <div class="step done">
-        <div class="step-num">4</div>
-        <div class="step-content">
-          <div class="step-title">Price Returns to FVG</div>
-          <div class="step-desc">After breaking the high, price pulls back down into the FVG zone. This is the setup zone — get ready but don't enter yet.</div>
-        </div>
+      <div class="pl-item">
+        <div class="pl-name" style="color:#ff3b5c">Bearish Pin Bar</div>
+        <div class="pl-desc">Long upper wick — price rejected higher levels. Sellers stepped in hard.</div>
       </div>
-      <div class="step done">
-        <div class="step-num">5</div>
-        <div class="step-content">
-          <div class="step-title">Green Candle = ENTER NOW</div>
-          <div class="step-desc">A green candle forms INSIDE the FVG zone. This is your exact entry. Not before. This candle confirms big money is stepping in.</div>
-        </div>
+      <div class="pl-item">
+        <div class="pl-name" style="color:#ffd600">Inside Bar</div>
+        <div class="pl-desc">Small candle inside previous candle. Compression before big move.</div>
+      </div>
+      <div class="pl-item">
+        <div class="pl-name" style="color:#00ff88">Three White Soldiers</div>
+        <div class="pl-desc">3 green candles in a row. Powerful momentum confirmed.</div>
+      </div>
+      <div class="pl-item">
+        <div class="pl-name" style="color:#ff3b5c">Three Black Crows</div>
+        <div class="pl-desc">3 red candles in a row. Powerful downtrend confirmed.</div>
+      </div>
+      <div class="pl-item">
+        <div class="pl-name" style="color:#00ff88">Morning Star</div>
+        <div class="pl-desc">Big red → small → big green. Classic 3-candle reversal up.</div>
+      </div>
+      <div class="pl-item">
+        <div class="pl-name" style="color:#ff3b5c">Evening Star</div>
+        <div class="pl-desc">Big green → small → big red. Classic 3-candle reversal down.</div>
+      </div>
+      <div class="pl-item">
+        <div class="pl-name" style="color:#00ff88">Bullish Momentum</div>
+        <div class="pl-desc">3 green candles with high volume. Institutions buying.</div>
       </div>
     </div>
+  </div>
+</div>
+</div>
+
+<!-- PAPER PAGE -->
+<div class="page" id="page-paper">
+<div class="container">
+  <div class="card">
+    <div class="card-title">🤖 PAPER TRADING — AUTO LEARNING</div>
+    <div style="font-size:11px;color:#4a6b85;margin-bottom:14px;line-height:1.7">Automatically paper trades candle patterns every 2 minutes on SPY, NVDA, AAPL, PLTR, AMD, IWM, QQQ, BABA — even when your laptop is off.</div>
+    <div id="paperStats"><div class="loading">Loading...</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">OPEN POSITIONS</div>
+    <div id="paperPositions"><div style="color:#4a6b85;font-size:12px">No open positions.</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">RECENT PAPER TRADES</div>
+    <div id="paperHistory"><div style="color:#4a6b85;font-size:12px">No trades yet.</div></div>
   </div>
 </div>
 </div>
@@ -215,26 +193,26 @@
 <div class="container">
   <div class="card">
     <div class="card-title">BALANCE</div>
-    <div style="font-size:28px;font-weight:700;color:#00ff88;margin-bottom:4px" id="journalBal">$10.00</div>
+    <div style="font-size:26px;font-weight:700;color:#00ff88;margin-bottom:4px" id="journalBal">$10.00</div>
     <div class="progress-bar"><div class="progress-fill" id="journalProgress" style="width:0.1%"></div></div>
-    <div id="milestoneTrack" style="margin-top:8px"></div>
-    <div style="margin-top:12px;display:flex;gap:8px">
-      <input type="number" id="manualBal" placeholder="Update balance" style="flex:1;margin:0">
-      <button onclick="updateBalance()" style="background:#00e5ff;border:none;color:#000;padding:10px 16px;border-radius:3px;cursor:pointer;font-weight:700">UPDATE</button>
+    <div id="milestoneTrack" style="margin-top:6px"></div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <input type="number" id="manualBal" placeholder="Update balance ($)" style="flex:1;margin:0">
+      <button onclick="updateBalance()" style="background:#00e5ff;border:none;color:#000;padding:10px 14px;border-radius:3px;cursor:pointer;font-weight:700">UPDATE</button>
     </div>
   </div>
 
   <div class="card">
     <div class="card-title">LOG A TRADE</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-      <input type="text" id="logSymbol" placeholder="Symbol (e.g. SOUN)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input type="text" id="logSymbol" placeholder="Symbol (e.g. AAPL)">
       <input type="number" id="logAmount" placeholder="Amount risked ($)">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-      <input type="number" id="logEntry" placeholder="Entry price ($)">
-      <input type="number" id="logExit" placeholder="Exit price ($)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input type="number" id="logEntry" placeholder="Entry price">
+      <input type="number" id="logExit" placeholder="Exit price">
     </div>
-    <input type="text" id="logNotes" placeholder="Notes (optional)">
+    <input type="text" id="logNotes" placeholder="Pattern or notes">
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="trade-btn win" onclick="logTrade('win')">✅ WIN</button>
       <button class="trade-btn loss" onclick="logTrade('loss')">❌ LOSS</button>
@@ -248,33 +226,10 @@
   </div>
 
   <div style="display:flex;gap:8px;margin-top:4px">
-    <button onclick="exportData()" style="flex:1;padding:10px;background:#060a0f;border:1px solid #1a2d45;color:#4a6b85;border-radius:3px;cursor:pointer;font-size:12px">📥 BACKUP</button>
-    <button onclick="document.getElementById('importFile').click()" style="flex:1;padding:10px;background:#060a0f;border:1px solid #1a2d45;color:#4a6b85;border-radius:3px;cursor:pointer;font-size:12px">📤 RESTORE</button>
+    <button onclick="exportData()" style="flex:1;padding:10px;background:#060a0f;border:1px solid #1a2d45;color:#4a6b85;border-radius:3px;cursor:pointer;font-size:11px">📥 BACKUP DATA</button>
+    <button onclick="document.getElementById('importFile').click()" style="flex:1;padding:10px;background:#060a0f;border:1px solid #1a2d45;color:#4a6b85;border-radius:3px;cursor:pointer;font-size:11px">📤 RESTORE DATA</button>
   </div>
   <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-</div>
-</div>
-
-<!-- PAPER TRADING PAGE -->
-<div class="page" id="page-paper">
-<div class="container">
-  <div class="card">
-    <div class="card-title">🤖 PAPER TRADING — SMC STRATEGY AUTO-LEARNING</div>
-    <div style="font-size:12px;color:#4a6b85;margin-bottom:16px;line-height:1.7">
-      The system automatically paper trades the SMC strategy every 2 minutes during market hours — even when your laptop is off. It learns from every trade and improves your real recommendations.
-    </div>
-    <div id="paperStats"><div class="loading">Loading paper trading data...</div></div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">OPEN POSITIONS</div>
-    <div id="paperPositions"><div class="loading">No open positions.</div></div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">RECENT PAPER TRADES</div>
-    <div id="paperHistory"><div class="loading">No trades yet.</div></div>
-  </div>
 </div>
 </div>
 
@@ -283,41 +238,47 @@
 <div class="container">
   <div class="card">
     <div class="card-title">EMAIL ALERTS</div>
-    <input type="email" id="alertEmail" placeholder="Your email for trade alerts">
-    <p style="font-size:11px;color:#4a6b85;margin-top:4px">Get an email when your stock hits the profit target or stop loss — so you don't have to watch the screen.</p>
+    <input type="email" id="alertEmail" placeholder="Email for profit/loss alerts">
   </div>
-
   <div class="card">
-    <div class="card-title">5 RULES — NEVER BREAK THESE</div>
-    <div class="rule"><span style="color:#00ff88">1.</span> Only risk $5-10 maximum per trade — never more</div>
-    <div class="rule"><span style="color:#00ff88">2.</span> Check the REAL Ask Price on Robinhood before buying — not the estimate</div>
-    <div class="rule"><span style="color:#00ff88">3.</span> Wait for the green candle inside the FVG — never enter early</div>
-    <div class="rule"><span style="color:#00ff88">4.</span> Sell when up 50% OR down 30% — no exceptions</div>
-    <div class="rule"><span style="color:#00ff88">5.</span> Close everything by 3:30 PM ET — never hold overnight</div>
+    <div class="card-title">5 RULES — NEVER BREAK</div>
+    <div style="font-size:12px;line-height:2.2;color:#8ab4cc">
+      <div>✅ Only risk $5-10 per trade max</div>
+      <div>✅ Check real Ask Price on Robinhood before buying</div>
+      <div>✅ Enter ONLY on confirmed pattern — never early</div>
+      <div>✅ Sell at 50% profit OR 30% loss — no exceptions</div>
+      <div>✅ Close everything by 3:30 PM ET — no overnight holds</div>
+    </div>
   </div>
-
   <div class="card">
     <div class="card-title">RESET CHALLENGE</div>
-    <input type="number" id="resetBal" placeholder="Starting balance ($)" value="10">
-    <button onclick="resetChallenge()" style="width:100%;padding:12px;background:rgba(255,59,92,0.1);border:1px solid #ff3b5c;color:#ff3b5c;border-radius:3px;cursor:pointer;font-weight:700">🔄 RESET CHALLENGE</button>
+    <input type="number" id="resetBal" placeholder="Starting balance" value="10">
+    <button onclick="resetChallenge()" style="width:100%;padding:12px;background:rgba(255,59,92,0.1);border:1px solid #ff3b5c;color:#ff3b5c;border-radius:3px;cursor:pointer;font-weight:700">🔄 RESET</button>
   </div>
 </div>
 </div>
 
 <script>
 let currentData = null;
-let alertEmail = localStorage.getItem('alertEmail') || '';
 
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  event.target.classList.add('active');
-  if (id === 'journal') loadJournal();
-  if (id === 'learn') loadLearning();
+  if(btn) btn.classList.add('active');
+  if(id==='journal') loadJournal();
+  if(id==='learn') loadLearning();
+  if(id==='paper') loadPaper();
 }
 
-function safeStr(v) { return String(v || ''); }
+function safeStr(v){ return String(v||''); }
+
+function updateHeader(balance) {
+  if(!balance && balance !== 0) return;
+  document.getElementById('balDisplay').textContent = '$'+parseFloat(balance).toFixed(2);
+  const pct = parseFloat((balance/10000*100).toFixed(2));
+  document.getElementById('goalPct').textContent = pct+'% to $10,000';
+}
 
 async function runAnalysis() {
   const btn = document.getElementById('analyzeBtn');
@@ -326,7 +287,7 @@ async function runAnalysis() {
   const resultBox = document.getElementById('resultBox');
 
   btn.disabled = true;
-  btn.textContent = '🔍 Scanning charts...';
+  btn.textContent = '🕯 Reading candles...';
   errorBox.style.display = 'none';
   loadingBox.style.display = 'block';
   resultBox.style.display = 'none';
@@ -334,133 +295,91 @@ async function runAnalysis() {
   try {
     const r = await fetch('/api/analyze');
     const j = await r.json();
-    if (!j.success) throw new Error(j.error);
+    if(!j.success) throw new Error(j.error);
     currentData = j.data;
     renderAnalysis(j.data);
     updateHeader(j.data._balance);
   } catch(e) {
-    errorBox.innerHTML = `<div class="error-box">❌ ${e.message}<br><small>Make sure Railway server is running and ANTHROPIC_API_KEY is set.</small></div>`;
+    errorBox.innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
     errorBox.style.display = 'block';
   } finally {
     btn.disabled = false;
-    btn.textContent = '▶ FIND MY SMC SETUP TODAY';
+    btn.textContent = '▶ FIND MY BEST CANDLE SETUP';
     loadingBox.style.display = 'none';
   }
 }
 
 function renderAnalysis(d) {
   const box = document.getElementById('resultBox');
-  const step = d.step || 0;
+  const signal = safeStr(d.signal);
+  const isEnter = signal.includes('ENTER NOW');
+  const isReady = signal.includes('READY');
   const canTrade = d.canTrade;
-  const isEnterNow = safeStr(d.entrySignal).includes('ENTER NOW') || d.topDown?.readyToTrade;
-  const isReady = (d.topDown?.overallStep >= 3 || step >= 4) && !isEnterNow;
 
-  // Build top-down 4-step indicators (TradesBySci method)
-  const td = d.topDown || {};
-  const step4 = td.overallStep || step || 0;
-  
-  const steps4 = [
-    { 
-      title:'Step 1 — 4H/1H Bias', 
-      timeframe:'1-hour chart',
-      done: step4 >= 1,
-      active: step4 === 0,
-      desc: step4 >= 1 
-        ? `${td.biasDirection||"NEUTRAL"} bias — ${td.biasReason||d.biasReason||"Higher timeframe analyzed"}` 
-        : 'Analyzing higher timeframe for bullish or bearish direction'
-    },
-    { 
-      title:'Step 2 — 1H Indication', 
-      timeframe:'1-hour chart',
-      done: step4 >= 2,
-      active: step4 === 1,
-      desc: step4 >= 2 
-        ? `Indication confirmed at $${td.indication1H?.level||d.bosLevel||"key level"} — ${td.biasDirection} break of swing ${td.biasDirection==="BULLISH"?"high":"low"}` 
-        : `Waiting for price to break the key swing ${td.biasDirection==="BEARISH"?"low":"high"} on 1-hour chart`
-    },
-    { 
-      title:'Step 3 — 15min Pullback', 
-      timeframe:'15-minute chart',
-      done: step4 >= 3,
-      active: step4 === 2,
-      desc: step4 >= 3 
-        ? `Pullback confirmed — price returned to entry zone ${td.confirmation15m?.fvgZone||d.fvgZone||""}` 
-        : `Wait for price to pull back toward $${td.indication1H?.level?.toFixed(2)||"the indication level"} — don't chase`
-    },
-    { 
-      title:'Step 4 — 5min ICC Candle', 
-      timeframe:'5-minute chart',
-      done: step4 >= 4,
-      active: step4 === 3,
-      desc: step4 >= 4 
-        ? `🟢 ${td.biasDirection==="BULLISH"?"Green":"Red"} confirmation candle formed — ALL 4 STEPS COMPLETE` 
-        : `Watch 5-minute chart for ${td.biasDirection==="BULLISH"?"green":"red"} candle inside pullback zone — that is your ENTER signal`
-    }
-  ];
-
-  const stepsHTML = steps4.map((s, i) => {
-    const cls = s.done ? 'done' : s.active ? 'active' : 'waiting';
-    return `<div class="step ${cls}">
-      <div class="step-num">${s.done?'✓':i+1}</div>
-      <div class="step-content">
-        <div class="step-title">${s.title} <span style="font-size:9px;opacity:0.6">(${s.timeframe})</span></div>
-        <div class="step-desc">${s.desc}</div>
-      </div>
-    </div>`;
-  }).join('');
-
-  // Entry signal box
-  let entryHTML = '';
+  // Signal box
+  let signalHTML = '';
   if (!canTrade) {
-    entryHTML = `<div class="entry-blocked">
-      <div class="entry-blocked-title">⏰ ${d.timeStatus || 'MARKET CLOSED'}</div>
-      <div style="font-size:12px;color:#4a6b85">${d.marketStatus || ''}</div>
+    signalHTML = `<div class="signal-blocked">
+      <div class="signal-title" style="color:#ff3b5c">⏰ ${d.timeWindow||'MARKET CLOSED'}</div>
+      <div class="signal-desc">${d.timeMsg||''}</div>
     </div>`;
-  } else if (isEnterNow) {
-    entryHTML = `<div class="entry-now">
-      <div class="entry-now-title">🟢 ENTER NOW</div>
-      <div style="font-size:13px;color:#c8dff0;margin-bottom:8px">${d.smcExplanation || ''}</div>
-      <div style="font-size:12px;color:#4a6b85">${d.entryTrigger || ''}</div>
+  } else if (isEnter) {
+    signalHTML = `<div class="signal-enter">
+      <div class="signal-title" style="color:#00ff88">🟢 ENTER NOW</div>
+      <div class="signal-desc">${d.entryTrigger||d.plain||''}</div>
     </div>`;
   } else if (isReady) {
-    entryHTML = `<div class="entry-wait">
-      <div class="entry-wait-title">👁 WATCH — ALMOST READY</div>
-      <div style="font-size:13px;color:#c8dff0;margin-bottom:8px">${d.smcExplanation || ''}</div>
-      <div style="font-size:12px;color:#4a6b85">${d.entryTrigger || ''}</div>
+    signalHTML = `<div class="signal-ready">
+      <div class="signal-title" style="color:#ffd600">👁 WATCH — ALMOST READY</div>
+      <div class="signal-desc">${d.entryTrigger||d.plain||''}</div>
     </div>`;
   } else {
-    entryHTML = `<div class="entry-wait">
-      <div class="entry-wait-title">⏳ WAIT — STEP ${step}/5</div>
-      <div style="font-size:13px;color:#c8dff0;margin-bottom:8px">${d.smcExplanation || ''}</div>
-      <div style="font-size:12px;color:#4a6b85">${d.entryTrigger || ''}</div>
+    signalHTML = `<div class="signal-wait">
+      <div class="signal-title" style="color:#00e5ff">⏳ WAIT — NO SETUP YET</div>
+      <div class="signal-desc">${d.plain||'No confirmed candle pattern found on these stocks right now. Wait for a clear setup.'}</div>
     </div>`;
   }
 
-  // Option box
-  const ask = d.askPrice || 0;
-  const totalCost = d.totalCost || 0;
+  // Kill zone badge
+  const killHTML = d.killZone ? `<div style="text-align:center;margin-bottom:10px"><span class="killzone-badge">🎯 KILL ZONE ACTIVE — Best time for candle patterns</span></div>` : '';
+
+  // Pattern card
+  const patternColor = d.direction==='CALL'?'#00ff88':d.direction==='PUT'?'#ff3b5c':'#ffd600';
+  const patternHTML = d.pattern && d.pattern !== 'NONE' ? `
+    <div class="card">
+      <div class="card-title">PATTERN DETECTED</div>
+      <div class="pattern-card" style="border-color:${patternColor}20">
+        <div class="pattern-name" style="color:${patternColor}">${d.pattern}</div>
+        <div class="pattern-tf">${d.patternTimeframe||'5-minute'} chart · ${d.direction} signal · Score: ${d.score||0}/100</div>
+        <div class="pattern-plain">${d.plain||''}</div>
+      </div>
+      <div style="font-size:11px;color:#4a6b85;margin-top:8px">
+        ${d.direction==='CALL'?'📈 BUY CALL OPTION — betting price goes UP':'📉 BUY PUT OPTION — betting price goes DOWN'}
+      </div>
+    </div>` : '';
+
+  // Option card
+  const ask = d.askPrice||0;
   const optionHTML = d.symbol && d.symbol !== 'NONE' && ask > 0 ? `
     <div class="card">
       <div class="card-title">WHAT TO BUY ON ROBINHOOD</div>
-      <div class="option-card">
-        <div class="option-row"><span class="option-label">Stock</span><span class="option-value">${d.symbol}</span></div>
-        <div class="option-row"><span class="option-label">Option Type</span><span class="option-value green">CALL (betting it goes UP)</span></div>
-        <div class="option-row"><span class="option-label">Strike Price</span><span class="option-value">$${d.strike || 0}</span></div>
-        <div class="option-row"><span class="option-label">Expiration</span><span class="option-value">${d.expiration || '5-10 days out'}</span></div>
-        <div class="option-row"><span class="option-label">Ask Price (per share)</span><span class="option-value yellow">$${ask.toFixed(2)}</span></div>
-        <div class="option-row"><span class="option-label">Total Cost (1 contract)</span><span class="option-value yellow">$${totalCost.toFixed(2)} = Ask × 100</span></div>
-        <div class="option-row"><span class="option-label">Your Limit Price</span><span class="option-value">$${(ask + 0.01).toFixed(2)} (Ask + $0.01)</span></div>
+      <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:14px">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #0f1e2e;font-size:13px"><span style="color:#4a6b85">Stock</span><span style="font-weight:700">${d.symbol}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #0f1e2e;font-size:13px"><span style="color:#4a6b85">Option Type</span><span style="color:${patternColor};font-weight:700">${d.direction==='CALL'?'CALL (price goes UP)':'PUT (price goes DOWN)'}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #0f1e2e;font-size:13px"><span style="color:#4a6b85">Strike Price</span><span>$${d.strike||0}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #0f1e2e;font-size:13px"><span style="color:#4a6b85">Expiration</span><span>${d.expiration||'5-10 days out'}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #0f1e2e;font-size:13px"><span style="color:#4a6b85">Ask Price (per share)</span><span style="color:#ffd600;font-weight:700">$${ask.toFixed(2)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:#4a6b85">Total Cost (1 contract)</span><span style="color:#ffd600;font-weight:700">$${(d.totalCost||0).toFixed(2)} = Ask × 100</span></div>
       </div>
-      <div style="margin-top:12px;background:#060a0f;border-left:3px solid #00e5ff;padding:10px 12px;font-size:12px;color:#4a6b85;line-height:1.8">
+      <div style="margin-top:10px;background:#060a0f;border-left:3px solid #00e5ff;padding:10px 12px;font-size:11px;color:#4a6b85;line-height:1.9">
         <strong style="color:#00e5ff">HOW TO BUY ON ROBINHOOD:</strong><br>
         1. Search <strong style="color:#fff">${d.symbol}</strong><br>
         2. Tap <strong style="color:#00ff88">Trade</strong> → <strong style="color:#00ff88">Trade Options</strong><br>
-        3. Select <strong style="color:#00ff88">Buy</strong> and <strong style="color:#00ff88">Call</strong> — both should be orange<br>
+        3. Tap <strong style="color:#00ff88">Buy</strong> and <strong style="color:#00ff88">${d.direction==='CALL'?'Call':'Put'}</strong> — both orange<br>
         4. Find <strong style="color:#fff">$${d.strike} strike</strong> expiring <strong style="color:#fff">${d.expiration}</strong><br>
-        5. ⚠️ Check the <strong style="color:#ffd600">Ask Price</strong> — must be under your budget<br>
-        6. Set limit to <strong style="color:#fff">$${(ask + 0.01).toFixed(2)}</strong> (Ask + $0.01 fills faster)<br>
-        7. Tap Review → Submit<br>
-        8. If queued 3+ min — cancel and try again
+        5. ⚠️ Check real Ask Price — must be under your budget<br>
+        6. Set limit to <strong style="color:#fff">$${(ask+0.01).toFixed(2)}</strong> (Ask + $0.01)<br>
+        7. Tap Review → Submit
       </div>
     </div>` : '';
 
@@ -470,19 +389,19 @@ function renderAnalysis(d) {
       <div class="card-title">PRICE LEVELS</div>
       <div class="levels">
         <div class="level">
-          <div class="level-label">ENTRY</div>
-          <div class="level-price" style="color:#00e5ff">$${d._currentPrice || 0}</div>
-          <div class="level-note">Current price</div>
+          <div class="level-label">CURRENT</div>
+          <div class="level-price" style="color:#00e5ff">$${d.price||0}</div>
+          <div style="font-size:9px;color:#4a6b85;margin-top:2px">${d.change>=0?'+':''}${d.change||0}% today</div>
         </div>
         <div class="level">
           <div class="level-label">STOP LOSS</div>
           <div class="level-price" style="color:#ff3b5c">$${d.stopLoss}</div>
-          <div class="level-note">Sell if drops here</div>
+          <div style="font-size:9px;color:#4a6b85;margin-top:2px">Sell if drops here</div>
         </div>
         <div class="level">
           <div class="level-label">TARGET</div>
           <div class="level-price" style="color:#00ff88">$${d.target}</div>
-          <div class="level-note">Sell if hits here</div>
+          <div style="font-size:9px;color:#4a6b85;margin-top:2px">Sell if hits here</div>
         </div>
       </div>
     </div>` : '';
@@ -491,32 +410,35 @@ function renderAnalysis(d) {
   const sellHTML = `
     <div class="card">
       <div class="card-title">WHEN TO SELL</div>
-      <div class="rule"><span style="color:#00ff88">✅</span> Option UP 50% — SELL IMMEDIATELY. Lock in profit.</div>
-      <div class="rule"><span style="color:#ff3b5c">❌</span> Option DOWN 30% — SELL IMMEDIATELY. Cut the loss.</div>
-      <div class="rule"><span style="color:#ffd600">⏰</span> 3:30 PM ET — CLOSE EVERYTHING. No holding overnight.</div>
-      <div class="rule"><span style="color:#ffd600">⏳</span> Order queued 3+ min — Cancel and resubmit with new Ask price.</div>
+      <div style="font-size:12px;line-height:2.2;color:#8ab4cc">
+        <div>✅ Option UP <strong style="color:#00ff88">50%</strong> — SELL NOW. Lock in profit.</div>
+        <div>❌ Option DOWN <strong style="color:#ff3b5c">30%</strong> — SELL NOW. Cut loss.</div>
+        <div>⏰ <strong style="color:#ffd600">3:30 PM ET</strong> — Close everything no matter what.</div>
+        <div>⏳ Queued 3+ min — Cancel and resubmit with new Ask price.</div>
+      </div>
     </div>`;
 
-  // Other setups
-  const othersHTML = d._allSetups && d._allSetups.length > 1 ? `
+  // All stocks
+  const allHTML = d.allStocks && d.allStocks.length > 0 ? `
     <div class="card">
-      <div class="card-title">ALL STOCKS SCANNED TODAY</div>
-      ${d._allSetups.map(s => `
-        <div class="ranking-item">
-          <div class="ranking-sym">${s.symbol}</div>
+      <div class="card-title">ALL 8 STOCKS SCANNED</div>
+      ${d.allStocks.map(s => {
+        const col = s.direction==='CALL'?'#00ff88':s.direction==='PUT'?'#ff3b5c':'#4a6b85';
+        return `<div class="rank-item">
+          <div class="rank-sym">${s.symbol}</div>
           <div style="flex:1">
-            <div class="ranking-bar"><div class="ranking-fill" style="width:${s.score}%"></div></div>
-            <div class="ranking-plain">${s.plain}</div>
+            <div class="rank-bar"><div class="rank-fill" style="width:${s.score}%;background:${s.score>=70?'#00ff88':s.score>=50?'#ffd600':'#1a2d45'}"></div></div>
           </div>
-          <div class="ranking-step">Step ${s.step}/5</div>
-        </div>`).join('')}
+          <div class="rank-pat" style="color:${col}">${s.pattern!=='none'?s.pattern:'—'} ${s.signal==='ENTER NOW'?'🟢':s.signal==='READY'?'🟡':''}</div>
+        </div>`;
+      }).join('')}
     </div>` : '';
 
-  // Log trade section
+  // Quick log
   const logHTML = d.symbol && d.symbol !== 'NONE' ? `
     <div class="card">
       <div class="card-title">LOG THIS TRADE AFTER CLOSING</div>
-      <div style="font-size:12px;color:#4a6b85;margin-bottom:12px">After you close the trade on Robinhood — come back here and log the result. The system learns from every trade.</div>
+      <div style="font-size:11px;color:#4a6b85;margin-bottom:10px">After closing on Robinhood — log it here. The system learns from every trade.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <input type="number" id="quickAmount" placeholder="Amount risked ($)">
         <input type="number" id="quickExit" placeholder="Exit price ($)">
@@ -528,352 +450,175 @@ function renderAnalysis(d) {
       </div>
     </div>` : '';
 
-  box.innerHTML = `
-    <!-- Status -->
-    <div class="status-bar">
-      <div class="status-dot ${!canTrade?'red':step>=5?'green':'yellow'}"></div>
-      <div style="flex:1">
-        <div class="status-text">${d.marketStatus || 'Market analysis complete'}</div>
-        ${d.killZone?`<div style="font-size:11px;color:#ffd600;margin-top:2px">🎯 KILL ZONE ACTIVE — Best time for SMC entries</div>`:''}
-      </div>
-    </div>
-    
-    <!-- Daily Bias from top-down -->
-    ${(d.topDown?.biasDirection||d.dailyBias)?`
-    <div style="background:${(d.topDown?.biasDirection||d.dailyBias)==='BULLISH'?'rgba(0,255,136,0.08)':(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'rgba(255,59,92,0.08)':'rgba(255,214,0,0.06)'};border:1px solid ${(d.topDown?.biasDirection||d.dailyBias)==='BULLISH'?'#00ff88':(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'#ff3b5c':'#ffd600'};border-radius:3px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
-      <div style="font-size:18px">${(d.topDown?.biasDirection||d.dailyBias)==='BULLISH'?'📈':(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'📉':'➡️'}</div>
-      <div>
-        <div style="font-size:12px;font-weight:700;color:${(d.topDown?.biasDirection||d.dailyBias)==='BULLISH'?'#00ff88':(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'#ff3b5c':'#ffd600'}">TODAY'S BIAS: ${d.topDown?.biasDirection||d.dailyBias} — Only take ${(d.topDown?.biasDirection||d.dailyBias)==='BEARISH'?'PUT':'CALL'} trades today</div>
-        <div style="font-size:11px;color:#4a6b85">${d.topDown?.biasReason||d.biasReason||''}</div>
-      </div>
-    </div>`:''}
-
-    ${entryHTML}
-
-    <!-- TradingView Link -->
-    ${d.symbol && d.symbol !== 'NONE' ? `
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <a href="https://www.tradingview.com/chart/?symbol=${d.symbol}&interval=5" target="_blank" 
-         style="flex:1;background:rgba(0,229,255,0.1);border:1px solid #00e5ff;color:#00e5ff;padding:12px;border-radius:3px;text-align:center;text-decoration:none;font-size:13px;font-weight:700">
-        📊 CONFIRM ON TRADINGVIEW (5-min)
-      </a>
-      <a href="https://www.tradingview.com/chart/?symbol=${d.symbol}&interval=15" target="_blank"
-         style="flex:1;background:rgba(0,229,255,0.05);border:1px solid #1a2d45;color:#4a6b85;padding:12px;border-radius:3px;text-align:center;text-decoration:none;font-size:13px">
-        📊 15-min chart
-      </a>
-    </div>` : ''}
-
-    <!-- Top-Down Steps -->
+  // Learned insight
+  const insightHTML = d.learnedInsight && !d.learnedInsight.includes('Trade more') ? `
     <div class="card">
-      <div class="card-title">TOP-DOWN ANALYSIS — ${d.symbol || 'SCANNING'} (TradesBySci Method)</div>
-      <div style="font-size:10px;color:#4a6b85;margin-bottom:10px">4H Bias → 1H Indication → 15m Pullback → 5m Entry Candle</div>
-      <div class="steps">${stepsHTML}</div>
-    </div>
+      <div class="card-title">🧠 SYSTEM LEARNED</div>
+      <div class="insight">${d.learnedInsight}</div>
+    </div>` : '';
 
-    ${optionHTML}
-    ${levelsHTML}
-    ${sellHTML}
-    ${othersHTML}
-    ${logHTML}
-  `;
-
+  box.innerHTML = killHTML + signalHTML + patternHTML + optionHTML + levelsHTML + sellHTML + allHTML + insightHTML + logHTML;
   box.style.display = 'block';
 }
 
 async function quickLog(result) {
-  if (!currentData) return;
-  const amount = parseFloat(document.getElementById('quickAmount').value) || 0;
-  const exit = parseFloat(document.getElementById('quickExit').value) || 0;
-  if (amount <= 0 && result !== 'skip') { alert('Enter the amount you risked'); return; }
+  if(!currentData) return;
+  const amount = parseFloat(document.getElementById('quickAmount').value)||0;
+  const exit = parseFloat(document.getElementById('quickExit').value)||0;
+  if(amount<=0&&result!=='skip'){alert('Enter amount risked');return;}
   try {
-    const r = await fetch('/api/trade/log', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        symbol: currentData.symbol,
-        optionType: 'CALL',
-        entryPrice: currentData._currentPrice || 0,
-        exitPrice: exit,
-        amount,
-        result,
-        notes: `SMC step ${currentData.step}/5 — FVG ${currentData.fvgZone}`,
-        gapPct: currentData.fvg?.gapPct || 0,
-        spyChange: 0,
-        exhaustion: currentData.exhaustion || 'UNKNOWN'
-      })
-    });
+    const r = await fetch('/api/trade/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      symbol:currentData.symbol, optionType:currentData.direction||'CALL',
+      entryPrice:currentData.price||0, exitPrice:exit, amount, result,
+      notes:`${currentData.pattern||''} on ${currentData.patternTimeframe||'5-min'}`,
+      pattern:currentData.pattern, timeframe:currentData.patternTimeframe
+    })});
     const j = await r.json();
-    if (j.success) {
+    if(j.success){
       updateHeader(j.newBalance);
-      if (j.milestone) alert(`🎉 MILESTONE HIT — $${j.milestone}! You reached a new level!`);
-      if (j.insights && j.insights.length > 0) {
-        alert('🧠 System learned: ' + j.insights[0]);
-      }
-      alert(`Trade logged! New balance: $${j.newBalance}`);
+      if(j.milestone) alert('🎉 MILESTONE — $'+j.milestone+'!');
+      if(j.insights&&j.insights.length>0) alert('🧠 Learned: '+j.insights[0]);
+      alert('Logged! Balance: $'+j.newBalance);
     }
-  } catch(e) { alert('Error logging trade: ' + e.message); }
-}
-
-function updateHeader(balance) {
-  if (!balance) return;
-  document.getElementById('balDisplay').textContent = '$' + parseFloat(balance).toFixed(2);
-  const pct = parseFloat((balance / 10000 * 100).toFixed(2));
-  document.getElementById('goalPct').textContent = pct + '% to $10,000';
+  }catch(e){alert('Error: '+e.message);}
 }
 
 async function loadJournal() {
   try {
     const r = await fetch('/api/challenge');
     const j = await r.json();
-    if (!j.success) return;
+    if(!j.success) return;
     const data = j.data;
     updateHeader(data.balance);
-    document.getElementById('journalBal').textContent = '$' + parseFloat(data.balance).toFixed(2);
-    const pct = parseFloat((data.balance / 10000 * 100).toFixed(2));
-    document.getElementById('journalProgress').style.width = Math.min(100, pct) + '%';
-
-    // Milestones
-    const milestones = [25,50,100,250,500,1000,2500,5000,10000];
-    document.getElementById('milestoneTrack').innerHTML = milestones.map(m => {
-      const done = data.balance >= m;
-      const next = !done && milestones.filter(x => data.balance < x)[0] === m;
+    document.getElementById('journalBal').textContent = '$'+parseFloat(data.balance).toFixed(2);
+    const pct = Math.min(100,data.balance/10000*100);
+    document.getElementById('journalProgress').style.width = pct+'%';
+    const ms=[25,50,100,250,500,1000,2500,5000,10000];
+    document.getElementById('milestoneTrack').innerHTML = ms.map(m=>{
+      const done=data.balance>=m,next=!done&&ms.filter(x=>data.balance<x)[0]===m;
       return `<span class="milestone ${done?'done':next?'next':'future'}">$${m>=1000?m/1000+'K':m}</span>`;
     }).join('');
-
-    // Trade history
-    const trades = data.trades || [];
-    if (trades.length === 0) {
-      document.getElementById('tradeHistory').innerHTML = '<div class="loading">No trades logged yet.</div>';
-      return;
-    }
-    document.getElementById('tradeHistory').innerHTML = trades.slice(0,20).map(t => {
-      const pnl = t.pnl || 0;
-      const cls = t.result === 'win' ? 'trade-win' : t.result === 'loss' ? 'trade-loss' : '';
-      const date = new Date(t.date).toLocaleDateString();
+    const trades=data.trades||[];
+    if(!trades.length){document.getElementById('tradeHistory').innerHTML='<div class="loading">No trades yet.</div>';return;}
+    document.getElementById('tradeHistory').innerHTML=trades.slice(0,20).map(t=>{
+      const pnl=t.pnl||0;
       return `<div class="trade-entry">
         <div style="display:flex;justify-content:space-between">
-          <span style="font-weight:700">${t.symbol} ${t.optionType||'CALL'}</span>
-          <span class="${cls}">${t.result==='win'?'+':''}$${pnl.toFixed(2)}</span>
+          <span style="font-weight:700">${t.symbol} ${t.optionType||''}</span>
+          <span class="${t.result==='win'?'tw':'tl'}">${t.result==='win'?'+':''}$${pnl.toFixed(2)}</span>
         </div>
-        <div style="color:#4a6b85;font-size:11px">${date} · ${t.result} · Risked $${t.amountRisked||0}</div>
-        ${t.notes?`<div style="color:#4a6b85;font-size:11px;margin-top:2px">${t.notes}</div>`:''}
+        <div style="color:#4a6b85;font-size:10px">${new Date(t.date).toLocaleDateString()} · ${t.result} · $${t.amountRisked||0} risked ${t.pattern?'· '+t.pattern:''}</div>
       </div>`;
     }).join('');
-  } catch(e) { console.error(e); }
+  }catch(e){}
 }
 
 async function loadLearning() {
   try {
     const r = await fetch('/api/learning');
     const j = await r.json();
-    if (!j.success) return;
+    if(!j.success) return;
     const learn = j.data;
-
-    if (learn.totalTrades === 0) {
-      document.getElementById('learnContent').innerHTML = '<div class="loading">No trades yet. Every trade you log teaches the system your personal SMC patterns.</div>';
+    if(!learn.totalTrades){
+      document.getElementById('learnContent').innerHTML='<div class="loading">No trades yet. Every trade teaches the system your personal pattern library.</div>';
       return;
     }
-
-    const wr = learn.totalTrades > 0 ? Math.round(learn.wins/learn.totalTrades*100) : 0;
-    const stockRows = Object.entries(learn.bestStocks)
-      .filter(([,v]) => v.trades >= 1)
-      .map(([sym,v]) => {
-        const swr = Math.round(v.wins/v.trades*100);
-        return `<div class="ranking-item">
-          <div class="ranking-sym">${sym}</div>
-          <div style="flex:1"><div class="ranking-bar"><div class="ranking-fill" style="width:${swr}%;background:${swr>=60?'#00ff88':swr>=40?'#ffd600':'#ff3b5c'}"></div></div></div>
-          <div style="font-size:12px;color:${swr>=60?'#00ff88':swr>=40?'#ffd600':'#ff3b5c'}">${swr}% (${v.trades} trades)</div>
-        </div>`;
-      }).join('') || '<div style="color:#4a6b85;font-size:12px">Need more trades</div>';
-
-    const timeRows = Object.entries(learn.bestTimes)
-      .filter(([,v]) => v.trades >= 1)
-      .sort((a,b) => (b[1].wins/b[1].trades) - (a[1].wins/a[1].trades))
-      .map(([hour,v]) => {
-        const twr = Math.round(v.wins/v.trades*100);
-        return `<div class="ranking-item">
-          <div class="ranking-sym">${hour}</div>
-          <div style="flex:1"><div class="ranking-bar"><div class="ranking-fill" style="width:${twr}%;background:${twr>=60?'#00ff88':twr>=40?'#ffd600':'#ff3b5c'}"></div></div></div>
-          <div style="font-size:12px;color:${twr>=60?'#00ff88':twr>=40?'#ffd600':'#ff3b5c'}">${twr}% (${v.trades})</div>
-        </div>`;
-      }).join('') || '<div style="color:#4a6b85;font-size:12px">Need more trades</div>';
-
-    const insightsHTML = learn.insights.length > 0
-      ? learn.insights.map(i => `<div class="insight">${i}</div>`).join('')
-      : '<div class="insight">Complete 5+ trades to unlock personal insights.</div>';
-
-    document.getElementById('learnContent').innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
-        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:12px;text-align:center">
-          <div style="font-size:22px;font-weight:700;color:${wr>=50?'#00ff88':'#ff3b5c'}">${wr}%</div>
-          <div style="font-size:10px;color:#4a6b85">WIN RATE</div>
-        </div>
-        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:12px;text-align:center">
-          <div style="font-size:22px;font-weight:700;color:#00e5ff">${learn.totalTrades}</div>
-          <div style="font-size:10px;color:#4a6b85">SMC TRADES</div>
-        </div>
-        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:12px;text-align:center">
-          <div style="font-size:22px;font-weight:700;color:#00ff88">${learn.wins}</div>
-          <div style="font-size:10px;color:#4a6b85">WINS</div>
-        </div>
+    const wr = learn.totalTrades>0?Math.round(learn.wins/learn.totalTrades*100):0;
+    const stockRows = Object.entries(learn.bestStocks||{}).filter(([,v])=>v.trades>=1).map(([sym,v])=>{
+      const swr=Math.round(v.wins/v.trades*100);
+      return `<div class="rank-item"><div class="rank-sym">${sym}</div><div style="flex:1"><div class="rank-bar"><div class="rank-fill" style="width:${swr}%;background:${swr>=60?'#00ff88':swr>=40?'#ffd600':'#ff3b5c'}"></div></div></div><div style="font-size:11px;color:${swr>=60?'#00ff88':swr>=40?'#ffd600':'#ff3b5c'}">${swr}% (${v.trades})</div></div>`;
+    }).join('');
+    const patternRows = Object.entries(learn.bestPatterns||{}).filter(([,v])=>v.trades>=1).sort((a,b)=>(b[1].wins/b[1].trades)-(a[1].wins/a[1].trades)).map(([pat,v])=>{
+      const pwr=Math.round(v.wins/v.trades*100);
+      return `<div class="rank-item"><div style="flex:1;font-size:11px">${pat}</div><div style="font-size:11px;color:${pwr>=60?'#00ff88':pwr>=40?'#ffd600':'#ff3b5c'}">${pwr}% (${v.trades})</div></div>`;
+    }).join('');
+    const insightsHTML = (learn.insights||[]).map(i=>`<div class="insight">${i}</div>`).join('') || '<div class="insight">Complete 3+ trades to unlock insights.</div>';
+    document.getElementById('learnContent').innerHTML=`
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${wr>=50?'#00ff88':'#ff3b5c'}">${wr}%</div><div style="font-size:9px;color:#4a6b85">WIN RATE</div></div>
+        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:#00e5ff">${learn.totalTrades}</div><div style="font-size:9px;color:#4a6b85">TRADES</div></div>
+        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:#00ff88">${learn.wins||0}</div><div style="font-size:9px;color:#4a6b85">WINS</div></div>
       </div>
-      <div style="font-size:10px;color:#4a6b85;letter-spacing:1px;margin-bottom:8px">INSIGHTS</div>
+      <div style="font-size:9px;color:#4a6b85;letter-spacing:1px;margin-bottom:7px">INSIGHTS</div>
       ${insightsHTML}
-      <div style="font-size:10px;color:#4a6b85;letter-spacing:1px;margin:12px 0 8px">WIN RATE BY STOCK</div>
-      ${stockRows}
-      <div style="font-size:10px;color:#4a6b85;letter-spacing:1px;margin:12px 0 8px">WIN RATE BY TIME OF DAY</div>
-      ${timeRows}
+      <div style="font-size:9px;color:#4a6b85;letter-spacing:1px;margin:12px 0 7px">WIN RATE BY STOCK</div>
+      ${stockRows||'<div style="color:#4a6b85;font-size:11px">Need more trades</div>'}
+      <div style="font-size:9px;color:#4a6b85;letter-spacing:1px;margin:12px 0 7px">WIN RATE BY PATTERN</div>
+      ${patternRows||'<div style="color:#4a6b85;font-size:11px">Need more trades</div>'}
     `;
-  } catch(e) { console.error(e); }
-}
-
-async function logTrade(result) {
-  const symbol = document.getElementById('logSymbol').value.trim().toUpperCase();
-  const amount = parseFloat(document.getElementById('logAmount').value) || 0;
-  const entry = parseFloat(document.getElementById('logEntry').value) || 0;
-  const exit = parseFloat(document.getElementById('logExit').value) || 0;
-  const notes = document.getElementById('logNotes').value;
-  if (!symbol) { alert('Enter a symbol'); return; }
-  if (amount <= 0 && result !== 'skip') { alert('Enter amount risked'); return; }
-  try {
-    const r = await fetch('/api/trade/log', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ symbol, optionType:'CALL', entryPrice:entry, exitPrice:exit, amount, result, notes })
-    });
-    const j = await r.json();
-    if (j.success) {
-      updateHeader(j.newBalance);
-      loadJournal();
-      document.getElementById('logSymbol').value = '';
-      document.getElementById('logAmount').value = '';
-      document.getElementById('logEntry').value = '';
-      document.getElementById('logExit').value = '';
-      document.getElementById('logNotes').value = '';
-      if (j.milestone) alert(`🎉 MILESTONE — $${j.milestone}!`);
-    }
-  } catch(e) { alert('Error: ' + e.message); }
-}
-
-async function updateBalance() {
-  const bal = parseFloat(document.getElementById('manualBal').value);
-  if (isNaN(bal)) { alert('Enter a valid balance'); return; }
-  const r = await fetch('/api/balance/update', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ balance:bal }) });
-  const j = await r.json();
-  if (j.success) { updateHeader(j.balance); loadJournal(); document.getElementById('manualBal').value = ''; }
-}
-
-function exportData() {
-  window.open('/api/export', '_blank');
-}
-
-async function importData(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const text = await file.text();
-  const data = JSON.parse(text);
-  const r = await fetch('/api/import', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
-  const j = await r.json();
-  if (j.success) { alert('Data restored!'); loadJournal(); }
-}
-
-async function resetChallenge() {
-  if (!confirm('Reset everything? This cannot be undone.')) return;
-  const bal = parseFloat(document.getElementById('resetBal').value) || 10;
-  const r = await fetch('/api/reset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ startingBalance:bal }) });
-  const j = await r.json();
-  if (j.success) { updateHeader(bal); alert('Reset complete!'); }
+  }catch(e){}
 }
 
 async function loadPaper() {
   try {
     const r = await fetch('/api/paper');
     const j = await r.json();
-    if (!j.success) return;
+    if(!j.success) return;
     const d = j.data;
-    const pnl = d.pnl || 0;
-    const wr = d.winRate || 0;
-
-    document.getElementById('paperStats').innerHTML = `
+    const pnl = d.pnl||0;
+    const wr = d.winRate||0;
+    document.getElementById('paperStats').innerHTML=`
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:12px;text-align:center">
-          <div style="font-size:20px;font-weight:700;color:${wr>=50?'#00ff88':'#ff3b5c'}">${wr}%</div>
-          <div style="font-size:10px;color:#4a6b85">WIN RATE</div>
-        </div>
-        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:12px;text-align:center">
-          <div style="font-size:20px;font-weight:700;color:#00e5ff">${d.totalTrades}</div>
-          <div style="font-size:10px;color:#4a6b85">PAPER TRADES</div>
-        </div>
-        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:12px;text-align:center">
-          <div style="font-size:20px;font-weight:700;color:${pnl>=0?'#00ff88':'#ff3b5c'}">${pnl>=0?'+':''}$${pnl.toFixed(2)}</div>
-          <div style="font-size:10px;color:#4a6b85">P&L ($1000 start)</div>
-        </div>
+        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:${wr>=50?'#00ff88':'#ff3b5c'}">${wr}%</div><div style="font-size:9px;color:#4a6b85">WIN RATE</div></div>
+        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#00e5ff">${d.totalTrades}</div><div style="font-size:9px;color:#4a6b85">TRADES</div></div>
+        <div style="background:#060a0f;border:1px solid #1a2d45;border-radius:3px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:${pnl>=0?'#00ff88':'#ff3b5c'}">${pnl>=0?'+':''}$${pnl.toFixed(2)}</div><div style="font-size:9px;color:#4a6b85">P&L</div></div>
       </div>
-      <div style="font-size:11px;color:#4a6b85;line-height:1.8">
-        Starting balance: $1,000 paper money<br>
-        Current balance: <strong style="color:#c8dff0">$${d.balance.toFixed(2)}</strong><br>
-        Wins: <strong style="color:#00ff88">${d.wins}</strong> · Losses: <strong style="color:#ff3b5c">${d.losses}</strong><br>
-        Scanning every 2 minutes during market hours (10 AM - 3:30 PM ET)<br>
-        Running 24/7 on Railway — even when your laptop is off ✅
-      </div>
+      <div style="font-size:11px;color:#4a6b85;line-height:1.8">Balance: <strong style="color:#c8dff0">$${d.balance.toFixed(2)}</strong> (started $${d.startingBalance||1000}) · Wins: <strong style="color:#00ff88">${d.wins}</strong> · Losses: <strong style="color:#ff3b5c">${d.losses}</strong><br>Scanning SPY NVDA AAPL PLTR AMD IWM QQQ BABA every 2 min ✅</div>
     `;
-
-    // Open positions
-    if (d.openPositions && d.openPositions.length > 0) {
-      document.getElementById('paperPositions').innerHTML = d.openPositions.map(p => `
-        <div class="ranking-item" style="flex-direction:column;align-items:flex-start;gap:4px">
-          <div style="display:flex;justify-content:space-between;width:100%">
-            <span style="font-weight:700;color:#00e5ff">${p.symbol}</span>
-            <span style="font-size:11px;color:#4a6b85">Entry: $${p.entryPrice}</span>
-          </div>
-          <div style="font-size:11px;color:#4a6b85">
-            Stop: <span style="color:#ff3b5c">$${p.stopLoss}</span> · 
-            Target: <span style="color:#00ff88">$${p.target}</span> · 
-            SMC Step ${p.smcStep}/5
-          </div>
-          ${p.fvgZone?`<div style="font-size:10px;color:#4a6b85">FVG Zone: $${p.fvgZone}</div>`:''}
-        </div>
-      `).join('');
-    } else {
-      document.getElementById('paperPositions').innerHTML = '<div style="color:#4a6b85;font-size:12px;padding:8px">No open positions — scanning for next SMC setup</div>';
-    }
-
-    // Recent trades
-    if (d.recentTrades && d.recentTrades.length > 0) {
-      document.getElementById('paperHistory').innerHTML = d.recentTrades.map(t => {
-        const pnl = t.pnl || 0;
-        return `<div class="trade-entry">
-          <div style="display:flex;justify-content:space-between">
-            <span style="font-weight:700">${t.symbol} · SMC Step ${t.smcStep}/5</span>
-            <span class="${t.result==='win'?'trade-win':'trade-loss'}">${t.result==='win'?'+':''}$${pnl.toFixed(2)}</span>
-          </div>
-          <div style="color:#4a6b85;font-size:11px">
-            ${new Date(t.entryTime).toLocaleDateString()} ${new Date(t.entryTime).toLocaleTimeString()} · 
-            ${t.result} · ${t.reason}
-          </div>
-          ${t.fvgZone?`<div style="color:#4a6b85;font-size:10px">FVG: $${t.fvgZone} · SPY: ${t.spyChange||0}%</div>`:''}
-        </div>`;
-      }).join('');
-    } else {
-      document.getElementById('paperHistory').innerHTML = '<div style="color:#4a6b85;font-size:12px;padding:8px">Paper trades will appear here as the system finds SMC setups during market hours.</div>';
-    }
-
-  } catch(e) { console.error('Paper load error:', e); }
+    document.getElementById('paperPositions').innerHTML = d.openPositions?.length>0
+      ? d.openPositions.map(p=>`<div class="trade-entry"><div style="display:flex;justify-content:space-between"><span style="font-weight:700;color:#00e5ff">${p.symbol}</span><span style="font-size:11px;color:#4a6b85">$${p.entryPrice}</span></div><div style="font-size:10px;color:#4a6b85">Stop: <span style="color:#ff3b5c">$${p.stopLoss}</span> · Target: <span style="color:#00ff88">$${p.target}</span> · ${p.pattern||'pattern'}</div></div>`).join('')
+      : '<div style="color:#4a6b85;font-size:12px;padding:8px">No open positions — scanning for next pattern</div>';
+    document.getElementById('paperHistory').innerHTML = d.recentTrades?.length>0
+      ? d.recentTrades.map(t=>`<div class="trade-entry"><div style="display:flex;justify-content:space-between"><span style="font-weight:700">${t.symbol} · ${t.pattern||'pattern'}</span><span class="${t.result==='win'?'tw':'tl'}">${t.result==='win'?'+':''}$${(t.pnl||0).toFixed(2)}</span></div><div style="font-size:10px;color:#4a6b85">${new Date(t.entryTime).toLocaleDateString()} · ${t.result} · ${t.reason||''} · ${t.timeframe||''}</div></div>`).join('')
+      : '<div style="color:#4a6b85;font-size:12px;padding:8px">Trades appear here as patterns are detected during market hours.</div>';
+  }catch(e){console.error(e);}
 }
 
-// Update showPage to load paper data
-const origShowPage = showPage;
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
-  event.target.classList.add('active');
-  if (id === 'journal') loadJournal();
-  if (id === 'learn') loadLearning();
-  if (id === 'paper') loadPaper();
+async function logTrade(result) {
+  const symbol=document.getElementById('logSymbol').value.trim().toUpperCase();
+  const amount=parseFloat(document.getElementById('logAmount').value)||0;
+  const entry=parseFloat(document.getElementById('logEntry').value)||0;
+  const exit=parseFloat(document.getElementById('logExit').value)||0;
+  const notes=document.getElementById('logNotes').value;
+  if(!symbol){alert('Enter symbol');return;}
+  if(amount<=0&&result!=='skip'){alert('Enter amount');return;}
+  try {
+    const r=await fetch('/api/trade/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol,optionType:'CALL',entryPrice:entry,exitPrice:exit,amount,result,notes})});
+    const j=await r.json();
+    if(j.success){updateHeader(j.newBalance);loadJournal();['logSymbol','logAmount','logEntry','logExit','logNotes'].forEach(id=>document.getElementById(id).value='');if(j.milestone)alert('🎉 $'+j.milestone+'!');}
+  }catch(e){alert('Error: '+e.message);}
 }
 
-// Load balance on startup
-fetch('/api/challenge').then(r=>r.json()).then(j=>{ if(j.success) updateHeader(j.data.balance); }).catch(()=>{});
+async function updateBalance(){
+  const bal=parseFloat(document.getElementById('manualBal').value);
+  if(isNaN(bal)){alert('Enter valid balance');return;}
+  const r=await fetch('/api/balance/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({balance:bal})});
+  const j=await r.json();
+  if(j.success){updateHeader(j.balance);loadJournal();document.getElementById('manualBal').value='';}
+}
+
+function exportData(){window.open('/api/export','_blank');}
+
+async function importData(e){
+  const file=e.target.files[0];if(!file)return;
+  const text=await file.text();
+  const data=JSON.parse(text);
+  const r=await fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const j=await r.json();
+  if(j.success){alert('Data restored!');loadJournal();}
+}
+
+async function resetChallenge(){
+  if(!confirm('Reset everything?')) return;
+  const bal=parseFloat(document.getElementById('resetBal').value)||10;
+  const r=await fetch('/api/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({startingBalance:bal})});
+  const j=await r.json();
+  if(j.success){updateHeader(bal);alert('Reset done!');}
+}
+
+// Init
+fetch('/api/challenge').then(r=>r.json()).then(j=>{if(j.success)updateHeader(j.data.balance);}).catch(()=>{});
+setInterval(()=>{if(document.getElementById('page-paper').classList.contains('active'))loadPaper();},30000);
 </script>
 </body>
 </html>
